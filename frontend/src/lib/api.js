@@ -43,6 +43,10 @@ export async function generateQuiz(document_id, question_count = 5) {
   const r = await http.post("/quiz/generate", { document_id, question_count });
   return r.data;
 }
+export async function getQuiz(quiz_id) {
+  const r = await http.get(`/quiz/${quiz_id}`);
+  return r.data;
+}
 export async function submitQuiz(quiz_id, answers) {
   const r = await http.post("/quiz/submit", { quiz_id, answers });
   return r.data;

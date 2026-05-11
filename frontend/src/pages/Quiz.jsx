@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { submitQuiz } from "@/lib/api";
+import { submitQuiz, getQuizResult } from "@/lib/api";
+import { pollUntilReady } from "@/lib/poll";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronRight } from "lucide-react";
@@ -41,11 +42,13 @@ export default function Quiz() {
   const submit = async () => {
     if (selected === undefined) { toast.error("Pilih jawaban dulu"); return; }
     setSubmitting(true);
+    toast.info("AI menilai dengan deep feedback… ini bisa 30–60 detik.");
     try {
-      const res = await submitQuiz(id, answers);
-      navigate(`/hasil/${res.result_id}`, { state: { result: res } });
+      const init = await submitQuiz(id, answers);
+      const result = await pollUntilReady(() => getQuizResult(init.result_id));
+      navigate(`/hasil/${result.result_id}`, { state: { result } });
     } catch (e) {
-      toast.error("Gagal submit kuis");
+      toast.error(e?.response?.data?.detail || e?.message || "Gagal submit kuis");
     } finally { setSubmitting(false); }
   };
 

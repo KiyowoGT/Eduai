@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any
 from datetime import datetime, timezone, timedelta
 
+import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
 
 ROOT_DIR = Path(__file__).parent
@@ -28,7 +29,8 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
-GEMINI_MODEL = "gemini-3.1-pro-preview"
+GEMINI_MODEL = "gemini-3.1-pro-preview"        # for PDF analysis (needs file attachment)
+GEMINI_FAST_MODEL = "gemini-3-flash-preview"   # for quiz gen + feedback (text only, faster)
 GEMINI_FALLBACK = "gemini-2.5-pro"
 
 app = FastAPI(title="EduScanner AI")
@@ -82,6 +84,10 @@ class Quiz(BaseModel):
     questions: List[QuizQuestion]
     created_at: datetime
 
+class QuizGenerateRequest(BaseModel):
+    document_id: str
+    question_count: int = 5
+
 class QuizSubmission(BaseModel):
     quiz_id: str
     answers: List[int]  # selected option indexes
@@ -126,8 +132,14 @@ async def get_current_user(request: Request) -> User:
 
 async def write_audit(user_id: str, action: str, details: dict = None, ip: str = ""):
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    count = await db.audit_logs.count_documents({"audit_date": today}) + 1
-    log_id = f"AUD-{today}-{count:04d}"
+    counter = await db.counters.find_one_and_update(
+        {"_id": f"audit_{today}"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    seq = counter["seq"] if counter else 1
+    log_id = f"AUD-{today}-{seq:04d}"
     doc = {
         "log_id": log_id,
         "user_id": user_id,
@@ -239,12 +251,13 @@ async def update_profile(payload: ProfileUpdate, request: Request, user: User = 
 
 
 # ============== AI helpers ==============
-def _llm_chat(session_id: str, system_message: str) -> LlmChat:
+def _llm_chat(session_id: str, system_message: str, fast: bool = False) -> LlmChat:
+    model = GEMINI_FAST_MODEL if fast else GEMINI_MODEL
     return LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,
         system_message=system_message,
-    ).with_model("gemini", GEMINI_MODEL)
+    ).with_model("gemini", model)
 
 
 def _parse_json_block(text: str) -> Any:
@@ -253,7 +266,15 @@ def _parse_json_block(text: str) -> Any:
     m = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
     if m:
         text = m.group(1).strip()
-    return json.loads(text)
+    # Best-effort: trim anything before first {/[ or after last }/]
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = min((i for i in [text.find("{"), text.find("[")] if i != -1), default=-1)
+        end = max(text.rfind("}"), text.rfind("]"))
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start:end+1])
+        raise
 
 
 def _audience(user: User) -> str:
@@ -308,7 +329,7 @@ async def generate_quiz_questions(document: dict, user: User, n: int = 5) -> Lis
         f"Sesuaikan tingkat kesulitan dengan jenjang. Untuk RPL/TKJ/Informatika sertakan soal "
         f"analisis kode/troubleshooting/perancangan database bila relevan."
     )
-    chat = _llm_chat(f"quiz-{uuid.uuid4().hex[:8]}", system)
+    chat = _llm_chat(f"quiz-{uuid.uuid4().hex[:8]}", system, fast=True)
     context = json.dumps({
         "title": document.get("title"),
         "summary": document.get("summary"),
@@ -352,7 +373,7 @@ async def generate_deep_feedback(quiz: dict, answers: List[int], user: User) -> 
         f"(misal untuk univ: 'Menurut Pressman (Software Engineering, 2014)...'; untuk SMA/SMK: 'Sesuai buku "
         f"paket Kurikulum Merdeka...', 'Modul Kemendikbud...'). Sesuaikan gaya bahasa dengan jenjang."
     )
-    chat = _llm_chat(f"fb-{uuid.uuid4().hex[:8]}", system)
+    chat = _llm_chat(f"fb-{uuid.uuid4().hex[:8]}", system, fast=True)
     prompt = (
         "Berikan feedback per soal. Kembalikan JSON saja tanpa markdown.\n\n"
         f"SOAL+JAWABAN: {json.dumps(items, ensure_ascii=False)}\n\n"
@@ -368,6 +389,28 @@ async def generate_deep_feedback(quiz: dict, answers: List[int], user: User) -> 
 
 
 # ============== Documents ==============
+async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str):
+    try:
+        analysis = await analyze_pdf(file_path, user)
+        update = {
+            "title": analysis.get("title") or "",
+            "summary": analysis.get("summary", ""),
+            "key_concepts": analysis.get("key_concepts", []),
+            "diagrams": analysis.get("diagrams", []),
+            "learning_objectives": analysis.get("learning_objectives", []),
+            "status": "ready",
+        }
+        await db.documents.update_one({"document_id": doc_id}, {"$set": update})
+        await write_audit(user.user_id, "DOCUMENT_ANALYZED", {"document_id": doc_id}, ip)
+    except Exception as e:
+        logger.exception("Background analyze gagal")
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {"$set": {"status": "failed", "error": str(e)[:300]}},
+        )
+        await write_audit(user.user_id, "DOCUMENT_ANALYSIS_FAILED", {"document_id": doc_id, "error": str(e)[:300]}, ip)
+
+
 @api_router.post("/documents/upload")
 async def upload_document(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
     if not file.filename.lower().endswith(".pdf"):
@@ -382,30 +425,22 @@ async def upload_document(request: Request, file: UploadFile = File(...), user: 
         "document_id": doc_id,
         "user_id": user.user_id,
         "filename": file.filename,
+        "title": file.filename,
         "file_path": str(saved_path),
+        "summary": "",
+        "key_concepts": [],
+        "diagrams": [],
+        "learning_objectives": [],
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.documents.insert_one(base.copy())
+    ip = request.client.host if request.client else ""
+    await write_audit(user.user_id, "DOCUMENT_UPLOAD", {"document_id": doc_id, "filename": file.filename}, ip)
 
-    try:
-        analysis = await analyze_pdf(str(saved_path), user)
-        update = {
-            "title": analysis.get("title") or file.filename,
-            "summary": analysis.get("summary", ""),
-            "key_concepts": analysis.get("key_concepts", []),
-            "diagrams": analysis.get("diagrams", []),
-            "learning_objectives": analysis.get("learning_objectives", []),
-            "status": "ready",
-        }
-        await db.documents.update_one({"document_id": doc_id}, {"$set": update})
-    except Exception as e:
-        logger.exception("Analisis dokumen gagal")
-        await db.documents.update_one({"document_id": doc_id}, {"$set": {"status": "failed", "error": str(e)}})
-        await write_audit(user.user_id, "DOCUMENT_ANALYSIS_FAILED", {"document_id": doc_id, "error": str(e)}, "")
-        raise HTTPException(500, f"Analisis AI gagal: {e}")
+    # Kick off background analysis — returns immediately
+    asyncio.create_task(_bg_analyze_document(doc_id, str(saved_path), user, ip))
 
-    await write_audit(user.user_id, "DOCUMENT_UPLOAD", {"document_id": doc_id, "filename": file.filename}, request.client.host if request.client else "")
     doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "file_path": 0})
     return doc
 
@@ -425,31 +460,79 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
 
 
 # ============== Quiz ==============
+def _public_quiz(quiz_doc: dict) -> dict:
+    out = {k: v for k, v in quiz_doc.items() if k != "_id"}
+    if isinstance(out.get("questions"), list):
+        out["questions"] = [{k: v for k, v in q.items() if k != "correct_index"} for q in out["questions"]]
+    return out
+
+
+async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str):
+    try:
+        questions = await generate_quiz_questions(doc, user, n=n)
+        await db.quizzes.update_one(
+            {"quiz_id": quiz_id},
+            {"$set": {"questions": questions, "status": "ready"}},
+        )
+        await write_audit(user.user_id, "QUIZ_GENERATED", {"quiz_id": quiz_id, "document_id": doc["document_id"]}, ip)
+    except Exception as e:
+        logger.exception("Background quiz gen gagal")
+        await db.quizzes.update_one(
+            {"quiz_id": quiz_id},
+            {"$set": {"status": "failed", "error": str(e)[:300]}},
+        )
+
+
 @api_router.post("/quiz/generate")
-async def quiz_generate(request: Request, payload: dict, user: User = Depends(get_current_user)):
-    doc_id = payload.get("document_id")
-    n = int(payload.get("question_count", 5))
-    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+async def quiz_generate(request: Request, payload: QuizGenerateRequest, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"document_id": payload.document_id, "user_id": user.user_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     if doc.get("status") != "ready":
         raise HTTPException(400, "Dokumen belum siap dianalisis")
 
-    questions = await generate_quiz_questions(doc, user, n=n)
     quiz_id = uuid.uuid4().hex
     quiz_doc = {
         "quiz_id": quiz_id,
         "user_id": user.user_id,
-        "document_id": doc_id,
-        "questions": questions,
+        "document_id": payload.document_id,
+        "questions": [],
+        "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.quizzes.insert_one(quiz_doc.copy())
-    await write_audit(user.user_id, "QUIZ_GENERATED", {"quiz_id": quiz_id, "document_id": doc_id}, request.client.host if request.client else "")
-    # don't reveal correct_index in response
-    public = {**quiz_doc, "questions": [{k: v for k, v in q.items() if k != "correct_index"} for q in questions]}
-    public.pop("_id", None)
-    return public
+    ip = request.client.host if request.client else ""
+    asyncio.create_task(_bg_generate_quiz(quiz_id, doc, user, payload.question_count, ip))
+    return _public_quiz(quiz_doc)
+
+
+@api_router.get("/quiz/{quiz_id}")
+async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(404, "Kuis tidak ditemukan")
+    return _public_quiz(quiz)
+
+
+async def _bg_grade_quiz(result_id: str, quiz: dict, answers: List[int], user: User, ip: str):
+    try:
+        feedback = await generate_deep_feedback(quiz, answers, user)
+        await db.quiz_results.update_one(
+            {"result_id": result_id},
+            {"$set": {
+                "score": int(feedback.get("score", 0)),
+                "summary": feedback.get("summary", ""),
+                "items": feedback.get("items", []),
+                "status": "ready",
+            }},
+        )
+        await write_audit(user.user_id, "QUIZ_SUBMITTED", {"quiz_id": quiz["quiz_id"], "score": int(feedback.get("score", 0))}, ip)
+    except Exception as e:
+        logger.exception("Background grading gagal")
+        await db.quiz_results.update_one(
+            {"result_id": result_id},
+            {"$set": {"status": "failed", "error": str(e)[:300]}},
+        )
 
 
 @api_router.post("/quiz/submit")
@@ -457,8 +540,9 @@ async def quiz_submit(request: Request, payload: QuizSubmission, user: User = De
     quiz = await db.quizzes.find_one({"quiz_id": payload.quiz_id, "user_id": user.user_id}, {"_id": 0})
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
+    if quiz.get("status") != "ready":
+        raise HTTPException(400, "Kuis belum siap dinilai")
 
-    feedback = await generate_deep_feedback(quiz, payload.answers, user)
     result_id = uuid.uuid4().hex
     doc = {
         "result_id": result_id,
@@ -466,13 +550,15 @@ async def quiz_submit(request: Request, payload: QuizSubmission, user: User = De
         "document_id": quiz["document_id"],
         "user_id": user.user_id,
         "answers": payload.answers,
-        "score": int(feedback.get("score", 0)),
-        "summary": feedback.get("summary", ""),
-        "items": feedback.get("items", []),
+        "score": 0,
+        "summary": "",
+        "items": [],
+        "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.quiz_results.insert_one(doc.copy())
-    await write_audit(user.user_id, "QUIZ_SUBMITTED", {"quiz_id": payload.quiz_id, "score": doc["score"]}, request.client.host if request.client else "")
+    ip = request.client.host if request.client else ""
+    asyncio.create_task(_bg_grade_quiz(result_id, quiz, payload.answers, user, ip))
     doc.pop("_id", None)
     return doc
 

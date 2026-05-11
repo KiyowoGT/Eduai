@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getDocument, generateQuiz } from "@/lib/api";
+import { getDocument, generateQuiz, getQuiz } from "@/lib/api";
+import { pollUntilReady } from "@/lib/poll";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -21,12 +22,13 @@ export default function DocumentDetail() {
 
   const startQuiz = async () => {
     setGenerating(true);
-    toast.info("Menyiapkan kuis HOTS…");
+    toast.info("Menyiapkan kuis HOTS… ini bisa 30–60 detik.");
     try {
-      const quiz = await generateQuiz(id, 5);
+      const init = await generateQuiz(id, 5);
+      const quiz = await pollUntilReady(() => getQuiz(init.quiz_id));
       navigate(`/kuis/${quiz.quiz_id}`, { state: { quiz } });
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Gagal generate kuis");
+      toast.error(e?.response?.data?.detail || e?.message || "Gagal generate kuis");
     } finally { setGenerating(false); }
   };
 

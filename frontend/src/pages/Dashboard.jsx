@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { listDocuments, getProgress, uploadDocument } from "@/lib/api";
+import { listDocuments, getProgress, uploadDocument, getDocument } from "@/lib/api";
+import { pollUntilReady } from "@/lib/poll";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Upload, FileText, Sparkles, Trophy, BookOpen, ArrowUpRight } from "lucide-react";
@@ -32,13 +33,15 @@ export default function Dashboard() {
       return;
     }
     setUploading(true);
-    toast.info("Menganalisis dengan AI… bisa makan waktu 30–60 detik");
+    toast.info("Mengunggah PDF…");
     try {
       const doc = await uploadDocument(file);
+      toast.info("Menganalisis dengan AI… ini bisa 30–90 detik.");
+      await pollUntilReady(() => getDocument(doc.document_id));
       toast.success("Analisis selesai!");
       navigate(`/dokumen/${doc.document_id}`);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Gagal mengunggah dokumen");
+      toast.error(e?.response?.data?.detail || e?.message || "Gagal mengunggah dokumen");
     } finally { setUploading(false); }
   };
 
