@@ -85,12 +85,28 @@ class Quiz(BaseModel):
     created_at: datetime
 
 class QuizGenerateRequest(BaseModel):
-    document_id: str
+    document_id: Optional[str] = None
+    document_ids: Optional[List[str]] = None
+    folder_id: Optional[str] = None
     question_count: int = 5
 
 class QuizSubmission(BaseModel):
     quiz_id: str
     answers: List[int]  # selected option indexes
+
+class FolderCreate(BaseModel):
+    name: str
+
+class FolderUpdate(BaseModel):
+    name: str
+
+class DocumentMove(BaseModel):
+    document_ids: List[str]
+    folder_id: Optional[str] = None  # null to remove from folder
+
+class RecapRequest(BaseModel):
+    document_ids: Optional[List[str]] = None
+    folder_id: Optional[str] = None
 
 class FeedbackItem(BaseModel):
     question: str
@@ -321,26 +337,32 @@ async def analyze_pdf(file_path: str, user: User) -> dict:
     return data
 
 
-async def generate_quiz_questions(document: dict, user: User, n: int = 5) -> List[dict]:
+async def generate_quiz_questions(documents: List[dict], user: User, n: int = 5) -> List[dict]:
     audience = _audience(user)
+    multi = len(documents) > 1
     system = (
         f"Kamu adalah EduScanner AI, generator soal kuis HOTS (High Order Thinking Skills) bahasa Indonesia "
         f"untuk {audience}. Soal harus menguji analisis, evaluasi, dan kreativitas — bukan hafalan. "
         f"Sesuaikan tingkat kesulitan dengan jenjang. Untuk RPL/TKJ/Informatika sertakan soal "
         f"analisis kode/troubleshooting/perancangan database bila relevan."
+        + (f" Soal harus mencakup keseluruhan {len(documents)} materi yang diberikan, distribusikan secara merata." if multi else "")
     )
     chat = _llm_chat(f"quiz-{uuid.uuid4().hex[:8]}", system, fast=True)
-    context = json.dumps({
-        "title": document.get("title"),
-        "summary": document.get("summary"),
-        "key_concepts": document.get("key_concepts", []),
-        "learning_objectives": document.get("learning_objectives", []),
-    }, ensure_ascii=False)[:8000]
+    sources = []
+    per_budget = max(1500, 8000 // max(len(documents), 1))
+    for d in documents:
+        sources.append({
+            "source": d.get("title") or d.get("filename") or "Dokumen",
+            "summary": (d.get("summary") or "")[:per_budget],
+            "key_concepts": d.get("key_concepts", [])[:8],
+            "learning_objectives": d.get("learning_objectives", [])[:6],
+        })
+    context = json.dumps(sources, ensure_ascii=False)
     prompt = (
-        f"Berdasarkan materi berikut, buat {n} soal pilihan ganda HOTS. "
+        f"Berdasarkan materi berikut ({len(documents)} sumber), buat {n} soal pilihan ganda HOTS. "
         f"Setiap soal punya 4 opsi (A-D), satu jawaban benar.\n\nMATERI:\n{context}\n\n"
-        "Kembalikan JSON array saja, tanpa markdown:\n"
-        '[{"question": "...", "options": ["...","...","...","..."], "correct_index": 0, "skill_type": "analisis_kode|troubleshooting|perancangan_db|konsep"}]'
+        "Kembalikan JSON array saja, tanpa markdown. Tiap soal sertakan source_title (nama dokumen sumber):\n"
+        '[{"question": "...", "options": ["...","...","...","..."], "correct_index": 0, "skill_type": "analisis_kode|troubleshooting|perancangan_db|konsep", "source_title": "judul dokumen"}]'
     )
     resp = await chat.send_message(UserMessage(text=prompt))
     data = _parse_json_block(resp)
@@ -352,8 +374,41 @@ async def generate_quiz_questions(document: dict, user: User, n: int = 5) -> Lis
             "options": q["options"][:4],
             "correct_index": int(q["correct_index"]),
             "skill_type": q.get("skill_type", "konsep"),
+            "source_title": q.get("source_title", ""),
         })
     return out
+
+
+async def generate_recap(documents: List[dict], user: User) -> dict:
+    audience = _audience(user)
+    system = (
+        f"Kamu EduScanner AI yang menggabungkan beberapa materi belajar untuk {audience}. "
+        f"Bahasa Indonesia, jelas, sistematis. Output JSON saja tanpa markdown."
+    )
+    chat = _llm_chat(f"recap-{uuid.uuid4().hex[:8]}", system, fast=True)
+    sources = []
+    per_budget = max(1200, 7000 // max(len(documents), 1))
+    for d in documents:
+        sources.append({
+            "title": d.get("title") or d.get("filename") or "Dokumen",
+            "summary": (d.get("summary") or "")[:per_budget],
+            "key_concepts": d.get("key_concepts", [])[:6],
+            "learning_objectives": d.get("learning_objectives", [])[:5],
+        })
+    context = json.dumps(sources, ensure_ascii=False)
+    prompt = (
+        f"Buat RANGKUMAN GABUNGAN dari {len(documents)} materi berikut:\n{context}\n\n"
+        "Output JSON:\n"
+        '{\n'
+        '  "title": "judul rangkuman gabungan",\n'
+        '  "unified_summary": "ringkasan terpadu 3-5 paragraf yang menjelaskan benang merah antar materi",\n'
+        '  "per_document": [{"source_title":"...", "highlight":"poin-poin penting dari materi ini (2-4 kalimat)"}],\n'
+        '  "shared_concepts": [{"concept":"...","explanation":"..."}],\n'
+        '  "study_path": ["langkah belajar 1 (urut)","langkah 2","..."]\n'
+        '}'
+    )
+    resp = await chat.send_message(UserMessage(text=prompt))
+    return _parse_json_block(resp)
 
 
 async def generate_deep_feedback(quiz: dict, answers: List[int], user: User) -> dict:
@@ -519,9 +574,9 @@ def _public_quiz(quiz_doc: dict) -> dict:
     return out
 
 
-async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str):
+async def _bg_generate_quiz(quiz_id: str, documents: List[dict], user: User, n: int, ip: str):
     try:
-        questions = await asyncio.to_thread(_sync_run, generate_quiz_questions, doc, user, n)
+        questions = await asyncio.to_thread(_sync_run, generate_quiz_questions, documents, user, n)
         current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
         if not current or current.get("status") in ("cancelled", "deleted"):
             return
@@ -529,7 +584,12 @@ async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str
             {"quiz_id": quiz_id},
             {"$set": {"questions": questions, "status": "ready"}},
         )
-        await write_audit(user.user_id, "QUIZ_GENERATED", {"quiz_id": quiz_id, "document_id": doc["document_id"]}, ip)
+        await write_audit(
+            user.user_id,
+            "QUIZ_GENERATED",
+            {"quiz_id": quiz_id, "document_ids": [d.get("document_id") for d in documents]},
+            ip,
+        )
     except Exception as e:
         logger.exception("Background quiz gen gagal")
         current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
@@ -540,26 +600,55 @@ async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str
             )
 
 
+async def _resolve_documents(payload_document_id, payload_document_ids, payload_folder_id, user) -> List[dict]:
+    """Resolve a list of ready documents from any of the input shapes."""
+    ids: List[str] = []
+    if payload_document_ids:
+        ids = list(payload_document_ids)
+    elif payload_document_id:
+        ids = [payload_document_id]
+    elif payload_folder_id:
+        async for d in db.documents.find(
+            {"user_id": user.user_id, "folder_id": payload_folder_id, "status": "ready"},
+            {"_id": 0},
+        ):
+            ids.append(d["document_id"])
+    if not ids:
+        raise HTTPException(400, "Pilih minimal satu dokumen atau folder")
+
+    docs = []
+    async for d in db.documents.find(
+        {"document_id": {"$in": ids}, "user_id": user.user_id},
+        {"_id": 0, "file_path": 0},
+    ):
+        docs.append(d)
+    if not docs:
+        raise HTTPException(404, "Dokumen tidak ditemukan")
+    not_ready = [d.get("filename") for d in docs if d.get("status") != "ready"]
+    if not_ready:
+        raise HTTPException(400, f"Dokumen belum siap: {', '.join(not_ready)}")
+    return docs
+
+
 @api_router.post("/quiz/generate")
 async def quiz_generate(request: Request, payload: QuizGenerateRequest, user: User = Depends(get_current_user)):
-    doc = await db.documents.find_one({"document_id": payload.document_id, "user_id": user.user_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(404, "Dokumen tidak ditemukan")
-    if doc.get("status") != "ready":
-        raise HTTPException(400, "Dokumen belum siap dianalisis")
+    documents = await _resolve_documents(payload.document_id, payload.document_ids, payload.folder_id, user)
 
     quiz_id = uuid.uuid4().hex
     quiz_doc = {
         "quiz_id": quiz_id,
         "user_id": user.user_id,
-        "document_id": payload.document_id,
+        "document_id": documents[0]["document_id"],  # primary (BC)
+        "document_ids": [d["document_id"] for d in documents],
+        "source_titles": [d.get("title") or d.get("filename") for d in documents],
+        "folder_id": payload.folder_id,
         "questions": [],
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.quizzes.insert_one(quiz_doc.copy())
     ip = request.client.host if request.client else ""
-    asyncio.create_task(_bg_generate_quiz(quiz_id, doc, user, payload.question_count, ip))
+    asyncio.create_task(_bg_generate_quiz(quiz_id, documents, user, payload.question_count, ip))
     return _public_quiz(quiz_doc)
 
 
@@ -676,6 +765,195 @@ async def delete_result(request: Request, result_id: str, user: User = Depends(g
     await db.quiz_results.delete_one({"result_id": result_id, "user_id": user.user_id})
     await write_audit(user.user_id, "RESULT_DELETED", {"result_id": result_id}, request.client.host if request.client else "")
     return {"result_id": result_id, "deleted": True}
+
+
+# ============== Folders ==============
+@api_router.post("/folders")
+async def folder_create(request: Request, payload: FolderCreate, user: User = Depends(get_current_user)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Nama folder wajib")
+    folder_id = uuid.uuid4().hex
+    doc = {
+        "folder_id": folder_id,
+        "user_id": user.user_id,
+        "name": name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.folders.insert_one(doc.copy())
+    await write_audit(user.user_id, "FOLDER_CREATED", {"folder_id": folder_id, "name": name}, request.client.host if request.client else "")
+    doc.pop("_id", None)
+    return {**doc, "document_count": 0}
+
+
+@api_router.get("/folders")
+async def folder_list(user: User = Depends(get_current_user)):
+    folders = await db.folders.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    # attach document counts
+    for f in folders:
+        f["document_count"] = await db.documents.count_documents({"user_id": user.user_id, "folder_id": f["folder_id"]})
+    return folders
+
+
+@api_router.get("/folders/{folder_id}")
+async def folder_get(folder_id: str, user: User = Depends(get_current_user)):
+    folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id}, {"_id": 0})
+    if not folder:
+        raise HTTPException(404, "Folder tidak ditemukan")
+    docs = await db.documents.find({"user_id": user.user_id, "folder_id": folder_id}, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(500)
+    folder["documents"] = docs
+    folder["document_count"] = len(docs)
+    return folder
+
+
+@api_router.put("/folders/{folder_id}")
+async def folder_update(request: Request, folder_id: str, payload: FolderUpdate, user: User = Depends(get_current_user)):
+    folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id}, {"_id": 0})
+    if not folder:
+        raise HTTPException(404, "Folder tidak ditemukan")
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Nama folder wajib")
+    await db.folders.update_one({"folder_id": folder_id}, {"$set": {"name": name}})
+    await write_audit(user.user_id, "FOLDER_RENAMED", {"folder_id": folder_id, "name": name}, request.client.host if request.client else "")
+    return {**folder, "name": name}
+
+
+@api_router.delete("/folders/{folder_id}")
+async def folder_delete(request: Request, folder_id: str, user: User = Depends(get_current_user)):
+    """Delete folder AND cascade-delete its documents (per user choice)."""
+    folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id}, {"_id": 0})
+    if not folder:
+        raise HTTPException(404, "Folder tidak ditemukan")
+
+    doc_ids = []
+    async for d in db.documents.find({"user_id": user.user_id, "folder_id": folder_id}, {"_id": 0}):
+        doc_ids.append(d["document_id"])
+        fp = d.get("file_path")
+        if fp:
+            try:
+                Path(fp).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    if doc_ids:
+        quiz_ids = [q["quiz_id"] async for q in db.quizzes.find({"user_id": user.user_id, "document_ids": {"$in": doc_ids}}, {"quiz_id": 1, "_id": 0})]
+        # also legacy single document_id quizzes
+        async for q in db.quizzes.find({"user_id": user.user_id, "document_id": {"$in": doc_ids}}, {"quiz_id": 1, "_id": 0}):
+            if q["quiz_id"] not in quiz_ids:
+                quiz_ids.append(q["quiz_id"])
+        if quiz_ids:
+            await db.quiz_results.delete_many({"user_id": user.user_id, "quiz_id": {"$in": quiz_ids}})
+            await db.quizzes.delete_many({"user_id": user.user_id, "quiz_id": {"$in": quiz_ids}})
+        await db.documents.delete_many({"user_id": user.user_id, "document_id": {"$in": doc_ids}})
+
+    await db.folders.delete_one({"folder_id": folder_id, "user_id": user.user_id})
+    await write_audit(user.user_id, "FOLDER_DELETED", {"folder_id": folder_id, "name": folder.get("name"), "documents_deleted": len(doc_ids)}, request.client.host if request.client else "")
+    return {"folder_id": folder_id, "deleted": True, "documents_deleted": len(doc_ids)}
+
+
+@api_router.post("/documents/move")
+async def documents_move(request: Request, payload: DocumentMove, user: User = Depends(get_current_user)):
+    if payload.folder_id:
+        folder = await db.folders.find_one({"folder_id": payload.folder_id, "user_id": user.user_id}, {"_id": 0})
+        if not folder:
+            raise HTTPException(404, "Folder tidak ditemukan")
+    result = await db.documents.update_many(
+        {"user_id": user.user_id, "document_id": {"$in": payload.document_ids}},
+        {"$set": {"folder_id": payload.folder_id}},
+    )
+    await write_audit(user.user_id, "DOCUMENTS_MOVED", {"folder_id": payload.folder_id, "count": result.modified_count}, request.client.host if request.client else "")
+    return {"moved": result.modified_count, "folder_id": payload.folder_id}
+
+
+# ============== Recap (Multi-doc Summary) ==============
+async def _bg_generate_recap(recap_id: str, documents: List[dict], user: User, ip: str):
+    try:
+        data = await asyncio.to_thread(_sync_run, generate_recap, documents, user)
+        current = await db.recaps.find_one({"recap_id": recap_id}, {"_id": 0, "status": 1})
+        if not current or current.get("status") in ("cancelled", "deleted"):
+            return
+        await db.recaps.update_one(
+            {"recap_id": recap_id},
+            {"$set": {
+                "title": data.get("title", ""),
+                "unified_summary": data.get("unified_summary", ""),
+                "per_document": data.get("per_document", []),
+                "shared_concepts": data.get("shared_concepts", []),
+                "study_path": data.get("study_path", []),
+                "status": "ready",
+            }},
+        )
+        await write_audit(user.user_id, "RECAP_GENERATED", {"recap_id": recap_id, "count": len(documents)}, ip)
+    except Exception as e:
+        logger.exception("Background recap gagal")
+        current = await db.recaps.find_one({"recap_id": recap_id}, {"_id": 0, "status": 1})
+        if current and current.get("status") not in ("cancelled", "deleted"):
+            await db.recaps.update_one(
+                {"recap_id": recap_id},
+                {"$set": {"status": "failed", "error": str(e)[:300]}},
+            )
+
+
+@api_router.post("/recap")
+async def recap_generate(request: Request, payload: RecapRequest, user: User = Depends(get_current_user)):
+    documents = await _resolve_documents(None, payload.document_ids, payload.folder_id, user)
+    recap_id = uuid.uuid4().hex
+    doc = {
+        "recap_id": recap_id,
+        "user_id": user.user_id,
+        "document_ids": [d["document_id"] for d in documents],
+        "source_titles": [d.get("title") or d.get("filename") for d in documents],
+        "folder_id": payload.folder_id,
+        "title": "",
+        "unified_summary": "",
+        "per_document": [],
+        "shared_concepts": [],
+        "study_path": [],
+        "status": "processing",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.recaps.insert_one(doc.copy())
+    ip = request.client.host if request.client else ""
+    asyncio.create_task(_bg_generate_recap(recap_id, documents, user, ip))
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/recap/{recap_id}")
+async def recap_get(recap_id: str, user: User = Depends(get_current_user)):
+    r = await db.recaps.find_one({"recap_id": recap_id, "user_id": user.user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Recap tidak ditemukan")
+    return r
+
+
+@api_router.post("/recap/{recap_id}/cancel")
+async def recap_cancel(request: Request, recap_id: str, user: User = Depends(get_current_user)):
+    r = await db.recaps.find_one({"recap_id": recap_id, "user_id": user.user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Recap tidak ditemukan")
+    if r.get("status") != "processing":
+        raise HTTPException(400, "Recap tidak sedang diproses")
+    await db.recaps.update_one({"recap_id": recap_id}, {"$set": {"status": "cancelled"}})
+    await write_audit(user.user_id, "RECAP_CANCELLED", {"recap_id": recap_id}, request.client.host if request.client else "")
+    return {"recap_id": recap_id, "status": "cancelled"}
+
+
+@api_router.delete("/recap/{recap_id}")
+async def recap_delete(request: Request, recap_id: str, user: User = Depends(get_current_user)):
+    r = await db.recaps.find_one({"recap_id": recap_id, "user_id": user.user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Recap tidak ditemukan")
+    await db.recaps.delete_one({"recap_id": recap_id, "user_id": user.user_id})
+    await write_audit(user.user_id, "RECAP_DELETED", {"recap_id": recap_id}, request.client.host if request.client else "")
+    return {"recap_id": recap_id, "deleted": True}
+
+
+@api_router.get("/recaps")
+async def recap_list(user: User = Depends(get_current_user)):
+    recaps = await db.recaps.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return recaps
 
 
 # ============== Audit & Progress ==============

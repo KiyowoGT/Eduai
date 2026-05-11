@@ -48,6 +48,8 @@ def test_session(mongo_db):
     mongo_db.quizzes.delete_many({"user_id": user_id})
     mongo_db.quiz_results.delete_many({"user_id": user_id})
     mongo_db.audit_logs.delete_many({"user_id": user_id})
+    mongo_db.folders.delete_many({"user_id": user_id})
+    mongo_db.recaps.delete_many({"user_id": user_id})
 
 
 @pytest.fixture(scope="session")

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="29" time="135.366" timestamp="2026-05-11T16:17:36.960855+00:00" hostname="agent-env-0868d084-8f23-4d8a-aef5-ecfb91220876"><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_auth_session_missing_id" time="0.254" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_auth_session_invalid_id" time="0.442" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_auth_me_without_token" time="0.217" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_documents_requires_auth" time="0.238" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_progress_requires_auth" time="0.260" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_audit_logs_requires_auth" time="0.203" /><testcase classname="tests.test_eduscanner_api.TestAuth" name="test_auth_me_with_valid_bearer" time="0.305" /><testcase classname="tests.test_eduscanner_api.TestProfile" name="test_update_profile_universitas" time="0.184" /><testcase classname="tests.test_eduscanner_api.TestProfile" name="test_update_profile_sd_no_major" time="0.212" /><testcase classname="tests.test_eduscanner_api.TestDocumentsList" name="test_documents_empty" time="0.077" /><testcase classname="tests.test_eduscanner_api.TestDocumentUpload" name="test_upload_returns_immediately_then_ready" time="117.806" /><testcase classname="tests.test_eduscanner_api.TestDocumentUpload" name="test_documents_list_after_upload" time="0.084" /><testcase classname="tests.test_eduscanner_api.TestQuiz" name="test_quiz_generate_returns_immediately_then_ready" time="6.311" /><testcase classname="tests.test_eduscanner_api.TestQuiz" name="test_quiz_generate_nonexistent_doc_404" time="0.072" /><testcase classname="tests.test_eduscanner_api.TestQuiz" name="test_quiz_submit_on_processing_quiz_400" time="0.074" /><testcase classname="tests.test_eduscanner_api.TestQuiz" name="test_quiz_submit_returns_immediately_then_ready" time="6.305" /><testcase classname="tests.test_eduscanner_api.TestAuditAndProgress" name="test_audit_logs_format" time="0.073" /><testcase classname="tests.test_eduscanner_api.TestAuditAndProgress" name="test_progress_endpoint" time="0.081" /><testcase classname="tests.test_eduscanner_api.TestZLogout" name="test_logout_invalidates_session" time="0.321" /><testcase classname="tests.test_eduscanner_cancel_delete.TestDocumentCancel" name="test_cancel_processing_then_not_overwritten" time="0.166"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:38: in test_cancel_processing_then_not_overwritten
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestDocumentCancel" name="test_cancel_ready_doc_400" time="0.150"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:68: in test_cancel_ready_doc_400
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestDocumentCancel" name="test_cancel_nonexistent_doc_404" time="0.112"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:80: in test_cancel_nonexistent_doc_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestDocumentDelete" name="test_delete_nonexistent_404" time="0.070"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:87: in test_delete_nonexistent_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestDocumentDelete" name="test_delete_ready_doc_then_404" time="0.138"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:90: in test_delete_ready_doc_then_404
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestQuizCancelDelete" name="test_quiz_cancel_and_not_overwritten" time="0.287"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:115: in test_quiz_cancel_and_not_overwritten
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestQuizCancelDelete" name="test_quiz_delete_nonexistent_404" time="0.069"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:160: in test_quiz_delete_nonexistent_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestResultAndCascade" name="test_full_cascade_delete" time="0.196"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:167: in test_full_cascade_delete
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestResultAndCascade" name="test_result_delete_only_removes_result" time="0.164"><failure message="AssertionError: {&quot;detail&quot;:&quot;Sesi tidak valid&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:213: in test_result_delete_only_removes_result
+    doc = _upload_pdf(auth_client, sample_pdf)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_eduscanner_cancel_delete.py:30: in _upload_pdf
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Sesi tidak valid"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="tests.test_eduscanner_cancel_delete.TestResultAndCascade" name="test_result_delete_nonexistent_404" time="0.079"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">tests/test_eduscanner_cancel_delete.py:246: in test_result_delete_nonexistent_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase></testsuite></testsuites>

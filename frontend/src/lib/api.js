@@ -63,12 +63,64 @@ export async function getDocument(id) {
   const r = await http.get(`/documents/${id}`);
   return r.data;
 }
-export async function generateQuiz(document_id, question_count = 5) {
-  const r = await http.post("/quiz/generate", { document_id, question_count });
+export async function generateQuiz(body, question_count = 5) {
+  // body: string (document_id) | { document_ids?, folder_id?, document_id?, question_count? }
+  const payload = typeof body === "string"
+    ? { document_id: body, question_count }
+    : { question_count, ...body };
+  const r = await http.post("/quiz/generate", payload);
   return r.data;
 }
 export async function getQuiz(quiz_id) {
   const r = await http.get(`/quiz/${quiz_id}`);
+  return r.data;
+}
+
+// Folders
+export async function listFolders() {
+  const r = await http.get("/folders");
+  return r.data;
+}
+export async function createFolder(name) {
+  const r = await http.post("/folders", { name });
+  return r.data;
+}
+export async function getFolder(id) {
+  const r = await http.get(`/folders/${id}`);
+  return r.data;
+}
+export async function renameFolder(id, name) {
+  const r = await http.put(`/folders/${id}`, { name });
+  return r.data;
+}
+export async function deleteFolder(id) {
+  const r = await http.delete(`/folders/${id}`);
+  return r.data;
+}
+export async function moveDocuments(document_ids, folder_id) {
+  const r = await http.post("/documents/move", { document_ids, folder_id });
+  return r.data;
+}
+
+// Recap
+export async function createRecap({ document_ids, folder_id }) {
+  const r = await http.post("/recap", { document_ids, folder_id });
+  return r.data;
+}
+export async function getRecap(id) {
+  const r = await http.get(`/recap/${id}`);
+  return r.data;
+}
+export async function cancelRecap(id) {
+  const r = await http.post(`/recap/${id}/cancel`);
+  return r.data;
+}
+export async function deleteRecap(id) {
+  const r = await http.delete(`/recap/${id}`);
+  return r.data;
+}
+export async function listRecaps() {
+  const r = await http.get("/recaps");
   return r.data;
 }
 export async function submitQuiz(quiz_id, answers) {

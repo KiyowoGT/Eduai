@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LayoutDashboard, FileText, ScrollText, LogOut, User2 } from "lucide-react";
+import { GraduationCap, LayoutDashboard, FileText, ScrollText, LogOut, User2, FolderOpen } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
   { to: "/dokumen", label: "Dokumen", icon: FileText, tid: "nav-documents" },
+  { to: "/folder", label: "Folder", icon: FolderOpen, tid: "nav-folders" },
   { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
   { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
 ];

@@ -10,6 +10,9 @@ import Onboarding from "@/pages/Onboarding";
 import Dashboard from "@/pages/Dashboard";
 import Documents from "@/pages/Documents";
 import DocumentDetail from "@/pages/DocumentDetail";
+import Folders from "@/pages/Folders";
+import FolderDetail from "@/pages/FolderDetail";
+import Recap from "@/pages/Recap";
 import Quiz from "@/pages/Quiz";
 import QuizResult from "@/pages/QuizResult";
 import AuditLog from "@/pages/AuditLog";
@@ -31,6 +34,9 @@ function AppRouter() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dokumen" element={<Documents />} />
         <Route path="/dokumen/:id" element={<DocumentDetail />} />
+        <Route path="/folder" element={<Folders />} />
+        <Route path="/folder/:id" element={<FolderDetail />} />
+        <Route path="/recap/:id" element={<Recap />} />
         <Route path="/kuis/:id" element={<Quiz />} />
         <Route path="/hasil/:id" element={<QuizResult />} />
         <Route path="/audit-log" element={<AuditLog />} />
