@@ -1,0 +1,129 @@
+{
+  "project_name": "EduScanner AI - University Edition",
+  "theme": "light",
+  "archetype": "Scholarly Editorial (Paper + Ink + Academic Accent)",
+  "emotional_tone": "Intellectually serious, structured, yet modern and approachable.",
+  "colors": {
+    "background": {
+      "base": "#F8F6F0",
+      "surface": "#FFFFFF",
+      "glass": "rgba(248, 246, 240, 0.85)"
+    },
+    "text": {
+      "primary": "#1A1B26",
+      "secondary": "#646675",
+      "disabled": "#A0A2B1",
+      "accent": "#1D2D50"
+    },
+    "brand": {
+      "primary": "#1D2D50",
+      "primary_hover": "#15223E",
+      "secondary": "#B83A4B",
+      "tertiary": "#E5A93C",
+      "border": "#E2E0D8"
+    },
+    "feedback": {
+      "success": "#2D6A4F",
+      "warning": "#E5A93C",
+      "error": "#B83A4B",
+      "info": "#2B59C3"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "heading": "'EB Garamond', serif",
+      "body": "'Outfit', sans-serif",
+      "mono": "'JetBrains Mono', monospace"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight",
+      "h3": "text-xl sm:text-2xl tracking-tight",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm leading-normal",
+      "overline": "text-xs uppercase tracking-[0.2em] font-bold"
+    },
+    "rules": [
+      "DO NOT use Inter, Roboto, Space Grotesk, Geist, or Plus Jakarta Sans.",
+      "Headings must use EB Garamond for a scholarly, serious academic feel.",
+      "Body text must use Outfit for excellent legibility and a modern touch.",
+      "Audit logs MUST use JetBrains Mono (e.g. AUD-YYYYMMDD-NNNN).",
+      "Ensure minimum 4.5:1 contrast ratio for all text."
+    ]
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing (Tailwind Scale). Use 2-3x more spacing than typical SaaS apps to simulate 'breathing room' on a printed page.",
+    "container_padding": "p-6 md:p-8 lg:p-12",
+    "grid_modes": {
+      "landing_page": "The 'Tetris' Grid (Mode A) - grid-cols-1 md:grid-cols-12 gap-8 to gap-12, asymmetrical layout.",
+      "dashboard": "The 'Control Room' Grid (Mode B) - grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6. Every pixel utilized, structured, dense but readable."
+    },
+    "alignment": "Optical alignment over geometrical. Left-align dense content/paragraphs. Center-align only for hero titles if visually balanced."
+  },
+  "surfaces_and_borders": {
+    "cards": "Flat solid backgrounds (#FFFFFF) with 1px border (border-[#E2E0D8]). Max border-radius 8px (rounded-lg).",
+    "hover_state": "Slight lift (-translate-y-1) and soft ambient shadow (shadow-[0_8px_32px_rgba(29,45,80,0.08)]) on interactive cards.",
+    "header": "Crystal Glass variant. backdrop-blur-xl bg-[#F8F6F0]/85 with a delicate 1px bottom border.",
+    "inputs": "Shadcn defaults customized to max 8px radius, 1px border, focus:ring-2 focus:ring-[#1D2D50]."
+  },
+  "motion_and_interaction": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover": "Explicit text color changes on hover (e.g., hover:bg-[#1D2D50] hover:text-white).",
+    "entrance": "Staggered fade-up for dashboard widgets and feed items.",
+    "accessibility": "Respect prefers-reduced-motion."
+  },
+  "components_strategy": {
+    "base": "Shadcn UI (highly customized) + Tailwind CSS + Radix primitives.",
+    "specific_features": {
+      "pdf_viewer": "Split pane layout. Left: PDF document. Right: 'Deep Feedback' AI chat & Concept Map (Peta Konsep).",
+      "concept_map": "Use reactflow or visually similar node-based pure HTML/SVG layout for 'Belajar Dulu' mode.",
+      "hots_quiz": "Card-based interface with clear typography, using primary accent (#1D2D50) for selection and secondary/tertiary for correct/incorrect feedback.",
+      "audit_log": "Dense table view using JetBrains Mono for log IDs and timestamps.",
+      "icons": "Use 'lucide-react' for UI interactions, maintaining consistent stroke width."
+    }
+  },
+  "testing_attributes": {
+    "rule": "All interactive and key informational elements MUST include a 'data-testid' attribute.",
+    "examples": [
+      "data-testid='google-login-button'",
+      "data-testid='upload-pdf-input'",
+      "data-testid='quiz-option-a'",
+      "data-testid='audit-log-row'"
+    ]
+  },
+  "media": {
+    "rules": [
+      "Main agent relies ENTIRELY on these MEDIA URLs. No placeholders allowed."
+    ],
+    "images": [
+      {
+        "category": "hero",
+        "description": "Abstract 3D composition representing artificial intelligence analyzing academic papers. Use for the Landing Page hero section.",
+        "url": "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/7b6b9737e6374591d9a3b25695ec71d7ac4f0b4c6b036c3a181f991d2e976936.png",
+        "alt_text": "EduScanner AI Abstract Representation"
+      },
+      {
+        "category": "background",
+        "description": "Subtle textured background representing a concept map. Use as background for 'Belajar Dulu' mode or empty states.",
+        "url": "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/24945001700370e0aff7a38cbb008efd79157eada7ba32f500734e7945942046.png",
+        "alt_text": "Neural network and concept map background texture"
+      },
+      {
+        "category": "illustration",
+        "description": "Minimalist 3D illustration of a university student workspace. Use for the Onboarding Profile setup screen.",
+        "url": "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/4954b4f392af5f1525c918313b63b33770f6cf778e0fc74ab109a6ef1ccf10db.png",
+        "alt_text": "University student workspace illustration"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Load EB Garamond, Outfit, and JetBrains Mono from Google Fonts.",
+    "Follow the 'Scholarly Editorial' aesthetic strictly. Do not use generic SaaS blues or neon colors.",
+    "Translate all UI text to Bahasa Indonesia as requested in the problem statement.",
+    "Ensure the PDF upload area has a clear dashed border (border-dashed border-[#E2E0D8]) and hover state.",
+    "When implementing the Dashboard, use the 'Control Room' grid (Mode B) and do not center-align the widgets.",
+    "Never use placeholders for images; strictly use the provided media URLs.",
+    "Ensure 'data-testid' is present on all actionable elements."
+  ]
+}
