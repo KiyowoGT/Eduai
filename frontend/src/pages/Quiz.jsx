@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { submitQuiz, getQuizResult } from "@/lib/api";
+import { submitQuiz, getQuizResult, cancelResult } from "@/lib/api";
 import { pollUntilReady } from "@/lib/poll";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, X } from "lucide-react";
 
 const LETTERS = ["A","B","C","D"];
 
@@ -16,6 +16,8 @@ export default function Quiz() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingResultId, setPendingResultId] = useState(null);
+  const [abortCtl, setAbortCtl] = useState(null);
 
   useEffect(() => {
     if (!quiz) {
@@ -42,14 +44,30 @@ export default function Quiz() {
   const submit = async () => {
     if (selected === undefined) { toast.error("Pilih jawaban dulu"); return; }
     setSubmitting(true);
+    const ctl = new AbortController();
+    setAbortCtl(ctl);
     toast.info("AI menilai dengan deep feedback… ini bisa 30–60 detik.");
+    let init;
     try {
-      const init = await submitQuiz(id, answers);
-      const result = await pollUntilReady(() => getQuizResult(init.result_id));
+      init = await submitQuiz(id, answers);
+      setPendingResultId(init.result_id);
+      const result = await pollUntilReady(() => getQuizResult(init.result_id), { signal: ctl.signal });
       navigate(`/hasil/${result.result_id}`, { state: { result } });
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e?.message || "Gagal submit kuis");
-    } finally { setSubmitting(false); }
+      if (e.cancelled) toast.info("Penilaian dibatalkan");
+      else toast.error(e?.response?.data?.detail || e?.message || "Gagal submit kuis");
+    } finally {
+      setSubmitting(false);
+      setPendingResultId(null);
+      setAbortCtl(null);
+    }
+  };
+
+  const cancelGrading = async () => {
+    if (pendingResultId) {
+      try { await cancelResult(pendingResultId); } catch {}
+    }
+    abortCtl?.abort();
   };
 
   const progress = ((step + 1) / total) * 100;
@@ -96,7 +114,12 @@ export default function Quiz() {
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end">
+      <div className="mt-8 flex justify-end gap-3">
+        {submitting && (
+          <Button data-testid="cancel-submit" onClick={cancelGrading} variant="outline" className="border-[#E2E0D8] text-[#B83A4B] hover:bg-[#B83A4B]/5 h-11 px-4">
+            <X className="w-4 h-4 mr-1.5" /> Batal
+          </Button>
+        )}
         {step < total - 1 ? (
           <Button data-testid="quiz-next" onClick={next} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-11 px-6 rounded-md">
             Soal Berikutnya <ChevronRight className="w-4 h-4 ml-1" />

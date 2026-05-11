@@ -31,6 +31,30 @@ export async function uploadDocument(file) {
   });
   return r.data;
 }
+export async function cancelDocument(id) {
+  const r = await http.post(`/documents/${id}/cancel`);
+  return r.data;
+}
+export async function deleteDocument(id) {
+  const r = await http.delete(`/documents/${id}`);
+  return r.data;
+}
+export async function cancelQuiz(id) {
+  const r = await http.post(`/quiz/${id}/cancel`);
+  return r.data;
+}
+export async function deleteQuiz(id) {
+  const r = await http.delete(`/quiz/${id}`);
+  return r.data;
+}
+export async function cancelResult(id) {
+  const r = await http.post(`/quiz/result/${id}/cancel`);
+  return r.data;
+}
+export async function deleteResult(id) {
+  const r = await http.delete(`/quiz/result/${id}`);
+  return r.data;
+}
 export async function listDocuments() {
   const r = await http.get("/documents");
   return r.data;

@@ -1,24 +1,35 @@
 import { useEffect, useState } from "react";
-import { listDocuments } from "@/lib/api";
+import { listDocuments, cancelDocument, deleteDocument } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
-import { FileText, ArrowUpRight } from "lucide-react";
+import { DocCard } from "@/pages/Dashboard";
+import { toast } from "sonner";
 
 export default function Documents() {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      try { setDocs(await listDocuments()); } finally { setLoading(false); }
-    })();
-  }, []);
+  const load = async () => {
+    try { setDocs(await listDocuments()); } finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onCancel = async (id) => {
+    try { await cancelDocument(id); toast.success("Dibatalkan"); load(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
+  };
+  const onDelete = async (id, name) => {
+    try { await deleteDocument(id); toast.success(`Dihapus: ${name}`); load(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
+  };
 
   return (
     <div className="max-w-6xl" data-testid="documents-page">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Semua Dokumen</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Perpustakaan Akademik</h1>
+        <p className="text-sm text-[#646675] mt-2">Kumpulan modul per pertemuan & jurnal yang sudah lu unggah. Hover kartu untuk hapus atau batalkan proses.</p>
       </div>
 
       {loading ? (
@@ -30,24 +41,13 @@ export default function Documents() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {docs.map((d) => (
-            <button
+            <DocCard
               key={d.document_id}
-              data-testid={`doc-item-${d.document_id}`}
-              onClick={() => navigate(`/dokumen/${d.document_id}`)}
-              className="card-lift text-left bg-white border border-[#E2E0D8] rounded-xl p-5"
-            >
-              <div className="flex items-start justify-between">
-                <FileText className="w-5 h-5 text-[#1D2D50]" />
-                <ArrowUpRight className="w-4 h-4 text-[#A0A2B1]" />
-              </div>
-              <div className="font-heading text-lg text-[#1A1B26] mt-3 line-clamp-2">{d.title || d.filename}</div>
-              <div className="mt-3 flex items-center justify-between text-xs">
-                <span className="font-mono text-[#A0A2B1]">{new Date(d.created_at).toLocaleDateString("id-ID")}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
-                  d.status === "ready" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" : d.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" : "bg-[#E5A93C]/10 text-[#E5A93C]"
-                }`}>{d.status === "ready" ? "Siap" : d.status === "failed" ? "Gagal" : "Proses"}</span>
-              </div>
-            </button>
+              doc={d}
+              onOpen={() => navigate(`/dokumen/${d.document_id}`)}
+              onCancel={() => onCancel(d.document_id)}
+              onDelete={() => onDelete(d.document_id, d.title || d.filename)}
+            />
           ))}
         </div>
       )}

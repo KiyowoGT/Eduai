@@ -400,6 +400,10 @@ def _sync_run(async_fn, *args):
 async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str):
     try:
         analysis = await asyncio.to_thread(_sync_run, analyze_pdf, file_path, user)
+        # Don't overwrite if user cancelled / deleted in the meantime
+        current = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "status": 1})
+        if not current or current.get("status") in ("cancelled", "deleted"):
+            return
         update = {
             "title": analysis.get("title") or "",
             "summary": analysis.get("summary", ""),
@@ -412,10 +416,12 @@ async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str)
         await write_audit(user.user_id, "DOCUMENT_ANALYZED", {"document_id": doc_id}, ip)
     except Exception as e:
         logger.exception("Background analyze gagal")
-        await db.documents.update_one(
-            {"document_id": doc_id},
-            {"$set": {"status": "failed", "error": str(e)[:300]}},
-        )
+        current = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "status": 1})
+        if current and current.get("status") not in ("cancelled", "deleted"):
+            await db.documents.update_one(
+                {"document_id": doc_id},
+                {"$set": {"status": "failed", "error": str(e)[:300]}},
+            )
         await write_audit(user.user_id, "DOCUMENT_ANALYSIS_FAILED", {"document_id": doc_id, "error": str(e)[:300]}, ip)
 
 
@@ -467,6 +473,44 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     return doc
 
 
+@api_router.post("/documents/{doc_id}/cancel")
+async def cancel_document(request: Request, doc_id: str, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Dokumen tidak ditemukan")
+    if doc.get("status") != "processing":
+        raise HTTPException(400, "Dokumen tidak sedang diproses")
+    await db.documents.update_one({"document_id": doc_id}, {"$set": {"status": "cancelled"}})
+    await write_audit(user.user_id, "DOCUMENT_CANCELLED", {"document_id": doc_id}, request.client.host if request.client else "")
+    return {"document_id": doc_id, "status": "cancelled"}
+
+
+@api_router.delete("/documents/{doc_id}")
+async def delete_document(request: Request, doc_id: str, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Dokumen tidak ditemukan")
+
+    # Mark first so any in-flight bg task notices on completion
+    await db.documents.update_one({"document_id": doc_id}, {"$set": {"status": "deleted"}})
+
+    # Cascade: collect quiz_ids for this doc, delete results+quizzes+doc, remove file
+    quiz_ids = [q["quiz_id"] async for q in db.quizzes.find({"document_id": doc_id, "user_id": user.user_id}, {"quiz_id": 1, "_id": 0})]
+    if quiz_ids:
+        await db.quiz_results.delete_many({"quiz_id": {"$in": quiz_ids}, "user_id": user.user_id})
+        await db.quizzes.delete_many({"quiz_id": {"$in": quiz_ids}, "user_id": user.user_id})
+
+    fp = doc.get("file_path")
+    if fp:
+        try:
+            Path(fp).unlink(missing_ok=True)
+        except Exception:
+            logger.warning(f"Gagal hapus file {fp}")
+    await db.documents.delete_one({"document_id": doc_id, "user_id": user.user_id})
+    await write_audit(user.user_id, "DOCUMENT_DELETED", {"document_id": doc_id, "filename": doc.get("filename")}, request.client.host if request.client else "")
+    return {"document_id": doc_id, "deleted": True}
+
+
 # ============== Quiz ==============
 def _public_quiz(quiz_doc: dict) -> dict:
     out = {k: v for k, v in quiz_doc.items() if k != "_id"}
@@ -478,6 +522,9 @@ def _public_quiz(quiz_doc: dict) -> dict:
 async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str):
     try:
         questions = await asyncio.to_thread(_sync_run, generate_quiz_questions, doc, user, n)
+        current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
+        if not current or current.get("status") in ("cancelled", "deleted"):
+            return
         await db.quizzes.update_one(
             {"quiz_id": quiz_id},
             {"$set": {"questions": questions, "status": "ready"}},
@@ -485,10 +532,12 @@ async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str
         await write_audit(user.user_id, "QUIZ_GENERATED", {"quiz_id": quiz_id, "document_id": doc["document_id"]}, ip)
     except Exception as e:
         logger.exception("Background quiz gen gagal")
-        await db.quizzes.update_one(
-            {"quiz_id": quiz_id},
-            {"$set": {"status": "failed", "error": str(e)[:300]}},
-        )
+        current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
+        if current and current.get("status") not in ("cancelled", "deleted"):
+            await db.quizzes.update_one(
+                {"quiz_id": quiz_id},
+                {"$set": {"status": "failed", "error": str(e)[:300]}},
+            )
 
 
 @api_router.post("/quiz/generate")
@@ -522,9 +571,35 @@ async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
     return _public_quiz(quiz)
 
 
+@api_router.post("/quiz/{quiz_id}/cancel")
+async def cancel_quiz(request: Request, quiz_id: str, user: User = Depends(get_current_user)):
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(404, "Kuis tidak ditemukan")
+    if quiz.get("status") != "processing":
+        raise HTTPException(400, "Kuis tidak sedang diproses")
+    await db.quizzes.update_one({"quiz_id": quiz_id}, {"$set": {"status": "cancelled"}})
+    await write_audit(user.user_id, "QUIZ_CANCELLED", {"quiz_id": quiz_id}, request.client.host if request.client else "")
+    return {"quiz_id": quiz_id, "status": "cancelled"}
+
+
+@api_router.delete("/quiz/{quiz_id}")
+async def delete_quiz(request: Request, quiz_id: str, user: User = Depends(get_current_user)):
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(404, "Kuis tidak ditemukan")
+    await db.quiz_results.delete_many({"quiz_id": quiz_id, "user_id": user.user_id})
+    await db.quizzes.delete_one({"quiz_id": quiz_id, "user_id": user.user_id})
+    await write_audit(user.user_id, "QUIZ_DELETED", {"quiz_id": quiz_id}, request.client.host if request.client else "")
+    return {"quiz_id": quiz_id, "deleted": True}
+
+
 async def _bg_grade_quiz(result_id: str, quiz: dict, answers: List[int], user: User, ip: str):
     try:
         feedback = await asyncio.to_thread(_sync_run, generate_deep_feedback, quiz, answers, user)
+        current = await db.quiz_results.find_one({"result_id": result_id}, {"_id": 0, "status": 1})
+        if not current or current.get("status") in ("cancelled", "deleted"):
+            return
         await db.quiz_results.update_one(
             {"result_id": result_id},
             {"$set": {
@@ -537,10 +612,12 @@ async def _bg_grade_quiz(result_id: str, quiz: dict, answers: List[int], user: U
         await write_audit(user.user_id, "QUIZ_SUBMITTED", {"quiz_id": quiz["quiz_id"], "score": int(feedback.get("score", 0))}, ip)
     except Exception as e:
         logger.exception("Background grading gagal")
-        await db.quiz_results.update_one(
-            {"result_id": result_id},
-            {"$set": {"status": "failed", "error": str(e)[:300]}},
-        )
+        current = await db.quiz_results.find_one({"result_id": result_id}, {"_id": 0, "status": 1})
+        if current and current.get("status") not in ("cancelled", "deleted"):
+            await db.quiz_results.update_one(
+                {"result_id": result_id},
+                {"$set": {"status": "failed", "error": str(e)[:300]}},
+            )
 
 
 @api_router.post("/quiz/submit")
@@ -577,6 +654,28 @@ async def quiz_result(result_id: str, user: User = Depends(get_current_user)):
     if not r:
         raise HTTPException(404, "Hasil tidak ditemukan")
     return r
+
+
+@api_router.post("/quiz/result/{result_id}/cancel")
+async def cancel_result(request: Request, result_id: str, user: User = Depends(get_current_user)):
+    r = await db.quiz_results.find_one({"result_id": result_id, "user_id": user.user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Hasil tidak ditemukan")
+    if r.get("status") != "processing":
+        raise HTTPException(400, "Hasil tidak sedang diproses")
+    await db.quiz_results.update_one({"result_id": result_id}, {"$set": {"status": "cancelled"}})
+    await write_audit(user.user_id, "RESULT_CANCELLED", {"result_id": result_id}, request.client.host if request.client else "")
+    return {"result_id": result_id, "status": "cancelled"}
+
+
+@api_router.delete("/quiz/result/{result_id}")
+async def delete_result(request: Request, result_id: str, user: User = Depends(get_current_user)):
+    r = await db.quiz_results.find_one({"result_id": result_id, "user_id": user.user_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Hasil tidak ditemukan")
+    await db.quiz_results.delete_one({"result_id": result_id, "user_id": user.user_id})
+    await write_audit(user.user_id, "RESULT_DELETED", {"result_id": result_id}, request.client.host if request.client else "")
+    return {"result_id": result_id, "deleted": True}
 
 
 # ============== Audit & Progress ==============

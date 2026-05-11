@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getDocument, generateQuiz, getQuiz } from "@/lib/api";
+import { getDocument, generateQuiz, getQuiz, deleteDocument, cancelQuiz } from "@/lib/api";
 import { pollUntilReady } from "@/lib/poll";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { BookOpen, BrainCircuit, FileText, GitBranch, ArrowLeft, Code2 } from "lucide-react";
+import { BookOpen, BrainCircuit, FileText, GitBranch, ArrowLeft, Code2, Trash2, X, AlertTriangle } from "lucide-react";
 
 export default function DocumentDetail() {
   const { id } = useParams();
@@ -13,6 +14,8 @@ export default function DocumentDetail() {
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [pendingQuizId, setPendingQuizId] = useState(null);
+  const [abortCtl, setAbortCtl] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -22,14 +25,40 @@ export default function DocumentDetail() {
 
   const startQuiz = async () => {
     setGenerating(true);
+    const ctl = new AbortController();
+    setAbortCtl(ctl);
     toast.info("Menyiapkan kuis HOTS… ini bisa 30–60 detik.");
+    let init;
     try {
-      const init = await generateQuiz(id, 5);
-      const quiz = await pollUntilReady(() => getQuiz(init.quiz_id));
+      init = await generateQuiz(id, 5);
+      setPendingQuizId(init.quiz_id);
+      const quiz = await pollUntilReady(() => getQuiz(init.quiz_id), { signal: ctl.signal });
       navigate(`/kuis/${quiz.quiz_id}`, { state: { quiz } });
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e?.message || "Gagal generate kuis");
-    } finally { setGenerating(false); }
+      if (e.cancelled) toast.info("Generate kuis dibatalkan");
+      else toast.error(e?.response?.data?.detail || e?.message || "Gagal generate kuis");
+    } finally {
+      setGenerating(false);
+      setPendingQuizId(null);
+      setAbortCtl(null);
+    }
+  };
+
+  const cancelGenerating = async () => {
+    if (pendingQuizId) {
+      try { await cancelQuiz(pendingQuizId); } catch {}
+    }
+    abortCtl?.abort();
+  };
+
+  const onDeleteDoc = async () => {
+    try {
+      await deleteDocument(id);
+      toast.success("Dokumen dihapus");
+      navigate("/dokumen", { replace: true });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Gagal menghapus");
+    }
   };
 
   if (loading) return <div className="text-sm text-[#646675]">Memuat dokumen…</div>;
@@ -52,6 +81,7 @@ export default function DocumentDetail() {
           </div>
           <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-2 leading-tight">{doc.title || doc.filename}</h1>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
         <Button
           data-testid="start-quiz-btn"
           onClick={startQuiz}
@@ -61,6 +91,40 @@ export default function DocumentDetail() {
           <BrainCircuit className="w-4 h-4 mr-2" />
           {generating ? "Menyiapkan…" : "Mulai Kuis HOTS"}
         </Button>
+        {generating && (
+          <Button
+            data-testid="cancel-quiz-gen"
+            onClick={cancelGenerating}
+            variant="outline"
+            className="border-[#E2E0D8] text-[#B83A4B] hover:bg-[#B83A4B]/5 h-11 px-4"
+          >
+            <X className="w-4 h-4 mr-1.5" /> Batal
+          </Button>
+        )}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button data-testid="delete-doc-btn" variant="outline" className="border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B] h-11 px-4">
+              <Trash2 className="w-4 h-4 mr-1.5" /> Hapus
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-heading flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus dokumen ini?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Termasuk semua kuis & hasil yang sudah dibuat dari dokumen ini.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction onClick={onDeleteDoc} data-testid="confirm-delete-doc" className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white">
+                Hapus permanen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        </div>
       </div>
 
       <Tabs defaultValue="ringkasan" className="w-full">
