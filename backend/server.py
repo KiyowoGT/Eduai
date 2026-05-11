@@ -389,9 +389,17 @@ async def generate_deep_feedback(quiz: dict, answers: List[int], user: User) -> 
 
 
 # ============== Documents ==============
+def _sync_run(async_fn, *args):
+    """Run an async function on a fresh event loop in a worker thread.
+    Used to isolate emergentintegrations LlmChat (sync LiteLLM I/O underneath)
+    from the main FastAPI event loop so HTTP responses can flush immediately.
+    """
+    return asyncio.run(async_fn(*args))
+
+
 async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str):
     try:
-        analysis = await analyze_pdf(file_path, user)
+        analysis = await asyncio.to_thread(_sync_run, analyze_pdf, file_path, user)
         update = {
             "title": analysis.get("title") or "",
             "summary": analysis.get("summary", ""),
@@ -469,7 +477,7 @@ def _public_quiz(quiz_doc: dict) -> dict:
 
 async def _bg_generate_quiz(quiz_id: str, doc: dict, user: User, n: int, ip: str):
     try:
-        questions = await generate_quiz_questions(doc, user, n=n)
+        questions = await asyncio.to_thread(_sync_run, generate_quiz_questions, doc, user, n)
         await db.quizzes.update_one(
             {"quiz_id": quiz_id},
             {"$set": {"questions": questions, "status": "ready"}},
@@ -516,7 +524,7 @@ async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
 
 async def _bg_grade_quiz(result_id: str, quiz: dict, answers: List[int], user: User, ip: str):
     try:
-        feedback = await generate_deep_feedback(quiz, answers, user)
+        feedback = await asyncio.to_thread(_sync_run, generate_deep_feedback, quiz, answers, user)
         await db.quiz_results.update_one(
             {"result_id": result_id},
             {"$set": {

@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 3 retest. The asyncio.to_thread(_sync_run, ...) fix on _bg_analyze_document, _bg_generate_quiz, and _bg_grade_quiz successfully unblocks the FastAPI event loop. All 19/19 pytest cases now pass. Response time assertions are met by a wide margin: documents/upload=0.22s, quiz/generate=0.07s, quiz/submit=0.08s (all <10s threshold, previously 31-44s). Background Gemini jobs complete and reach status='ready' within the polling window. All auth, profile, audit log (AUD-YYYYMMDD-NNNN), progress, logout, 401, _id-exclusion, 404 (nonexistent doc), and 400 (submit on non-ready quiz) tests pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_eduscanner_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~615 lines — consider splitting into routers (auth/profile/documents/quiz/audit) and services/llm.py for maintainability.",
+    "_sync_run = lambda f, *a: asyncio.run(f(*a)) is correct; consider naming the inner function to ease tracebacks and add a try/except wrapper for cleaner logging when the AI call raises.",
+    "Only analyze_pdf has a Gemini model fallback (gemini-2.5-pro). generate_quiz_questions and generate_deep_feedback would still fail if gemini-3-flash-preview is rate-limited — adding a fallback would harden the pipeline.",
+    "_parse_json_block still raises JSONDecodeError on malformed Gemini output → caught in bg helpers as status='failed'. Consider a single retry with a stricter system prompt before marking failed.",
+    "QuizSubmission lacks length validation: client could send len(answers) != len(quiz.questions). Recommend a 400 response when lengths mismatch.",
+    "_bg_* error strings stored verbatim (truncated to 300 chars). Consider stripping any path/key fragments before persisting to documents/quizzes/quiz_results status='failed' rows."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (19/19)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "Test session inserted directly in MongoDB user_sessions (Bearer token) via conftest.py — see /app/memory/test_credentials.md",
+  "seed_data_creation": "Per-session: 1 user + 1 session in test_database, 1 fpdf2-generated PDF on basis data relasional. Auto-cleaned via fixture teardown (users, user_sessions, documents, quizzes, quiz_results, audit_logs).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend is stable. test_eduscanner_api.py covers auth (7), profile (2), documents list/upload (3), quiz generate/submit/edge cases (4), audit/progress (2), logout (1). Frontend has not been tested in any iteration — recommend starting there next. Reuse the same conftest.py to seed test sessions.",
+  "rca_of_the_issue": "RESOLVED. Iteration 2 RCA was correct: asyncio.create_task scheduled _bg_* on the SAME event loop where LiteLLM's sync Gemini I/O blocked all coroutines including the response flush. Fix in iteration 3 wraps each Gemini call as `await asyncio.to_thread(_sync_run, async_fn, *args)` where _sync_run does `asyncio.run(async_fn(*args))` on a worker thread with its own loop. Motor MongoDB calls remain on the main loop. Verified: HTTP response now returned in <250ms; background completion still occurs within ~30-90s as expected."
+}
