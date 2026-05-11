@@ -1,54 +1,55 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { Toaster } from "sonner";
+import { AuthProvider } from "@/context/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import AppLayout from "@/components/AppLayout";
+import Landing from "@/pages/Landing";
+import AuthCallback from "@/pages/AuthCallback";
+import Onboarding from "@/pages/Onboarding";
+import Dashboard from "@/pages/Dashboard";
+import Documents from "@/pages/Documents";
+import DocumentDetail from "@/pages/DocumentDetail";
+import Quiz from "@/pages/Quiz";
+import QuizResult from "@/pages/QuizResult";
+import AuditLog from "@/pages/AuditLog";
+import Profile from "@/pages/Profile";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function AppRouter() {
+  const location = useLocation();
+  // Synchronous check for OAuth callback (prevents race conditions)
+  if (location.hash?.includes("session_id=")) {
+    return <AuthCallback />;
+  }
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/onboarding" element={
+        <ProtectedRoute requireOnboarded={false}><Onboarding /></ProtectedRoute>
+      } />
+      <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dokumen" element={<Documents />} />
+        <Route path="/dokumen/:id" element={<DocumentDetail />} />
+        <Route path="/kuis/:id" element={<Quiz />} />
+        <Route path="/hasil/:id" element={<QuizResult />} />
+        <Route path="/audit-log" element={<AuditLog />} />
+        <Route path="/profil" element={<Profile />} />
+      </Route>
+      <Route path="*" element={<Landing />} />
+    </Routes>
   );
-};
+}
 
-function App() {
+export default function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <AppRouter />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
       </BrowserRouter>
     </div>
   );
 }
-
-export default App;

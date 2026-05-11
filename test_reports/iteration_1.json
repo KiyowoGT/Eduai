@@ -1,0 +1,57 @@
+{
+  "summary": "First-round backend testing for EduScanner AI MVP. 16/17 pytest cases passed. Auth (session validation, Bearer token, logout), profile (Universitas/SD cascading), documents upload+Gemini 3 Pro analysis, quiz generation (3 HOTS questions, correct_index hidden), audit log format (AUD-YYYYMMDD-NNNN), and progress endpoint all work correctly. Only failure: POST /api/quiz/submit returned 502 from the preview ingress because the Gemini 3 Pro deep-feedback call took ~80s — exceeding the ingress timeout. Backend completes successfully (visible in logs) but the HTTP response is killed mid-flight.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/quiz/submit",
+        "issue": "502 Bad Gateway from preview ingress because Gemini 3.1-pro-preview deep-feedback call takes ~80s (logs confirm LiteLLM completes at 15:16:45 after request at 15:15:23). Ingress kills the connection before the synchronous call returns. The same risk exists for POST /api/documents/upload (took ~48s on test PDF) and POST /api/quiz/generate (~55s). End user will see 'preview environment not responding'.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/quiz/submit, /api/quiz/generate, /api/documents/upload",
+        "issue": "Long-running Gemini calls are blocking. Consider: (1) move to background task + status polling, (2) use a faster Gemini model variant for deep feedback, (3) trim prompts/context, (4) implement caching, or (5) at minimum return 202 + result_id and fetch result asynchronously."
+      },
+      {
+        "endpoint": "POST /api/auth/session",
+        "issue": "Cookie is set with samesite=none + secure=true which is correct for cross-site preview, but no domain attribute — works only because frontend & backend share the same preview host. Document this if domain ever splits."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_eduscanner_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix long-running Gemini call timeout on POST /api/quiz/submit (and harden /quiz/generate + /documents/upload similarly). Recommended: convert to async/background job pattern (return result_id immediately, client polls GET /api/quiz/result/{id} until ready) OR significantly reduce prompt/model latency. Current sync flow is fragile against the ~60s ingress timeout.",
+    "Consider adding pydantic validation for POST /api/quiz/generate body (currently `payload: dict`) so missing/invalid document_id returns 422 instead of None lookup."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 526 lines — still acceptable but approaching the 700-line threshold; consider splitting into routers (auth, profile, documents, quiz, audit) and a services/llm.py module before adding more endpoints.",
+    "POST /api/quiz/generate uses untyped `payload: dict` — no Pydantic validation. Should use a model like QuizGenerateRequest(document_id: str, question_count: int = 5).",
+    "Three long-running Gemini calls are awaited inline inside the request handler, blocking the HTTP connection for 40-90s. This is the root cause of the 502 observed.",
+    "Fallback to gemini-2.5-pro only wraps analyze_pdf. quiz_generate and deep_feedback have no fallback — if Gemini 3 Pro fails they propagate as 500.",
+    "Audit log_id counter (`count_documents({\"audit_date\": today}) + 1`) is not atomic; two concurrent requests could generate identical log_id. Use $inc on a counter document or include a uuid suffix.",
+    "_parse_json_block uses json.loads directly — if Gemini returns trailing commentary outside ```json fences the parse will fail with a 500. Add try/except + a retry-with-stricter-system-prompt path.",
+    "/api/auth/session sets cookie with secure=True + samesite='none' (correct for preview) but does not also persist session in DB before redirecting back; verify multi-tab login works.",
+    "ProfileUpdate.current_semester is `int` but the spec says it can be 'kelas/tingkat' (1-12 SD-SMA) or 'semester' (univ). Consider per-level validation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_eduscanner_api.py",
+    "/app/backend/tests/conftest.py"
+  ],
+  "success_rate": {"backend": "94% (16/17)", "frontend": "not tested"},
+  "test_credentials": "No password — Google OAuth only. Test session inserted directly into MongoDB user_sessions via conftest.py fixture (cleaned up on teardown). See /app/auth_testing.md.",
+  "seed_data_creation": "Per-test-run: 1 user + 1 session created in test_database. PDF (sample.pdf about basis data relasional) generated via fpdf2. All test artifacts cleaned up via fixture teardown.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Backend supervisor & MongoDB are healthy. Use /app/backend/tests/test_eduscanner_api.py as regression suite. Re-run after main agent moves long-running Gemini calls to background tasks. If retesting the quiz_submit flow, verify (a) 200 response within ~10s, (b) actual feedback retrievable via GET /api/quiz/result/{id}, (c) audit log AUD-... entry created with action=QUIZ_SUBMITTED.",
+  "rca_of_the_issue": "POST /api/quiz/submit -> generate_deep_feedback() -> chat.send_message() on Gemini 3.1-pro-preview takes 60-80s. The Kubernetes/Cloudflare ingress fronting the preview URL has an HTTP timeout (~60s) and returns 502 to the client even though the backend FastAPI handler eventually completes (verified in /var/log/supervisor/backend.err.log — LiteLLM completion logged success ~1 min after the 502). MITIGATION: refactor to async job pattern — POST /api/quiz/submit creates result_id immediately with status='processing', spawns asyncio.create_task to run generate_deep_feedback, returns 202 with result_id; client polls GET /api/quiz/result/{id} until status=='ready'. Same pattern needed for /documents/upload (~48s) and /quiz/generate (~55s)."
+}
