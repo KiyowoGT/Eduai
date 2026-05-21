@@ -1,0 +1,884 @@
+{
+  "collections": {
+    "eduscanner_ai.audit_logs": {
+      "ns": "eduscanner_ai.audit_logs",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "action",
+          "audit_date",
+          "details",
+          "ip_address",
+          "log_id",
+          "timestamp",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "action": {
+            "bsonType": "string"
+          },
+          "audit_date": {
+            "bsonType": "string"
+          },
+          "details": {
+            "bsonType": "object",
+            "properties": {
+              "count": {
+                "bsonType": "int"
+              },
+              "current_semester": {
+                "bsonType": "int"
+              },
+              "document_id": {
+                "bsonType": "string"
+              },
+              "document_ids": {
+                "bsonType": "array",
+                "items": {
+                  "bsonType": "string"
+                }
+              },
+              "documents_deleted": {
+                "bsonType": "int"
+              },
+              "education_level": {
+                "bsonType": "string"
+              },
+              "filename": {
+                "bsonType": "string"
+              },
+              "folder_id": {
+                "bsonType": "string"
+              },
+              "institution": {
+                "bsonType": "string"
+              },
+              "major": {
+                "bsonType": "string"
+              },
+              "material_id": {
+                "bsonType": "string"
+              },
+              "name": {
+                "bsonType": "string"
+              },
+              "quiz_id": {
+                "bsonType": "string"
+              },
+              "recap_id": {
+                "bsonType": "string"
+              },
+              "score": {
+                "bsonType": "int"
+              },
+              "subject": {
+                "bsonType": "string"
+              },
+              "subjects": {
+                "bsonType": "array",
+                "items": {
+                  "bsonType": "string"
+                }
+              },
+              "teaching_methods": {
+                "anyOf": [
+                  {
+                    "bsonType": "null"
+                  },
+                  {
+                    "bsonType": "array",
+                    "items": {
+                      "bsonType": "string"
+                    }
+                  }
+                ]
+              },
+              "topic": {
+                "bsonType": "string"
+              }
+            }
+          },
+          "ip_address": {
+            "bsonType": "string"
+          },
+          "log_id": {
+            "bsonType": "string"
+          },
+          "timestamp": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.counters": {
+      "ns": "eduscanner_ai.counters",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "seq"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "string"
+          },
+          "seq": {
+            "bsonType": "int"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.discussion_messages": {
+      "ns": "eduscanner_ai.discussion_messages",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "content",
+          "created_at",
+          "document_id",
+          "message_id",
+          "user_id",
+          "user_name",
+          "user_picture"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "content": {
+            "bsonType": "string"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "document_id": {
+            "bsonType": "string"
+          },
+          "message_id": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          },
+          "user_name": {
+            "bsonType": "string"
+          },
+          "user_picture": {
+            "bsonType": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "eduscanner_ai.discussion_participants": {
+      "ns": "eduscanner_ai.discussion_participants",
+      "jsonSchema": {
+        "bsonType": "object",
+        "properties": {}
+      }
+    },
+    "eduscanner_ai.documents": {
+      "ns": "eduscanner_ai.documents",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "diagrams",
+          "document_id",
+          "file_path",
+          "filename",
+          "key_concepts",
+          "learning_objectives",
+          "status",
+          "summary",
+          "title",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "diagrams": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "explanation": {
+                  "bsonType": "string"
+                },
+                "name": {
+                  "bsonType": "string"
+                },
+                "type": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "explanation",
+                "name",
+                "type"
+              ]
+            }
+          },
+          "document_id": {
+            "bsonType": "string"
+          },
+          "file_path": {
+            "bsonType": "string"
+          },
+          "filename": {
+            "bsonType": "string"
+          },
+          "folder_id": {
+            "bsonType": "string"
+          },
+          "key_concepts": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "code_example": {
+                  "bsonType": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "concept": {
+                  "bsonType": "string"
+                },
+                "explanation": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "concept",
+                "explanation"
+              ]
+            }
+          },
+          "learning_objectives": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "pdf_url": {
+            "bsonType": "null"
+          },
+          "status": {
+            "bsonType": "string"
+          },
+          "summary": {
+            "bsonType": "string"
+          },
+          "title": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.folders": {
+      "ns": "eduscanner_ai.folders",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "folder_id",
+          "name",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "folder_id": {
+            "bsonType": "string"
+          },
+          "name": {
+            "bsonType": "string"
+          },
+          "recap_document_ids": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "recap_generated_at": {
+            "bsonType": "string"
+          },
+          "recap_id": {
+            "bsonType": "string"
+          },
+          "recap_summary": {
+            "bsonType": "string"
+          },
+          "recap_title": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.friend_requests": {
+      "ns": "eduscanner_ai.friend_requests",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "friend_request_id",
+          "from_user_id",
+          "from_user_name",
+          "status",
+          "to_user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "friend_request_id": {
+            "bsonType": "string"
+          },
+          "from_user_id": {
+            "bsonType": "string"
+          },
+          "from_user_name": {
+            "bsonType": "string"
+          },
+          "status": {
+            "bsonType": "string"
+          },
+          "to_user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.notifications": {
+      "ns": "eduscanner_ai.notifications",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "data",
+          "message",
+          "notification_id",
+          "read",
+          "type",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "data": {
+            "bsonType": "object",
+            "properties": {
+              "document_id": {
+                "bsonType": "string"
+              },
+              "document_title": {
+                "bsonType": "string"
+              },
+              "friend_request_id": {
+                "bsonType": "string"
+              },
+              "from_user_id": {
+                "bsonType": "string"
+              },
+              "invited_by": {
+                "bsonType": "string"
+              },
+              "user_id": {
+                "bsonType": "string"
+              }
+            }
+          },
+          "message": {
+            "bsonType": "string"
+          },
+          "notification_id": {
+            "bsonType": "string"
+          },
+          "read": {
+            "bsonType": "bool"
+          },
+          "type": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.pdf_files": {
+      "ns": "eduscanner_ai.pdf_files",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "data",
+          "document_id",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "data": {
+            "bsonType": "binData"
+          },
+          "document_id": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.quiz_results": {
+      "ns": "eduscanner_ai.quiz_results",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "answers",
+          "created_at",
+          "document_id",
+          "items",
+          "quiz_id",
+          "result_id",
+          "score",
+          "status",
+          "summary",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "answers": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "int"
+            }
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "document_id": {
+            "bsonType": "string"
+          },
+          "error": {
+            "bsonType": "string"
+          },
+          "items": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "correct": {
+                  "bsonType": "string"
+                },
+                "explanation": {
+                  "bsonType": "string"
+                },
+                "is_correct": {
+                  "bsonType": "bool"
+                },
+                "question": {
+                  "bsonType": "string"
+                },
+                "references": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "string"
+                  }
+                },
+                "selected": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "correct",
+                "explanation",
+                "is_correct",
+                "question",
+                "references",
+                "selected"
+              ]
+            }
+          },
+          "quiz_id": {
+            "bsonType": "string"
+          },
+          "result_id": {
+            "bsonType": "string"
+          },
+          "score": {
+            "bsonType": "int"
+          },
+          "status": {
+            "bsonType": "string"
+          },
+          "summary": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.quizzes": {
+      "ns": "eduscanner_ai.quizzes",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "document_id",
+          "document_ids",
+          "folder_id",
+          "questions",
+          "quiz_id",
+          "source_titles",
+          "status",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "document_id": {
+            "bsonType": "string"
+          },
+          "document_ids": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "error": {
+            "bsonType": "string"
+          },
+          "folder_id": {
+            "bsonType": [
+              "null",
+              "string"
+            ]
+          },
+          "questions": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "correct_index": {
+                  "bsonType": "int"
+                },
+                "id": {
+                  "bsonType": "string"
+                },
+                "options": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "string"
+                  }
+                },
+                "question": {
+                  "bsonType": "string"
+                },
+                "skill_type": {
+                  "bsonType": "string"
+                },
+                "source_title": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "correct_index",
+                "id",
+                "options",
+                "question",
+                "skill_type",
+                "source_title"
+              ]
+            }
+          },
+          "quiz_id": {
+            "bsonType": "string"
+          },
+          "source_titles": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "status": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.recaps": {
+      "ns": "eduscanner_ai.recaps",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "created_at",
+          "document_ids",
+          "folder_id",
+          "per_document",
+          "recap_id",
+          "shared_concepts",
+          "source_titles",
+          "status",
+          "study_path",
+          "title",
+          "unified_summary",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "audio_url": {
+            "bsonType": "string"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "document_ids": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "folder_id": {
+            "bsonType": [
+              "null",
+              "string"
+            ]
+          },
+          "per_document": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "highlight": {
+                  "bsonType": "string"
+                },
+                "source_title": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "highlight",
+                "source_title"
+              ]
+            }
+          },
+          "recap_id": {
+            "bsonType": "string"
+          },
+          "shared_concepts": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "concept": {
+                  "bsonType": "string"
+                },
+                "explanation": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "concept",
+                "explanation"
+              ]
+            }
+          },
+          "source_titles": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "status": {
+            "bsonType": "string"
+          },
+          "study_path": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "title": {
+            "bsonType": "string"
+          },
+          "unified_summary": {
+            "bsonType": "string"
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    },
+    "eduscanner_ai.study_materials": {
+      "ns": "eduscanner_ai.study_materials",
+      "jsonSchema": {
+        "bsonType": "object",
+        "properties": {}
+      }
+    },
+    "eduscanner_ai.users": {
+      "ns": "eduscanner_ai.users",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "onboarded",
+          "user_id"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "created_at": {
+            "bsonType": "string"
+          },
+          "current_semester": {
+            "bsonType": "int"
+          },
+          "education_level": {
+            "bsonType": "string"
+          },
+          "email": {
+            "bsonType": "string"
+          },
+          "friend_code": {
+            "bsonType": "string"
+          },
+          "institution": {
+            "bsonType": "string"
+          },
+          "major": {
+            "bsonType": "string"
+          },
+          "name": {
+            "bsonType": "string"
+          },
+          "onboarded": {
+            "bsonType": "bool"
+          },
+          "picture": {
+            "bsonType": "string"
+          },
+          "schedule": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "day": {
+                  "bsonType": "string"
+                },
+                "end_time": {
+                  "bsonType": "string"
+                },
+                "start_time": {
+                  "bsonType": "string"
+                },
+                "subject_id": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "day",
+                "end_time",
+                "start_time",
+                "subject_id"
+              ]
+            }
+          },
+          "subjects": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "object",
+              "properties": {
+                "folder_id": {
+                  "bsonType": "string"
+                },
+                "id": {
+                  "bsonType": "string"
+                },
+                "name": {
+                  "bsonType": "string"
+                }
+              },
+              "required": [
+                "folder_id",
+                "id",
+                "name"
+              ]
+            }
+          },
+          "teaching_methods": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "user_id": {
+            "bsonType": "string"
+          }
+        }
+      }
+    }
+  },
+  "relationships": []
+}

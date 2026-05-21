@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,13 @@ const ONBOARD_IMG = "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
+
+  useEffect(() => {
+    if (user?.onboarded) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
   const [level, setLevel] = useState("");
   const [major, setMajor] = useState("");
   const [institution, setInstitution] = useState("");
@@ -41,7 +47,12 @@ export default function Onboarding() {
         institution: institution.trim(),
         current_semester: parseInt(grade),
       });
-      setUser(updated);
+      setUser((prev) => ({
+        ...prev,
+        id: prev?.id || prev?.user_id,
+        ...updated,
+        onboarded: true,
+      }));
       toast.success("Profil berhasil disimpan");
       navigate("/dashboard", { replace: true });
     } catch (err) {

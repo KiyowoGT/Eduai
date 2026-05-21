@@ -18,7 +18,7 @@ export default function Documents() {
   const load = async () => {
     try {
       const [d, f] = await Promise.all([listDocuments(), listFolders()]);
-      setDocs(d); setFolders(f);
+      setDocs(d ?? []); setFolders(f ?? []);
     } finally { setLoading(false); }
   };
 
@@ -81,7 +81,7 @@ export default function Documents() {
   const folderById = (id) => folders.find(f => f.folder_id === id);
 
   return (
-    <div className="max-w-6xl" data-testid="documents-page">
+    <div className="w-full" data-testid="documents-page">
       <div className="mb-6">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Semua Dokumen</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Perpustakaan Akademik</h1>
@@ -232,7 +232,12 @@ export default function Documents() {
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      {folder && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E5A93C]/10 text-[#1A1B26] truncate"><FolderOpen className="w-2.5 h-2.5 text-[#E5A93C]" />{folder.name}</span>}
+                      {folder && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E5A93C]/10 text-[#1A1B26] min-w-0 max-w-[120px] sm:max-w-[180px]">
+                          <FolderOpen className="w-2.5 h-2.5 text-[#E5A93C] shrink-0" />
+                          <span className="truncate">{folder.name}</span>
+                        </span>
+                      )}
                       <span className="font-mono text-[#A0A2B1]">{new Date(d.created_at).toLocaleDateString("id-ID")}</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${

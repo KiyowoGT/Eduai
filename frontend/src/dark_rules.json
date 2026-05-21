@@ -1,0 +1,277 @@
+[
+  {
+    "key": "text:#1A1B26:",
+    "selector": ".dark .text-[#1A1B26]",
+    "declaration": "color: var(--ink);"
+  },
+  {
+    "key": "text:#646675:",
+    "selector": ".dark .text-[#646675]",
+    "declaration": "color: var(--ink-secondary);"
+  },
+  {
+    "key": "text:#A0A2B1:",
+    "selector": ".dark .text-[#A0A2B1]",
+    "declaration": "color: var(--ink-disabled);"
+  },
+  {
+    "key": "text:#1D2D50:",
+    "selector": ".dark .text-[#1D2D50]",
+    "declaration": "color: var(--brand-primary);"
+  },
+  {
+    "key": "text:#15223E:",
+    "selector": ".dark .text-[#15223E]",
+    "declaration": "color: var(--brand-primary-hover);"
+  },
+  {
+    "key": "text:#B83A4B:",
+    "selector": ".dark .text-[#B83A4B]",
+    "declaration": "color: var(--brand-secondary);"
+  },
+  {
+    "key": "text:#E5A93C:",
+    "selector": ".dark .text-[#E5A93C]",
+    "declaration": "color: var(--brand-tertiary);"
+  },
+  {
+    "key": "text:#2D6A4F:",
+    "selector": ".dark .text-[#2D6A4F]",
+    "declaration": "color: var(--success);"
+  },
+  {
+    "key": "text:#2B59C3:",
+    "selector": ".dark .text-[#2B59C3]",
+    "declaration": "color: var(--info);"
+  },
+  {
+    "key": "bg:#F8F6F0:",
+    "selector": ".dark .bg-[#F8F6F0]",
+    "declaration": "background-color: var(--paper);"
+  },
+  {
+    "key": "bg:#F8F6F0:90",
+    "selector": ".dark .bg-[#F8F6F0]/90",
+    "declaration": "background-color: var(--paper);"
+  },
+  {
+    "key": "bg:#F8F6F0:85",
+    "selector": ".dark .bg-[#F8F6F0]/85",
+    "declaration": "background-color: var(--paper);"
+  },
+  {
+    "key": "bg:#F8F6F0:50",
+    "selector": ".dark .bg-[#F8F6F0]/50",
+    "declaration": "background-color: var(--paper);"
+  },
+  {
+    "key": "bg:#1D2D50:",
+    "selector": ".dark .bg-[#1D2D50]",
+    "declaration": "background-color: var(--brand-primary);"
+  },
+  {
+    "key": "bg:#1D2D50:5",
+    "selector": ".dark .bg-[#1D2D50]/5",
+    "declaration": "background-color: rgba(59, 130, 246, 0.05);"
+  },
+  {
+    "key": "bg:#15223E:",
+    "selector": ".dark .bg-[#15223E]",
+    "declaration": "background-color: var(--brand-primary-hover);"
+  },
+  {
+    "key": "bg:#B83A4B:",
+    "selector": ".dark .bg-[#B83A4B]",
+    "declaration": "background-color: var(--brand-secondary);"
+  },
+  {
+    "key": "bg:#B83A4B:5",
+    "selector": ".dark .bg-[#B83A4B]/5",
+    "declaration": "background-color: rgba(248, 113, 113, 0.05);"
+  },
+  {
+    "key": "bg:#B83A4B:10",
+    "selector": ".dark .bg-[#B83A4B]/10",
+    "declaration": "background-color: rgba(248, 113, 113, 0.1);"
+  },
+  {
+    "key": "bg:#E5A93C:",
+    "selector": ".dark .bg-[#E5A93C]",
+    "declaration": "background-color: var(--brand-tertiary);"
+  },
+  {
+    "key": "bg:#E5A93C:5",
+    "selector": ".dark .bg-[#E5A93C]/5",
+    "declaration": "background-color: rgba(250, 204, 21, 0.05);"
+  },
+  {
+    "key": "bg:#E5A93C:10",
+    "selector": ".dark .bg-[#E5A93C]/10",
+    "declaration": "background-color: rgba(250, 204, 21, 0.1);"
+  },
+  {
+    "key": "bg:#E5A93C:20",
+    "selector": ".dark .bg-[#E5A93C]/20",
+    "declaration": "background-color: rgba(250, 204, 21, 0.2);"
+  },
+  {
+    "key": "bg:#E5A93C:30",
+    "selector": ".dark .bg-[#E5A93C]/30",
+    "declaration": "background-color: rgba(250, 204, 21, 0.3);"
+  },
+  {
+    "key": "bg:#2D6A4F:",
+    "selector": ".dark .bg-[#2D6A4F]",
+    "declaration": "background-color: var(--success);"
+  },
+  {
+    "key": "bg:#2D6A4F:10",
+    "selector": ".dark .bg-[#2D6A4F]/10",
+    "declaration": "background-color: rgba(74, 222, 128, 0.1);"
+  },
+  {
+    "key": "bg:#FFF8E1:",
+    "selector": ".dark .bg-[#FFF8E1]",
+    "declaration": "background-color: rgba(251, 191, 36, 0.1);"
+  },
+  {
+    "key": "bg:#E2E0D8:",
+    "selector": ".dark .bg-[#E2E0D8]",
+    "declaration": "background-color: #374151;"
+  },
+  {
+    "key": "border:#E2E0D8:",
+    "selector": ".dark .border-[#E2E0D8]",
+    "declaration": "border-color: #374151;"
+  },
+  {
+    "key": "border:#1D2D50:",
+    "selector": ".dark .border-[#1D2D50]",
+    "declaration": "border-color: var(--brand-primary);"
+  },
+  {
+    "key": "border:#1D2D50:30",
+    "selector": ".dark .border-[#1D2D50]/30",
+    "declaration": "border-color: rgba(59, 130, 246, 0.3);"
+  },
+  {
+    "key": "border:#1D2D50:40",
+    "selector": ".dark .border-[#1D2D50]/40",
+    "declaration": "border-color: rgba(59, 130, 246, 0.4);"
+  },
+  {
+    "key": "border:#E5A93C:20",
+    "selector": ".dark .border-[#E5A93C]/20",
+    "declaration": "border-color: rgba(250, 204, 21, 0.2);"
+  },
+  {
+    "key": "border:#E5A93C:30",
+    "selector": ".dark .border-[#E5A93C]/30",
+    "declaration": "border-color: rgba(250, 204, 21, 0.3);"
+  },
+  {
+    "key": "border:#F8F6F0:",
+    "selector": ".dark .border-[#F8F6F0]",
+    "declaration": "border-color: var(--border);"
+  },
+  {
+    "key": "border:#B83A4B:",
+    "selector": ".dark .border-[#B83A4B]",
+    "declaration": "border-color: var(--brand-secondary);"
+  },
+  {
+    "key": "hover:#E5A93C:",
+    "selector": ".dark .hover-[#E5A93C]",
+    "declaration": "border-color: var(--brand-tertiary);"
+  },
+  {
+    "key": "hover:#1D2D50:30",
+    "selector": ".dark .hover-[#1D2D50]/30",
+    "declaration": "border-color: rgba(59, 130, 246, 0.3);"
+  },
+  {
+    "key": "hover:#1D2D50:40",
+    "selector": ".dark .hover-[#1D2D50]/40",
+    "declaration": "border-color: rgba(59, 130, 246, 0.4);"
+  },
+  {
+    "key": "hover:#F8F6F0:",
+    "selector": ".dark .hover-[#F8F6F0]",
+    "declaration": "background-color: hsl(var(--card));"
+  },
+  {
+    "key": "hover:#F8F6F0:50",
+    "selector": ".dark .hover-[#F8F6F0]/50",
+    "declaration": "background-color: hsl(var(--card));"
+  },
+  {
+    "key": "hover:#1A1B26:",
+    "selector": ".dark .hover-[#1A1B26]",
+    "declaration": "color: var(--ink);"
+  },
+  {
+    "key": "hover:#B83A4B:5",
+    "selector": ".dark .hover-[#B83A4B]/5",
+    "declaration": "background-color: rgba(248, 113, 113, 0.1);"
+  },
+  {
+    "key": "hover:#E5A93C:5",
+    "selector": ".dark .hover-[#E5A93C]/5",
+    "declaration": "background-color: rgba(250, 204, 21, 0.1);"
+  },
+  {
+    "key": "hover:#B83A4B:",
+    "selector": ".dark .hover-[#B83A4B]",
+    "declaration": "color: var(--brand-secondary);"
+  },
+  {
+    "key": "hover:#15223E:",
+    "selector": ".dark .hover-[#15223E]",
+    "declaration": "color: var(--brand-primary-hover);"
+  },
+  {
+    "key": "hover:#1D2D50:",
+    "selector": ".dark .hover-[#1D2D50]",
+    "declaration": "color: var(--brand-primary);"
+  },
+  {
+    "key": "text:#F8F6F0:",
+    "selector": ".dark .text-[#F8F6F0]",
+    "declaration": "color: var(--ink);"
+  },
+  {
+    "key": "bg:#FBFAF7:",
+    "selector": ".dark .bg-[#FBFAF7]",
+    "declaration": "background-color: hsl(var(--card));"
+  },
+  {
+    "key": "bg:#FBFAF7:50",
+    "selector": ".dark .bg-[#FBFAF7]/50",
+    "declaration": "background-color: rgba(29, 45, 80, 0.5);"
+  },
+  {
+    "key": "bg:#1A1B26:",
+    "selector": ".dark .bg-[#1A1B26]",
+    "declaration": "background-color: var(--paper);"
+  },
+  {
+    "key": "bg:#243b63:",
+    "selector": ".dark .bg-[#243b63]",
+    "declaration": "background-color: var(--brand-primary-hover);"
+  },
+  {
+    "key": "bg:#9c2f3d:",
+    "selector": ".dark .bg-[#9c2f3d]",
+    "declaration": "background-color: var(--brand-secondary);"
+  },
+  {
+    "key": "hover:#243b63:",
+    "selector": ".dark .hover-[#243b63]",
+    "declaration": "background-color: var(--brand-primary-hover);"
+  },
+  {
+    "key": "hover:#9c2f3d:",
+    "selector": ".dark .hover-[#9c2f3d]",
+    "declaration": "background-color: var(--brand-secondary);"
+  }
+]

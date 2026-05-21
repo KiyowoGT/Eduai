@@ -1,32 +1,36 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import SignUp from "@/pages/SignUp";
 import AuthCallback from "@/pages/AuthCallback";
 import Onboarding from "@/pages/Onboarding";
 import Dashboard from "@/pages/Dashboard";
 import Documents from "@/pages/Documents";
+import Friends from "@/pages/Friends";
+import EducationSettings from "@/pages/EducationSettings";
 import DocumentDetail from "@/pages/DocumentDetail";
 import Folders from "@/pages/Folders";
 import FolderDetail from "@/pages/FolderDetail";
 import Recap from "@/pages/Recap";
 import Quiz from "@/pages/Quiz";
 import QuizResult from "@/pages/QuizResult";
+import QuizHistory from "@/pages/QuizHistory";
 import AuditLog from "@/pages/AuditLog";
 import Profile from "@/pages/Profile";
 
 function AppRouter() {
-  const location = useLocation();
-  // Synchronous check for OAuth callback (prevents race conditions)
-  if (location.hash?.includes("session_id=")) {
-    return <AuthCallback />;
-  }
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<SignUp />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/onboarding" element={
         <ProtectedRoute requireOnboarded={false}><Onboarding /></ProtectedRoute>
       } />
@@ -34,11 +38,14 @@ function AppRouter() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dokumen" element={<Documents />} />
         <Route path="/dokumen/:id" element={<DocumentDetail />} />
+        <Route path="/teman" element={<Friends />} />
         <Route path="/folder" element={<Folders />} />
         <Route path="/folder/:id" element={<FolderDetail />} />
         <Route path="/recap/:id" element={<Recap />} />
         <Route path="/kuis/:id" element={<Quiz />} />
         <Route path="/hasil/:id" element={<QuizResult />} />
+        <Route path="/riwayat-kuis" element={<QuizHistory />} />
+        <Route path="/pengaturan-belajar" element={<EducationSettings />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/profil" element={<Profile />} />
       </Route>
@@ -48,6 +55,27 @@ function AppRouter() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const applyTheme = (theme) => {
+      if (theme === 'system' || !theme) {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        document.documentElement.classList.toggle('dark', mq.matches);
+      } else {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+      }
+    };
+
+    const stored = localStorage.getItem('theme') || 'system';
+    applyTheme(stored);
+
+    if (stored === 'system' || !stored) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = (e) => document.documentElement.classList.toggle('dark', e.matches);
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, []);
+
   return (
     <div className="App">
       <BrowserRouter>

@@ -1,15 +1,24 @@
+import { useNavigate, Link, Navigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, GraduationCap, Sparkles } from "lucide-react";
 
 const HERO_IMG = "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/7b6b9737e6374591d9a3b25695ec71d7ac4f0b4c6b036c3a181f991d2e976936.png";
 
-const handleGoogleLogin = () => {
-  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-  const redirectUrl = window.location.origin + "/dashboard";
-  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-};
-
 export default function Landing() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-[#F8F6F0]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#1D2D50] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  if (user) {
+    return <Navigate to={user.onboarded ? "/dashboard" : "/onboarding"} replace />;
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F6F0] paper-grain" data-testid="landing-page">
       {/* Header */}
@@ -22,14 +31,18 @@ export default function Landing() {
             <span className="font-heading text-xl font-semibold tracking-tight">EduScanner <span className="text-[#B83A4B]">AI</span></span>
             <span className="ml-3 text-[10px] uppercase tracking-[0.25em] text-[#646675] hidden sm:inline">Edisi Pelajar & Mahasiswa</span>
           </div>
-          <Button
-            data-testid="google-login-button"
-            onClick={handleGoogleLogin}
-            className="bg-[#1D2D50] hover:bg-[#15223E] text-white rounded-full px-5 h-9"
-          >
-            Masuk dengan Google
-            <ArrowUpRight className="w-4 h-4 ml-1.5" />
-          </Button>
+          <div className="flex items-center gap-4">
+            <Link to="/login" className="text-sm font-medium text-[#1D2D50] hover:text-[#B83A4B] transition-colors hidden sm:block">
+              Masuk
+            </Link>
+            <Button
+              onClick={() => navigate("/signup")}
+              className="bg-[#1D2D50] hover:bg-[#15223E] text-white rounded-full px-5 h-9"
+            >
+              Mulai Gratis
+              <ArrowUpRight className="w-4 h-4 ml-1.5" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -48,10 +61,11 @@ export default function Landing() {
             <p className="mt-6 text-base sm:text-lg text-[#646675] leading-relaxed max-w-xl">
               Asisten akademik AI yang membaca PDF teknis, menjelaskan diagram, membangun peta konsep, lalu menguji pemahaman lu lewat kuis HOTS dengan feedback berbasis referensi akademik. Dari SD sampai bangku kuliah.
             </p>
+
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Button
                 data-testid="hero-cta-button"
-                onClick={handleGoogleLogin}
+                onClick={() => navigate("/signup")}
                 className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-12 px-7 rounded-full text-sm font-medium"
               >
                 Mulai Belajar Gratis

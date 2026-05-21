@@ -19,7 +19,7 @@ def mongo_db():
     cli.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def test_session(mongo_db):
     """Create a fresh test user + session directly in MongoDB."""
     ts = int(time.time() * 1000)
@@ -30,7 +30,7 @@ def test_session(mongo_db):
         "user_id": user_id,
         "email": f"test.student.{ts}@example.com",
         "name": "Budi Test",
-        "picture": None,
+        "picture": "",
         "onboarded": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -52,7 +52,7 @@ def test_session(mongo_db):
     mongo_db.recaps.delete_many({"user_id": user_id})
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def auth_client(test_session):
     s = requests.Session()
     s.headers.update({"Authorization": f"Bearer {test_session['token']}"})

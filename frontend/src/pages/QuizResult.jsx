@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { getQuizResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Check, X, ArrowLeft, BookMarked } from "lucide-react";
+import { Check, X, ArrowLeft, BookMarked, Bot, MessageCircle } from "lucide-react";
 
 export default function QuizResult() {
   const { id } = useParams();
@@ -22,10 +22,11 @@ export default function QuizResult() {
   if (!result) return <div className="text-sm text-[#646675]">Hasil tidak ditemukan.</div>;
 
   const score = result.score || 0;
-  const scoreColor = score >= 80 ? "#2D6A4F" : score >= 60 ? "#E5A93C" : "#B83A4B";
+  const scoreClass = score >= 80 ? "text-[#2D6A4F]" : score >= 60 ? "text-[#E5A93C]" : "text-[#B83A4B]";
+  const aiChatUrl = `/dokumen/${result.document_id}?tab=ai&mention=${result.result_id}`;
 
   return (
-    <div className="max-w-4xl" data-testid="quiz-result-page">
+    <div className="w-full" data-testid="quiz-result-page">
       <button onClick={() => navigate("/dashboard")} data-testid="result-back" className="inline-flex items-center gap-1.5 text-xs text-[#646675] hover:text-[#1A1B26] mb-6">
         <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
       </button>
@@ -33,8 +34,8 @@ export default function QuizResult() {
       <div className="grid md:grid-cols-12 gap-6 mb-10 fade-up">
         <div className="md:col-span-4 bg-white border border-[#E2E0D8] rounded-xl p-7">
           <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Skor Akhir</div>
-          <div className="font-heading text-6xl mt-3" style={{ color: scoreColor }}>{score}<span className="text-2xl text-[#A0A2B1]">/100</span></div>
-          <div className="font-mono text-[11px] text-[#A0A2B1] mt-3">{result.result_id}</div>
+          <div className={`font-heading text-6xl mt-3 ${scoreClass}`}>{score}<span className="text-2xl text-[#A0A2B1]">/100</span></div>
+          <div className="font-mono text-[11px] text-[#A0A2B1] mt-3 truncate" title={result.result_id}>{result.result_id}</div>
         </div>
         <div className="md:col-span-8 bg-[#1D2D50] text-white rounded-xl p-7">
           <div className="text-xs uppercase tracking-[0.2em] text-[#E5A93C]">Ringkasan AI</div>
@@ -80,6 +81,29 @@ export default function QuizResult() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-10 bg-white border border-[#E2E0D8] rounded-xl p-6" data-testid="quiz-ai-cta">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-[#E5A93C]/20 grid place-items-center shrink-0">
+            <Bot className="w-5 h-5 text-[#E5A93C]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-heading text-lg text-[#1A1B26]">Tanya AI tentang kuis ini</h3>
+            <p className="text-sm text-[#646675] mt-1 leading-relaxed">
+              Percakapan disimpan di tab Tanya AI dokumen. Hasil kuis ini akan otomatis disebut dengan{" "}
+              <span className="font-mono text-[#E5A93C]">@</span> supaya AI tahu konteksnya.
+            </p>
+            <Button
+              data-testid="open-document-ai-chat"
+              onClick={() => navigate(aiChatUrl)}
+              className="mt-4 bg-[#1D2D50] hover:bg-[#15223E] text-white"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Buka Tanya AI di dokumen
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="mt-10 flex gap-3">

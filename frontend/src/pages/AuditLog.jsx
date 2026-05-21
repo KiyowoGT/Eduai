@@ -6,12 +6,12 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     (async () => {
-      try { setLogs(await listAuditLogs()); } finally { setLoading(false); }
+      try { setLogs((await listAuditLogs()) ?? []); } finally { setLoading(false); }
     })();
   }, []);
 
   return (
-    <div className="max-w-5xl" data-testid="audit-log-page">
+    <div className="w-full" data-testid="audit-log-page">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Riwayat Aktivitas</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Audit Log</h1>

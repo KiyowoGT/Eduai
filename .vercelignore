@@ -1,0 +1,10 @@
+backend/
+node_modules/
+.vercel/
+test_reports/
+memory/
+tests/
+*.pyc
+__pycache__/
+.env
+.env.example

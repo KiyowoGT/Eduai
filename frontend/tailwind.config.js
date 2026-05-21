@@ -52,7 +52,23 @@ module.exports = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
-  			}
+  			},
+  			paper: {
+  				DEFAULT: 'var(--paper)',
+  				surface: 'var(--paper-surface)',
+  			},
+  			ink: {
+  				DEFAULT: 'var(--ink)',
+  				secondary: 'var(--ink-secondary)',
+  				disabled: 'var(--ink-disabled)',
+  			},
+  			brand: {
+  				primary: 'var(--brand-primary)',
+  				'primary-hover': 'var(--brand-primary-hover)',
+  				secondary: 'var(--brand-secondary)',
+  				tertiary: 'var(--brand-tertiary)',
+  				border: 'var(--brand-border)',
+  			},
   		},
   		keyframes: {
   			'accordion-down': {

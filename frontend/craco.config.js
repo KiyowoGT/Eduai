@@ -1,5 +1,6 @@
 // craco.config.js
 const path = require("path");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
@@ -10,6 +11,9 @@ const isDevServer = process.env.NODE_ENV !== "production";
 const config = {
   enableHealthCheck: process.env.ENABLE_HEALTH_CHECK === "true",
 };
+
+// Determine backend target for proxy
+const BACKEND_TARGET = process.env.REACT_APP_BACKEND_URL?.trim() || "http://localhost:8000";
 
 // Conditionally load health check modules only if enabled
 let WebpackHealthPlugin;
@@ -61,40 +65,33 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
-  // Add health check endpoints if enabled
-  if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
-    const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
+  // Add proxy middleware to forward /api/* requests to backend
+  const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
 
-    devServerConfig.setupMiddlewares = (middlewares, devServer) => {
-      // Call original setup if exists
-      if (originalSetupMiddlewares) {
-        middlewares = originalSetupMiddlewares(middlewares, devServer);
-      }
+  devServerConfig.setupMiddlewares = (middlewares, devServer) => {
+    // Call original setup if exists
+    if (originalSetupMiddlewares) {
+      middlewares = originalSetupMiddlewares(middlewares, devServer);
+    }
 
-      // Setup health endpoints
+    // Proxy /api/* requests to backend
+    middlewares.unshift(
+      createProxyMiddleware({
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+        pathFilter: "/api",
+      })
+    );
+
+    // Setup health endpoints
+    if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
       setupHealthEndpoints(devServer, healthPluginInstance);
+    }
 
-      return middlewares;
-    };
-  }
+    return middlewares;
+  };
 
   return devServerConfig;
 };
-
-// Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
-  try {
-    const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
-    webpackConfig = withVisualEdits(webpackConfig);
-  } catch (err) {
-    if (err.code === 'MODULE_NOT_FOUND' && err.message.includes('@emergentbase/visual-edits/craco')) {
-      console.warn(
-        "[visual-edits] @emergentbase/visual-edits not installed — visual editing disabled."
-      );
-    } else {
-      throw err;
-    }
-  }
-}
 
 module.exports = webpackConfig;

@@ -1,0 +1,15 @@
+# Ignore heavy directories to save tokens
+node_modules/
+.git/
+backend/uploads/
+test_reports/
+frontend/build/
+backend/__pycache__/
+.next/
+dist/
+build/
+.vercel/
+.emergent/
+*.pdf
+*.json
+package-lock.json
