@@ -90,6 +90,19 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fade-up 500ms ease-out both; }
+
+.italic-scholarly {
+  font-style: italic;
+  font-family: 'EB Garamond', Georgia, serif;
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 15px rgba(229, 169, 60, 0.2);
+}
+
+.bg-radial-gradient {
+  background: radial-gradient(circle, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
+}
 .dropzone {
   border: 1.5px dashed var(--brand-border);
   transition: all 300ms;

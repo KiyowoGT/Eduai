@@ -69,11 +69,11 @@ export default function SignUp() {
     }
   };
 
-  const inputClass = "w-full h-10 pl-11 pr-4 rounded-xl border border-[#E2E0D8] bg-white text-sm transition-all duration-500 focus:outline-none focus:ring-4 focus:ring-[#1D2D50]/5 focus:border-[#1D2D50] placeholder:text-[#D1D1D1] shadow-sm";
-  const labelClass = "text-[9px] font-bold uppercase tracking-[0.3em] text-[#1A1B26]/60 ml-1 block mb-1";
+  const inputClass = "w-full h-10 pl-11 pr-4 rounded-xl border border-[#E2E0D8] dark:border-white/10 bg-white dark:bg-white/5 text-sm dark:text-white transition-all duration-500 focus:outline-none focus:ring-4 focus:ring-[#1D2D50]/5 dark:focus:ring-[#E5A93C]/5 focus:border-[#1D2D50] dark:focus:border-[#E5A93C] placeholder:text-[#D1D1D1] shadow-sm";
+  const labelClass = "text-[9px] font-bold uppercase tracking-[0.3em] text-[#1A1B26]/60 dark:text-white/60 ml-1 block mb-1";
 
   return (
-    <div className="h-screen w-full bg-[#F8F6F0] flex selection:bg-[#E5A93C] selection:text-[#1A1B26] overflow-hidden relative font-body">
+    <div className="h-screen w-full bg-[#F8F6F0] dark:bg-[#12131A] flex selection:bg-[#E5A93C] selection:text-[#1A1B26] overflow-hidden relative font-body transition-colors duration-500">
       {/* Luxurious Texture Overlay */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.03] paper-grain z-0" />
 
@@ -158,7 +158,7 @@ export default function SignUp() {
         </div>
 
         {/* Right Section — Luxurious Form Area */}
-        <div className="w-full lg:w-[640px] h-full flex flex-col justify-center p-8 lg:px-16 xl:px-20 bg-[#F8F6F0] border-l border-[#E5A93C]/10 shadow-2xl relative overflow-y-auto">
+        <div className="w-full lg:w-[640px] h-full flex flex-col justify-center p-8 lg:px-16 xl:px-20 bg-[#F8F6F0] dark:bg-[#12131A] border-l border-[#E5A93C]/10 shadow-2xl relative overflow-y-auto transition-colors duration-500">
           
           {/* Top Navigation Spacer (since link was removed) */}
           <div className="mb-auto h-8 lg:h-0" />
@@ -171,15 +171,15 @@ export default function SignUp() {
                   <GraduationCap className="w-8 h-8 text-[#E5A93C]" />
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="font-heading text-2xl font-bold tracking-tighter text-[#1A1B26]">EduScanner <span className="text-[#B83A4B]">AI</span></span>
+                  <span className="font-heading text-2xl font-bold tracking-tighter text-[#1A1B26] dark:text-white">EduScanner <span className="text-[#B83A4B]">AI</span></span>
                   <div className="flex items-center gap-2 mt-0.5">
                     <div className="h-[1px] w-3 bg-[#E5A93C]/50" />
                     <span className="text-[9px] uppercase tracking-[0.4em] text-[#E5A93C] font-black">Registration Portal</span>
                   </div>
                 </div>
               </div>
-              <h1 className="font-heading text-4xl text-[#1A1B26] tracking-tight leading-none mb-3 italic">Mulai <span className="not-italic font-bold">Keanggotaan.</span></h1>
-              <p className="text-[#646675] text-sm font-medium leading-relaxed max-w-[280px]">
+              <h1 className="font-heading text-4xl text-[#1A1B26] dark:text-white tracking-tight leading-none mb-3 italic">Mulai <span className="not-italic font-bold">Keanggotaan.</span></h1>
+              <p className="text-[#646675] dark:text-white/60 text-sm font-medium leading-relaxed max-w-[280px]">
                 Bergabunglah dengan ekosistem riset cerdas kami sekarang.
               </p>
             </div>
@@ -190,7 +190,7 @@ export default function SignUp() {
                 <div className="space-y-1">
                   <label className={labelClass}>Nama Lengkap</label>
                   <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#1D2D50] transition-colors" />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#E5A93C] transition-colors" />
                     <input
                       type="text"
                       required
@@ -204,7 +204,7 @@ export default function SignUp() {
                 <div className="space-y-1">
                   <label className={labelClass}>Username</label>
                   <div className="relative group">
-                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#1D2D50] transition-colors" />
+                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#E5A93C] transition-colors" />
                     <input
                       type="text"
                       required
@@ -220,7 +220,7 @@ export default function SignUp() {
               <div className="space-y-1">
                 <label className={labelClass}>Alamat Email</label>
                 <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#1D2D50] transition-colors" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#E5A93C] transition-colors" />
                   <input
                     type="email"
                     required
@@ -236,7 +236,7 @@ export default function SignUp() {
                 <div className="space-y-1">
                   <label className={labelClass}>Kunci Sandi</label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#1D2D50] transition-colors" />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#E5A93C] transition-colors" />
                     <input
                       type={showPassword ? "text" : "password"}
                       required
@@ -248,7 +248,7 @@ export default function SignUp() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D1D1D1] hover:text-[#1D2D50] transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D1D1D1] hover:text-[#E5A93C] transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
@@ -257,7 +257,7 @@ export default function SignUp() {
                 <div className="space-y-1">
                   <label className={labelClass}>Verifikasi Sandi</label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#1D2D50] transition-colors" />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#D1D1D1] group-focus-within:text-[#E5A93C] transition-colors" />
                     <input
                       type={showConfirm ? "text" : "password"}
                       required
@@ -269,7 +269,7 @@ export default function SignUp() {
                     <button
                       type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D1D1D1] hover:text-[#1D2D50] transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D1D1D1] hover:text-[#E5A93C] transition-colors"
                     >
                       {showConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
@@ -280,19 +280,19 @@ export default function SignUp() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-[#1D2D50] hover:bg-[#15223E] text-white rounded-xl font-bold uppercase tracking-[0.3em] text-[10px] shadow-[0_20px_40px_-10px_rgba(29,45,80,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-3 mt-4 border border-white/5"
+                className="w-full h-12 bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#1D2D50] rounded-xl font-bold uppercase tracking-[0.3em] text-[10px] shadow-[0_20px_40px_-10px_rgba(29,45,80,0.3)] dark:shadow-[0_20px_40px_-10px_rgba(229,169,60,0.2)] transition-all active:scale-[0.98] flex items-center justify-center gap-3 mt-4 border border-white/5"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Inisialisasi Keanggotaan <ChevronRight className="w-4 h-4 text-[#E5A93C]" /></>}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Inisialisasi Keanggotaan <ChevronRight className="w-4 h-4 text-[#E5A93C] dark:text-[#1D2D50]" /></>}
               </Button>
             </form>
 
             {/* Divider */}
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full h-px bg-gradient-to-r from-transparent via-[#E2E0D8] to-transparent"></div>
+                <div className="w-full h-px bg-gradient-to-r from-transparent via-[#E2E0D8] dark:via-white/10 to-transparent"></div>
               </div>
               <div className="relative flex justify-center text-[9px] uppercase tracking-[0.25em] font-extrabold">
-                <span className="bg-[#F8F6F0] px-4 text-[#A0A2B1]">Identitas Cloud</span>
+                <span className="bg-[#F8F6F0] dark:bg-[#12131A] px-4 text-[#A0A2B1] dark:text-white/40 transition-colors">Identitas Cloud</span>
               </div>
             </div>
 
@@ -300,7 +300,7 @@ export default function SignUp() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full h-12 rounded-xl border border-[#E2E0D8] bg-white text-[10px] font-bold uppercase tracking-[0.2em] text-[#1A1B26] hover:bg-white hover:border-[#1D2D50] hover:shadow-md transition-all duration-500 flex items-center justify-center gap-4 active:scale-[0.98] group"
+              className="w-full h-12 rounded-xl border border-[#E2E0D8] dark:border-white/10 bg-white dark:bg-white/5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1A1B26] dark:text-white hover:bg-white dark:hover:bg-white/10 hover:border-[#1D2D50] dark:hover:border-[#E5A93C] hover:shadow-md transition-all duration-500 flex items-center justify-center gap-4 active:scale-[0.98] group"
             >
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all opacity-70 group-hover:opacity-100" alt="Google" />
               Daftar dengan Google
@@ -309,9 +309,9 @@ export default function SignUp() {
 
           {/* Bottom Link */}
           <div className="pt-10 pb-4 text-center">
-            <p className="text-[11px] font-medium text-[#646675]">
+            <p className="text-[11px] font-medium text-[#646675] dark:text-white/40 transition-colors">
               Sudah memiliki akses?{" "}
-              <Link to="/login" className="font-bold text-[#1D2D50] hover:text-[#B83A4B] border-b border-[#1D2D50]/20 hover:border-[#B83A4B] transition-all uppercase tracking-widest text-[9px] ml-1">
+              <Link to="/login" className="font-bold text-[#1D2D50] dark:text-[#E5A93C] hover:text-[#B83A4B] border-b border-[#1D2D50]/20 dark:border-[#E5A93C]/20 hover:border-[#B83A4B] transition-all uppercase tracking-widest text-[9px] ml-1">
                 Masuk
               </Link>
             </p>
