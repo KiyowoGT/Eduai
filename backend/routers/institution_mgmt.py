@@ -1,0 +1,453 @@
+import csv
+import io
+import logging
+from datetime import datetime, timezone
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File
+from pydantic import BaseModel, Field
+
+from core.database import db, client
+from models.user import User, TeacherTitle
+from deps.auth import get_current_user, require_title, write_audit
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+class CreateAcademicYearPayload(BaseModel):
+    name: str = Field(..., description="Contoh: 2026/2027")
+    start_date: str = Field(..., description="Format: YYYY-MM-DD")
+    end_date: str = Field(..., description="Format: YYYY-MM-DD")
+
+class ResignPayload(BaseModel):
+    email: str
+
+class SwitchRolePayload(BaseModel):
+    role_type: str
+    scope_id: Optional[str] = None
+
+# Helper to execute MongoDB operations in a transaction with standalone fallback
+async def run_in_transaction(func, *args, **kwargs):
+    if not client:
+        return await func(None, *args, **kwargs)
+    try:
+        async with await client.start_session() as session:
+            async with session.start_transaction():
+                return await func(session, *args, **kwargs)
+    except Exception as e:
+        # Check if transaction is not supported (e.g. standalone local Mongo)
+        err_msg = str(e)
+        if "transaction" in err_msg.lower() or "standalone" in err_msg.lower() or "121" in err_msg.lower() or "OperationFailure" in err_msg:
+            logger.warning(f"Transactions not supported by server. Falling back to sequential execution. Error: {e}")
+            return await func(None, *args, **kwargs)
+        raise
+
+# Asynchronous cascade academic year activation task
+async def activate_academic_year_cascade(new_year_id: str, old_year_id: str, institution_code: str):
+    logger.info(f"Memulai cascade activation untuk tahun ajaran baru: {new_year_id}, institusi: {institution_code}")
+    try:
+        # 1. Archive quizzes of previous academic year
+        q_res = await db.quizzes.update_many(
+            {"institution_code": institution_code, "academic_year_id": old_year_id},
+            {"$set": {"status": "archived", "is_locked": True}}
+        )
+        logger.info(f"Arsip kuis selesai: {q_res.modified_count} kuis diubah statusnya menjadi archived")
+
+        # 2. Archive documents of previous academic year
+        d_res = await db.documents.update_many(
+            {"institution_code": institution_code, "academic_year_id": old_year_id},
+            {"$set": {"status": "archived"}}
+        )
+        logger.info(f"Arsip dokumen selesai: {d_res.modified_count} dokumen diubah status menjadi archived")
+
+        # 3. Auto-promote students (e.g. "10-A" -> "11-A")
+        # Find active classes in the old academic year
+        classes = await db.classes.find({"institution_code": institution_code, "academic_year_id": old_year_id}).to_list(200)
+        for cls in classes:
+            class_name = cls.get("name", "")
+            parts = class_name.split("-")
+            if parts and parts[0].isdigit():
+                level = int(parts[0])
+                if level < 12:
+                    new_class_name = f"{level+1}-" + "-".join(parts[1:])
+                    # Upsert new class for the new academic year
+                    new_cls = await db.classes.find_one_and_update(
+                        {
+                            "name": new_class_name,
+                            "academic_year_id": new_year_id,
+                            "institution_code": institution_code
+                        },
+                        {"$setOnInsert": {
+                            "name": new_class_name,
+                            "academic_year_id": new_year_id,
+                            "institution_code": institution_code,
+                            "created_at": datetime.now(timezone.utc).isoformat()
+                        }},
+                        upsert=True,
+                        return_document=True
+                    )
+                    # Update students enrolled in this class
+                    s_res = await db.users.update_many(
+                        {"enrolled_class": class_name, "institution_code": institution_code},
+                        {"$set": {"enrolled_class": new_cls["name"]}}
+                    )
+                    logger.info(f"Promosi kelas {class_name} -> {new_cls['name']}: {s_res.modified_count} siswa dipindahkan")
+                else:
+                    # Level 12 (SMA/SMK) or higher -> graduate/alumni
+                    grad_res = await db.users.update_many(
+                        {"enrolled_class": class_name, "institution_code": institution_code},
+                        {"$set": {"enrolled_class": "ALUMNI", "status": "archived"}}
+                    )
+                    logger.info(f"Siswa kelas {class_name} lulus (lulus/alumni): {grad_res.modified_count} siswa")
+
+        # 4. Clear/invalidate analytics cache for the institution
+        await db.analytics_cache.delete_many({"institution_code": institution_code})
+        logger.info(f"Pembersihan cache analitik selesai untuk institusi: {institution_code}")
+
+    except Exception as e:
+        logger.error(f"Error pada cascade academic year activation: {e}", exc_info=True)
+
+# ----------------- ENDPOINTS -----------------
+
+@router.post("/admin/academic-years")
+async def create_academic_year(
+    payload: CreateAcademicYearPayload,
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    # Generate unique academic year ID
+    import uuid
+    year_id = f"ACY-{uuid.uuid4().hex[:8].upper()}"
+
+    doc = {
+        "academic_year_id": year_id,
+        "institution_code": user.institution_code,
+        "name": payload.name,
+        "start_date": payload.start_date,
+        "end_date": payload.end_date,
+        "is_active": False,
+        "is_archived": False,
+        "created_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    await db.academic_years.insert_one(doc)
+
+    await write_audit(
+        user.user_id,
+        "ACADEMIC_YEAR_CREATED",
+        {"academic_year_id": year_id, "name": payload.name},
+        request.client.host if request.client else ""
+    )
+
+    return {"status": "success", "academic_year": doc}
+
+@router.post("/admin/academic-years/{year_id}/activate")
+async def activate_academic_year(
+    year_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    target_year = await db.academic_years.find_one({"academic_year_id": year_id, "institution_code": user.institution_code})
+    if not target_year:
+        raise HTTPException(404, "Tahun ajaran tidak ditemukan")
+
+    if target_year.get("is_active"):
+        return {"status": "already_active", "message": "Tahun ajaran ini sudah aktif"}
+
+    # Find currently active year to archive it
+    active_year = await db.academic_years.find_one({"is_active": True, "institution_code": user.institution_code})
+    old_year_id = active_year.get("academic_year_id") if active_year else None
+
+    # Deactivate all other academic years and archive the old ones
+    if old_year_id:
+        await db.academic_years.update_one(
+            {"academic_year_id": old_year_id},
+            {"$set": {"is_active": False, "is_archived": True}}
+        )
+
+    await db.academic_years.update_one(
+        {"academic_year_id": year_id},
+        {"$set": {"is_active": True}}
+    )
+
+    # Trigger async cascade background task
+    if old_year_id:
+        background_tasks.add_task(
+            activate_academic_year_cascade,
+            new_year_id=year_id,
+            old_year_id=old_year_id,
+            institution_code=user.institution_code
+        )
+
+    await write_audit(
+        user.user_id,
+        "ACADEMIC_YEAR_ACTIVATED",
+        {"activated_year_id": year_id, "previous_year_id": old_year_id},
+        request.client.host if request.client else ""
+    )
+
+    return {
+        "status": "activating",
+        "message": "Proses aktivasi tahun ajaran baru dan pengarsipan tahun ajaran lama sedang diproses di background."
+    }
+
+@router.get("/admin/academic-years")
+async def list_academic_years(
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    years = await db.academic_years.find({"institution_code": user.institution_code}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return years
+
+@router.post("/admin/users/{user_id}/resign")
+async def resign_teacher(
+    user_id: str,
+    payload: ResignPayload,
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    # Locate target teacher
+    target_teacher = await db.users.find_one({"user_id": user_id, "institution_code": user.institution_code})
+    if not target_teacher:
+        raise HTTPException(404, "Guru pengajar tidak ditemukan pada institusi ini")
+
+    original_email = payload.email.strip().lower()
+    if target_teacher.get("email").lower() != original_email:
+        raise HTTPException(400, "Email pengajar tidak cocok dengan data pendaftaran")
+
+    # Transactional execution block
+    async def resign_transaction_block(session):
+        # 1. Cek uniqueness archived mapping
+        existing = await db.archived_email_mapping.find_one(
+            {"original_email": original_email, "is_recycled": False},
+            session=session
+        )
+        if existing:
+            raise HTTPException(409, "Email guru ini sedang dalam proses recycling")
+
+        # 2. Generate archived email & update user record to archived
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        archived_email = f"archived_{timestamp}_{original_email}"
+
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "email": archived_email,
+                "status": "archived",
+                "onboarded": False,
+                "title": None,
+                "is_institution_linked": False,
+                "institution_code": None
+            }},
+            session=session
+        )
+
+        # 3. Deactivate role assignments
+        await db.role_assignments.update_many(
+            {"user_id": user_id, "status": "active"},
+            {"$set": {"status": "historical", "end_date": datetime.now(timezone.utc).isoformat()}},
+            session=session
+        )
+
+        # 4. Insert archived email mapping
+        await db.archived_email_mapping.insert_one({
+            "original_email": original_email,
+            "archived_email": archived_email,
+            "user_id": user_id,
+            "archived_at": datetime.now(timezone.utc).isoformat(),
+            "is_recycled": False
+        }, session=session)
+
+        return archived_email
+
+    # Run the sanitization using transactions (or sequential fallback)
+    archived_email = await run_in_transaction(resign_transaction_block)
+
+    await write_audit(
+        user.user_id,
+        "TEACHER_RESIGNED_SANITIZED",
+        {"resigned_user_id": user_id, "original_email": original_email, "archived_email": archived_email},
+        request.client.host if request.client else ""
+    )
+
+    return {
+        "status": "success",
+        "message": f"Akun guru berhasil dinonaktifkan. Email asli {original_email} dibebaskan untuk digunakan kembali.",
+        "archived_email": archived_email
+    }
+
+@router.post("/admin/student-promotions/preview")
+async def preview_student_promotions(
+    file: UploadFile = File(...),
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    contents = await file.read()
+    decoded = contents.decode('utf-8-sig').splitlines()
+    reader = csv.reader(decoded)
+
+    header = next(reader, None)
+    if not header:
+        raise HTTPException(400, "File CSV kosong")
+
+    # Expect header: [email, new_class] or similar
+    promotions = []
+    for row in reader:
+        if len(row) < 2:
+            continue
+        identifier = row[0].strip().lower()
+        new_class_name = row[1].strip()
+
+        # Find student
+        student_doc = await db.users.find_one({
+            "email": identifier,
+            "institution_code": user.institution_code,
+            "role": "pelajar"
+        })
+
+        if not student_doc:
+            # Try searching by name/NIP if search matches
+            student_doc = await db.users.find_one({
+                "name": identifier,
+                "institution_code": user.institution_code,
+                "role": "pelajar"
+            })
+
+        if student_doc:
+            promotions.append({
+                "user_id": student_doc["user_id"],
+                "name": student_doc["name"],
+                "email": student_doc["email"],
+                "current_class": student_doc.get("enrolled_class") or "Belum diatur",
+                "proposed_class": new_class_name,
+                "status": "Ready"
+            })
+        else:
+            promotions.append({
+                "user_id": None,
+                "name": identifier,
+                "email": identifier,
+                "current_class": "Tidak ditemukan",
+                "proposed_class": new_class_name,
+                "status": "Siswa tidak ditemukan"
+            })
+
+    return {"promotions": promotions}
+
+@router.post("/admin/student-promotions/execute")
+async def execute_student_promotions(
+    promotions: List[dict],
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    success_count = 0
+    errors = []
+
+    # Get active academic year id
+    active_year = await db.academic_years.find_one({"institution_code": user.institution_code, "is_active": True})
+    if not active_year:
+        raise HTTPException(404, "Tahun ajaran aktif belum dikonfigurasi. Silakan aktifkan tahun ajaran terlebih dahulu.")
+    
+    academic_year_id = active_year["academic_year_id"]
+
+    for promo in promotions:
+        user_id = promo.get("user_id")
+        proposed_class = promo.get("proposed_class")
+        if not user_id or not proposed_class:
+            continue
+
+        try:
+            # Ensure class exists
+            new_cls = await db.classes.find_one_and_update(
+                {
+                    "name": proposed_class,
+                    "academic_year_id": academic_year_id,
+                    "institution_code": user.institution_code
+                },
+                {"$setOnInsert": {
+                    "name": proposed_class,
+                    "academic_year_id": academic_year_id,
+                    "institution_code": user.institution_code,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }},
+                upsert=True,
+                return_document=True
+            )
+
+            # Move student
+            await db.users.update_one(
+                {"user_id": user_id, "institution_code": user.institution_code},
+                {"$set": {"enrolled_class": new_cls["name"]}}
+            )
+            success_count += 1
+        except Exception as e:
+            errors.append(f"Gagal memindahkan {promo.get('email')}: {e}")
+
+    await write_audit(
+        user.user_id,
+        "STUDENTS_PROMOTED_CSV",
+        {"count": success_count, "errors": len(errors)},
+        request.client.host if request.client else ""
+    )
+
+    return {
+        "status": "success",
+        "message": f"Berhasil memindahkan/mempromosikan {success_count} siswa.",
+        "failed": errors
+    }
+
+@router.get("/admin/teachers")
+async def list_institution_teachers(
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    teachers = await db.users.find({
+        "institution_code": user.institution_code,
+        "role": "pengajar"
+    }, {
+        "_id": 0,
+        "user_id": 1,
+        "name": 1,
+        "email": 1,
+        "title": 1,
+        "status": 1
+    }).to_list(200)
+
+    return {"teachers": teachers}
+
+@router.get("/admin/audit-logs")
+async def get_institution_audit_logs(
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah)),
+    limit: int = 100
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    # Fetch users belonging to the institution to filter audit logs
+    inst_users = await db.users.distinct("user_id", {"institution_code": user.institution_code})
+
+    logs = await db.audit_logs.find(
+        {"user_id": {"$in": inst_users}},
+        {"_id": 0}
+    ).sort("timestamp", -1).to_list(limit)
+
+    return {"audit_logs": logs}

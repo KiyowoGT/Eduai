@@ -414,6 +414,63 @@ export async function createRealtimeSocket() {
  * Membuat koneksi WS sementara, resolve ketika status "ready"/"failed"/"cancelled", timeout jika melebihi batas.
  * Dukung signal dari AbortController untuk pembatalan dari sisi client.
  */
+// ============== Auth Helpers ==============
+export async function resolveIdentifier(q) {
+  const r = await http.get("/auth/resolve-identifier", { params: { q } });
+  return r.data;
+}
+
+export async function checkExistence(params) {
+  const r = await http.get("/auth/check-existence", { params });
+  return r.data;
+}
+
+// ============== Teacher Role & Dashboard ==============
+export async function fetchRoles() {
+  const r = await http.get("/auth/roles");
+  return r.data;
+}
+
+export async function switchRole(title) {
+  const r = await http.post("/auth/switch-role", { title });
+  return r.data;
+}
+
+export async function getTeacherDashboard() {
+  const r = await http.get("/teacher/dashboard");
+  return r.data;
+}
+
+export async function getClassSummary() {
+  const r = await http.get("/teacher/analytics/class-summary");
+  return r.data;
+}
+
+export async function listTeacherStudents() {
+  const r = await http.get("/teacher/students");
+  return r.data;
+}
+
+export async function listTeacherMaterials() {
+  const r = await http.get("/teacher/materials");
+  return r.data;
+}
+
+export async function listTeacherSchedules() {
+  const r = await http.get("/teacher/schedules");
+  return r.data;
+}
+
+export async function getAdminTeachers() {
+  const r = await http.get("/admin/teachers");
+  return r.data;
+}
+
+export async function getAdminAcademicYears() {
+  const r = await http.get("/admin/academic-years");
+  return r.data;
+}
+
 export function waitForStatus(typePrefix, id, { timeoutMs = 180000, signal } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false;

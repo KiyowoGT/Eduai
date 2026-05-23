@@ -67,6 +67,24 @@ TEACHING_METHOD_PROMPTS = {
     ),
 }
 
+SANDBOX_PROMPT_TEMPLATE = """
+Anda adalah AI Mentor EduAI untuk siswa {student_name} kelas {class_name}.
+
+ATURAN KERAS:
+1. Anda HANYA boleh menjawab pertanyaan berdasarkan dokumen berikut yang telah diverifikasi guru:
+   {referenced_documents_summary}
+
+2. Jika pertanyaan siswa di luar konteks dokumen di atas, jawab dengan sopan:
+   "Maaf, saya hanya dapat membantu berdasarkan materi yang telah diajarkan di kelas. 
+   Silakan tanyakan langsung ke guru untuk topik lainnya."
+
+3. Jangan pernah melakukan browsing internet atau mengakses informasi eksternal.
+
+4. Gunakan bahasa yang ramah, edukatif, dan sesuai tingkat kognitif siswa {grade_level}.
+
+Pertanyaan siswa: {student_question}
+"""
+
 # ============== WebSocket Emitters ==============
 async def _emit_document_status(user_id: str, document_id: str, status: str, **extra):
     payload = {"type": "document_status", "document_id": document_id, "status": status, **extra}
@@ -362,7 +380,8 @@ async def _analyze_batch(reader: PdfReader, start_page: int, end_page: int, user
         f"Kamu adalah EduScanner AI, asisten akademik elit untuk {audience}. "
         f"Tugasmu melakukan 'Deep Technical Extraction'. "
         f"Analisis HANYA halaman {start_page} sampai {end_page} dari dokumen ini. "
-        f"Jangan berikan ringkasan umum. Bahasa Indonesia. Akademik, padat, fakta-oriented."
+        f"Jangan berikan ringkasan umum. Bahasa Indonesia. Akademik, padat, fakta-oriented. "
+        f"BATASAN KEAMANAN AKADEMIK: DILARANG KERAS memproses konten yang berkaitan dengan bimbingan konseling, inventaris, keuangan sekolah, atau psikologi personal. Jika terdeteksi, kosongkan semua field respon."
     )
     prompt = (
         "Ekstrak informasi dari halaman tertentu ini.\n"
@@ -412,7 +431,8 @@ async def _analyze_pdf_legacy(file_path: str, user: User, total_pages: int = 0) 
     system = (
         f"Kamu adalah EduScanner AI, asisten akademik elit untuk {audience}. "
         f"Tugasmu melakukan 'Deep Technical Extraction'. Jangan berikan rangkuman umum yang dangkal. "
-        f"Gaya bahasa: Akademik, Padat, Fakta-Oriented. Bahasa Indonesia."
+        f"Gaya bahasa: Akademik, Padat, Fakta-Oriented. Bahasa Indonesia. "
+        f"BATASAN KEAMANAN AKADEMIK: DILARANG KERAS memproses konten yang berkaitan dengan bimbingan konseling, inventaris, keuangan sekolah, atau psikologi personal. Jika terdeteksi, kosongkan semua field respon."
     )
     prompt = (
         "Analisis PDF ini dengan kedalaman tinggi.\n"
@@ -514,6 +534,21 @@ async def analyze_pdf(file_path: str, user: User) -> dict:
 async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str):
     try:
         analysis = await analyze_pdf(file_path, user)
+        
+        # Guard: Check for non-academic content that bypassed the pre-filter
+        NON_ACADEMIC_KEYWORDS = [
+            "bimbingan konseling",
+            "inventaris",
+            "keuangan sekolah",
+            "psikologi personal"
+        ]
+        text_to_check = (analysis.get("summary", "") + " " + analysis.get("title", "")).lower()
+        if any(kw in text_to_check for kw in NON_ACADEMIC_KEYWORDS):
+            raise ValueError(
+                "Konten dokumen tidak sesuai ruang lingkup akademik formal. "
+                "Sistem menolak materi bertopik BK, inventaris, keuangan, atau psikologi personal."
+            )
+
         current = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "status": 1})
         if not current or current.get("status") in ("cancelled", "deleted"):
             return
@@ -639,9 +674,10 @@ async def _bg_generate_quiz(quiz_id: str, documents: List[dict], user: User, n: 
         current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
         if not current or current.get("status") in ("cancelled", "deleted"):
             return
+        target_status = "pending_approval" if user.institution_code else "ready"
         await db.quizzes.update_one(
             {"quiz_id": quiz_id},
-            {"$set": {"questions": questions, "status": "ready"}},
+            {"$set": {"questions": questions, "status": target_status}},
         )
         await write_audit(
             user.user_id,
@@ -649,7 +685,7 @@ async def _bg_generate_quiz(quiz_id: str, documents: List[dict], user: User, n: 
             {"quiz_id": quiz_id, "document_ids": [d.get("document_id") for d in documents]},
             ip,
         )
-        await _emit_quiz_status(user.user_id, quiz_id, "ready")
+        await _emit_quiz_status(user.user_id, quiz_id, target_status)
     except Exception as e:
         logger.exception("Background quiz gen gagal")
         current = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "status": 1})
@@ -870,18 +906,31 @@ def _build_doc_context(doc: dict) -> str:
     }, ensure_ascii=False)
 
 
-async def _bg_respond_bot(doc_id: str, question: str, doc: dict, audience: str, owner_id: str):
+async def _bg_respond_bot(doc_id: str, question: str, doc: dict, audience: str, owner_id: str, user: User = None):
     context = _build_doc_context(doc)
-    system = (
-        f"Kamu adalah EduBot, asisten belajar untuk {audience}. "
-        f"Jawab pertanyaan berdasarkan konten dokumen. Bahasa Indonesia. "
-        f"Jika di luar konteks, beri tahu dengan sopan."
-    )
-    prompt = (
-        f"KONTEN DOKUMEN:\n{context}\n\n"
-        f"PERTANYAAN: {question}\n\n"
-        f"Jawab dengan jelas. Berikan contoh bila memungkinkan."
-    )
+    
+    if user and user.role == "pelajar" and user.institution_code:
+        # Sandbox mode
+        system = "Anda adalah AI Mentor EduAI yang disiplin."
+        prompt = SANDBOX_PROMPT_TEMPLATE.format(
+            student_name=user.name,
+            class_name=user.enrolled_class or "Umum",
+            referenced_documents_summary=context,
+            grade_level=user.education_level or "Sekolah",
+            student_question=question
+        )
+    else:
+        system = (
+            f"Kamu adalah EduBot, asisten belajar untuk {audience}. "
+            f"Jawab pertanyaan berdasarkan konten dokumen. Bahasa Indonesia. "
+            f"Jika di luar konteks, beri tahu dengan sopan."
+        )
+        prompt = (
+            f"KONTEN DOKUMEN:\n{context}\n\n"
+            f"PERTANYAAN: {question}\n\n"
+            f"Jawab dengan jelas. Berikan contoh bila memungkinkan."
+        )
+    
     try:
         resp = await _call_groq(system, prompt)
         bot_msg = {

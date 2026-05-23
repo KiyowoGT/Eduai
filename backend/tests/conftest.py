@@ -6,8 +6,12 @@ import requests
 from pymongo import MongoClient
 from pathlib import Path
 from fpdf import FPDF
+from dotenv import load_dotenv
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://akademik-scan.preview.emergentagent.com').rstrip('/')
+# Load .env file
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.environ.get('DB_NAME', 'test_database')
 

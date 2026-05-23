@@ -98,6 +98,10 @@ async def save_education_settings(payload: EducationSettingsPayload, request: Re
     if not user_doc:
         raise HTTPException(404, "User tidak ditemukan")
 
+    # Autopilot lock
+    if user_doc.get("enrolled_class") or user_doc.get("class_token_used"):
+        raise HTTPException(403, "Pengaturan pelajaran dikunci karena akun Anda dalam mode autopilot institusi")
+
     subjects_out = []
     for subj in payload.subjects:
         subj_id = subj.id or f"subj_{uuid.uuid4().hex[:12]}"
@@ -282,6 +286,9 @@ async def delete_material(material_id: str, request: Request, user: User = Depen
 
 @router.post("/documents/upload")
 async def upload_document(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    if user.role == "pelajar" and user.account_type == "perusahaan":
+        raise HTTPException(403, "Pelajar institusi tidak dapat mengunggah dokumen secara mandiri.")
+
     if not file.filename:
         raise HTTPException(400, "File tidak valid")
 
@@ -368,6 +375,9 @@ async def upload_subject_material(
     files: List[UploadFile] = File(...),
     user: User = Depends(get_current_user),
 ):
+    if user.role == "pelajar" and user.account_type == "perusahaan":
+        raise HTTPException(403, "Pelajar institusi tidak dapat mengunggah materi pelajaran secara mandiri.")
+
     if not files or len(files) == 0:
         raise HTTPException(400, "Pilih minimal 1 file")
 
@@ -482,12 +492,66 @@ async def upload_subject_material(
 @router.get("/documents")
 async def list_documents(user: User = Depends(get_current_user)):
     docs = await db.documents.find({"user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
+    
+    if user.role == "pelajar" and user.institution_code:
+        subjects = user.subjects or []
+        subject_names = [s.get("name") for s in subjects if s.get("name")]
+        
+        inst_docs = await db.documents.find({
+            "institution_code": user.institution_code,
+            "subject_name": {"$in": subject_names},
+            "visibility": "institution",
+            "status": "published"
+        }, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
+        
+        name_to_folder = {s["name"].strip().lower(): s.get("folder_id") for s in subjects if s.get("name")}
+        name_to_subject_id = {s["name"].strip().lower(): s.get("id") for s in subjects if s.get("name")}
+        for doc in inst_docs:
+            subj_name = doc.get("subject_name", "")
+            subj_lower = subj_name.strip().lower()
+            doc["folder_id"] = name_to_folder.get(subj_lower)
+            doc["subject_id"] = name_to_subject_id.get(subj_lower)
+            
+        docs.extend(inst_docs)
+        docs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        seen = set()
+        unique_docs = []
+        for d in docs:
+            d_id = d.get("document_id")
+            if d_id not in seen:
+                seen.add(d_id)
+                unique_docs.append(d)
+        docs = unique_docs[:100]
     return docs
 
 
 @router.get("/documents/{doc_id}")
 async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0, "file_path": 0})
+    if not doc:
+        if user.role == "pelajar" and user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": doc_id,
+                "institution_code": user.institution_code,
+                "visibility": "institution",
+                "status": "published"
+            }, {"_id": 0, "file_path": 0})
+            if doc:
+                subjects = user.subjects or []
+                subj_name = doc.get("subject_name", "")
+                subj_lower = subj_name.strip().lower()
+                for s in subjects:
+                    if s.get("name") and s["name"].strip().lower() == subj_lower:
+                        doc["folder_id"] = s.get("folder_id")
+                        doc["subject_id"] = s.get("id")
+                        break
+        elif user.role == "pengajar" and user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": doc_id,
+                "institution_code": user.institution_code
+            }, {"_id": 0, "file_path": 0})
+            
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     return doc
@@ -536,6 +600,20 @@ async def delete_document(request: Request, doc_id: str, user: User = Depends(ge
 async def document_tts(document_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": document_id, "user_id": user.user_id}, {"_id": 0})
     if not doc:
+        if user.institution_code:
+            if user.role == "pelajar":
+                doc = await db.documents.find_one({
+                    "document_id": document_id,
+                    "institution_code": user.institution_code,
+                    "visibility": "institution",
+                    "status": "published"
+                }, {"_id": 0})
+            else:
+                doc = await db.documents.find_one({
+                    "document_id": document_id,
+                    "institution_code": user.institution_code
+                }, {"_id": 0})
+    if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     text = (doc.get("summary") or "").strip()
     if not text:
@@ -565,6 +643,20 @@ async def document_tts(document_id: str, user: User = Depends(get_current_user))
 @router.get("/documents/{doc_id}/pdf")
 async def get_document_pdf(doc_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if not doc:
+        if user.institution_code:
+            if user.role == "pelajar":
+                doc = await db.documents.find_one({
+                    "document_id": doc_id,
+                    "institution_code": user.institution_code,
+                    "visibility": "institution",
+                    "status": "published"
+                }, {"_id": 0})
+            else:
+                doc = await db.documents.find_one({
+                    "document_id": doc_id,
+                    "institution_code": user.institution_code
+                }, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
 
@@ -603,3 +695,16 @@ async def move_documents(payload: DocumentMove, request: Request, user: User = D
     
     await write_audit(user.user_id, "DOCUMENTS_MOVED", {"document_ids": payload.document_ids, "folder_id": payload.folder_id}, request.client.host if request.client else "")
     return {"ok": True}
+
+
+@router.get("/documents/jobs")
+async def list_document_jobs(user: User = Depends(get_current_user)):
+    """
+    Mengambil daftar dokumen yang sedang dalam proses analisis (status: processing).
+    """
+    jobs = await db.documents.find(
+        {"user_id": user.user_id, "status": "processing"},
+        {"_id": 0, "document_id": 1, "filename": 1, "status": 1, "created_at": 1}
+    ).to_list(50)
+    
+    return {"jobs": jobs}

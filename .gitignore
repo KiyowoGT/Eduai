@@ -70,6 +70,9 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
+.pytest_cache
+.gemini/
+.opencode/
 
 memory/test_credentials.md
 
@@ -94,4 +97,6 @@ credentials.json
 *.flac
 backend/uploads/
 backend/audio/
+doc-detail-projek/
 frontend/public/suara/
+test_reports/

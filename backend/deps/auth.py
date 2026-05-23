@@ -45,7 +45,6 @@ async def fetch_supabase_user(access_token: str) -> Optional[dict]:
                 headers={
                     "Authorization": f"Bearer {access_token}",
                     "apikey": SUPABASE_ANON_KEY,
-                    "X-Supabase-Api-Version": "2025-04-01",
                 },
             )
         if r.status_code != 200:
@@ -68,7 +67,7 @@ async def _generate_unique_friend_code(name: str) -> str:
             return code
     return f"{base}_{uuid.uuid4().hex[:8]}"
 
-async def get_or_create_local_user(email: str, name: str, picture: Optional[str] = None) -> dict:
+async def get_or_create_local_user(email: str, name: str, picture: Optional[str] = None, username: Optional[str] = None) -> dict:
     if picture is None:
         picture = ""
     users_cursor = db.users.find({"email": email}, {"_id": 0}).sort([("onboarded", -1), ("created_at", 1)])
@@ -76,6 +75,8 @@ async def get_or_create_local_user(email: str, name: str, picture: Optional[str]
     user = users[0] if users else None
     if user:
         updates = {"name": name, "picture": picture}
+        if username:
+            updates["username"] = username
         if not user.get("friend_code"):
             updates["friend_code"] = await _generate_unique_friend_code(name)
         await db.users.update_one(
@@ -86,7 +87,7 @@ async def get_or_create_local_user(email: str, name: str, picture: Optional[str]
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         friend_code = await _generate_unique_friend_code(name)
-        await db.users.insert_one({
+        new_user = {
             "user_id": user_id,
             "email": email,
             "name": name,
@@ -94,10 +95,15 @@ async def get_or_create_local_user(email: str, name: str, picture: Optional[str]
             "friend_code": friend_code,
             "onboarded": False,
             "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        }
+        if username:
+            new_user["username"] = username
+        await db.users.insert_one(new_user)
         user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
 
     return user
+
+from pydantic import ValidationError
 
 async def get_current_user(request: Request) -> User:
     token = None
@@ -125,12 +131,18 @@ async def get_current_user(request: Request) -> User:
                 if user_doc:
                     if isinstance(user_doc.get("created_at"), str):
                         user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
-                    return User(**user_doc)
+                    user_doc["is_institution_linked"] = bool(user_doc.get("institution_code"))
+                    user_doc["is_class_linked"] = bool(user_doc.get("enrolled_class") or user_doc.get("class_token_used"))
+                    try:
+                        return User(**user_doc)
+                    except ValidationError as e:
+                        logger.error(f"User validation error (session): {e}")
+                        raise HTTPException(500, f"Data profil tidak valid: {e}")
 
     if header_token:
         supa_user = await fetch_supabase_user(header_token)
         if not supa_user:
-            raise HTTPException(401, "Token Supabase tidak valid")
+            raise HTTPException(401, "Token Supabase tidak valid atau sesi berakhir")
 
         email = supa_user.get("email")
         if not email:
@@ -139,12 +151,19 @@ async def get_current_user(request: Request) -> User:
         metadata = supa_user.get("user_metadata") or {}
         name = metadata.get("full_name") or metadata.get("name") or email.split("@")[0]
         picture = metadata.get("avatar_url") or ""
+        username = metadata.get("username") or metadata.get("preferred_username")
 
-        user_doc = await get_or_create_local_user(email=email, name=name, picture=picture)
+        user_doc = await get_or_create_local_user(email=email, name=name, picture=picture, username=username)
         if isinstance(user_doc.get("created_at"), str):
             user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
 
-        return User(**user_doc)
+        user_doc["is_institution_linked"] = bool(user_doc.get("institution_code"))
+        user_doc["is_class_linked"] = bool(user_doc.get("enrolled_class") or user_doc.get("class_token_used"))
+        try:
+            return User(**user_doc)
+        except ValidationError as e:
+            logger.error(f"User validation error (header): {e}")
+            raise HTTPException(500, f"Data profil tidak valid: {e}")
 
     raise HTTPException(401, "Tidak terautentikasi")
 
@@ -160,9 +179,12 @@ async def get_current_user_from_access_token(access_token: str) -> User:
     metadata = supa_user.get("user_metadata") or {}
     name = metadata.get("full_name") or metadata.get("name") or email.split("@")[0]
     picture = metadata.get("avatar_url")
-    user_doc = await get_or_create_local_user(email=email, name=name, picture=picture)
+    username = metadata.get("username") or metadata.get("preferred_username")
+    user_doc = await get_or_create_local_user(email=email, name=name, picture=picture, username=username)
     if isinstance(user_doc.get("created_at"), str):
         user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
+    user_doc["is_institution_linked"] = bool(user_doc.get("institution_code"))
+    user_doc["is_class_linked"] = bool(user_doc.get("enrolled_class") or user_doc.get("class_token_used"))
     return User(**user_doc)
 
 # --- Role-Based Access Control Dependencies ---

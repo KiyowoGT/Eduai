@@ -1,6 +1,7 @@
 """EduScanner AI - University Edition - FastAPI Backend"""
 import os
 import logging
+import traceback
 import httpx
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,7 +26,7 @@ from deps.auth import get_current_user, get_current_user_from_access_token
 from routers import (
     auth, documents, quizzes, folders, recaps, chats, friends, audio,
     institutions, class_tokens, teacher_schedules, teacher_materials,
-    teacher_analytics, learner_sync
+    teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace
 )
 
 app = fastapi_app = FastAPI(title="EduScanner AI")
@@ -41,11 +42,14 @@ async def log_requests(request: Request, call_next):
         response = await call_next(request)
         logger.info(f"Response status: {response.status_code}")
         return response
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception(f"Request failed: {e}")
+        tb = traceback.format_exc()
+        logger.error(f"Request failed: {e}\n{tb}")
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"},
+            content={"detail": f"Internal server error: {e}", "traceback": tb},
         )
 
 # ============== Websocket Route ==============
@@ -218,6 +222,19 @@ async def _ensure_db_indexes():
         await db.friend_requests.create_index("from_user_id")
         await db.notifications.create_index("user_id")
         await db.recaps.create_index("user_id")
+        await db.institutions.create_index("institution_code", unique=True)
+        await db.staff_passcodes.create_index("passcode", unique=True)
+        await db.class_tokens.create_index("class_token", unique=True)
+        await db.quiz_progress.create_index([("user_id", 1), ("quiz_id", 1)], unique=True)
+        
+        # Indeks Portal Guru Mandiri
+        await db.redeem_codes.create_index("code", unique=True)
+        await db.redeem_codes.create_index("quiz_id")
+        await db.student_sessions.create_index("session_id", unique=True)
+        await db.student_sessions.create_index("redeem_code")
+        await db.student_sessions.create_index("quiz_id")
+        await db.student_sessions.create_index([("redeem_code", 1), ("score", -1)])
+        
         await db.command({
             "collMod": "documents",
             "validator": {},
@@ -238,6 +255,11 @@ async def startup():
     await _ensure_db_indexes()
     await _ensure_pdfs_bucket()
     await _sync_local_audios_to_mongodb()
+    
+    # Daftarkan background task pembersihan data sesi anonim >90 hari
+    import asyncio
+    from tasks.cleanup import cleanup_anonymous_sessions_loop
+    asyncio.create_task(cleanup_anonymous_sessions_loop())
 
 @fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
@@ -262,6 +284,9 @@ api_router.include_router(teacher_schedules.router)
 api_router.include_router(teacher_materials.router)
 api_router.include_router(teacher_analytics.router)
 api_router.include_router(learner_sync.router)
+api_router.include_router(redeem.router)
+api_router.include_router(institution_mgmt.router)
+api_router.include_router(shadow_workspace.router)
 
 # Mount the api_router to app
 fastapi_app.include_router(api_router)

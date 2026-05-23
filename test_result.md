@@ -101,3 +101,104 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "Implementasi Portal Pelajar Institusi EduAI (User Institut) berdasarkan SRS"
+## backend:
+##   - task: "Update User Model"
+##     implemented: true
+##     working: true
+##     file: "backend/models/user.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Added nis, nisn, academic_year_id, parent_contacts, and preferences fields."
+##   - task: "Institutional Onboarding"
+##     implemented: true
+##     working: true
+##     file: "backend/routers/auth.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Updated onboarding_complete to handle institutional student identity and locking."
+##   - task: "AI Sandbox Implementation"
+##     implemented: true
+##     working: true
+##     file: "backend/services/ai_service.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Implemented SANDBOX_PROMPT_TEMPLATE and enforced it for institutional students."
+##   - task: "Shadow Workspace Backend"
+##     implemented: true
+##     working: true
+##     file: "backend/routers/shadow_workspace.py"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Created shadow_workspace router for SaaS redeem and private activity tracking."
+##
+## frontend:
+##   - task: "Shadow Workspace Page"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/pages/ShadowWorkspace.jsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Created Belajar Mandiri page for private tutoring integration."
+##   - task: "Dashboard Restrictions"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/pages/Dashboard.jsx"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Hidden upload zone for institutional students."
+##   - task: "Educational Settings Lock"
+##     implemented: true
+##     working: true
+##     file: "frontend/src/pages/EducationSettings.jsx"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: true
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Locked subjects and schedule for autopilot mode."
+##
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 1
+##   run_ui: false
+##
+## test_plan:
+##   current_focus:
+##     - "Verification of institutional student restrictions (Dashboard, Settings)"
+##     - "Verification of AI Sandbox (Bot response restriction)"
+##     - "Shadow Workspace redeem functionality"
+##   stuck_tasks: []
+##   test_all: true
+##   test_priority: "high_first"
+##
+## agent_communication:
+##     -agent: "main"
+##     -message: "I have implemented the Student Portal (User Institut) based on the SRS. Please verify the restrictions and the new Shadow Workspace feature."

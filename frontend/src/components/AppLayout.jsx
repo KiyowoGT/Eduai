@@ -1,56 +1,139 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
-import { 
-  GraduationCap, 
-  LayoutDashboard, 
-  FileText, 
-  ScrollText, 
-  LogOut, 
-  User2, 
-  FolderOpen, 
-  Users, 
-  BrainCircuit, 
+import { useState, useMemo } from "react";
+import {
+  GraduationCap,
+  LayoutDashboard,
+  FileText,
+  ScrollText,
+  LogOut,
+  User2,
+  FolderOpen,
+  Users,
+  BrainCircuit,
   BookOpen,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  BarChart3,
+  School,
+  Shield,
+  Settings,
+  FileSpreadsheet,
+  UserPlus,
+  ClipboardList,
 } from "lucide-react";
 import NotificationsDropdown from "@/components/NotificationsDropdown";
+import ContextSwitcher from "@/components/ContextSwitcher";
 
-const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
-  { to: "/dokumen", label: "Dokumen", icon: FileText, tid: "nav-documents" },
-  { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen, tid: "nav-education" },
-  { to: "/folder", label: "Folder", icon: FolderOpen, tid: "nav-folders" },
-  { to: "/riwayat-kuis", label: "Riwayat", icon: BrainCircuit, tid: "nav-quiz-history" },
-  { to: "/teman", label: "Teman", icon: Users, tid: "nav-friends" },
-  { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
-  { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
-];
+const labelMap = {
+  kepala_sekolah: "Kepala Sekolah",
+  kurikulum: "Kurikulum",
+  guru_kelas: "Guru Kelas",
+  guru_pengajar: "Guru Pengajar",
+};
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true); // desktop only
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const hideMobileNav = /^\/(dokumen|folder|kuis|hasil|recap)\/.+/.test(location.pathname);
+  const isTeacher = user?.role === "pengajar";
+  const isAdmin = isTeacher && user?.title === "kepala_sekolah";
+
+  const navItems = useMemo(() => {
+    if (isAdmin) {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
+        { to: "/admin/users", label: "Manajemen Akun", icon: Users, tid: "nav-admin-users" },
+        { to: "/admin/academic-years", label: "Tahun Ajaran", icon: Calendar, tid: "nav-academic-years" },
+        { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
+        { to: "/admin/reports", label: "Laporan", icon: FileSpreadsheet, tid: "nav-reports" },
+        { to: "/admin/settings", label: "Pengaturan", icon: Settings, tid: "nav-settings" },
+        { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
+      ];
+    }
+    if (isTeacher) {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
+        { to: "/dokumen", label: "Materi", icon: FileText, tid: "nav-materials" },
+        { to: "/teacher/schedules", label: "Jadwal", icon: Calendar, tid: "nav-schedules" },
+        { to: "/teacher/students", label: "Kelas", icon: Users, tid: "nav-students" },
+        { to: "/teacher/analytics", label: "Analitik", icon: BarChart3, tid: "nav-analytics" },
+        { to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit, tid: "nav-quiz-history" },
+        { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
+        { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
+      ];
+    }
+    return [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
+      { to: "/dokumen", label: "Dokumen", icon: FileText, tid: "nav-documents" },
+      { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen, tid: "nav-education" },
+      { to: "/folder", label: "Folder", icon: FolderOpen, tid: "nav-folders" },
+      { to: "/riwayat-kuis", label: "Riwayat", icon: BrainCircuit, tid: "nav-quiz-history" },
+      { to: "/teman", label: "Teman", icon: Users, tid: "nav-friends" },
+      { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
+      { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
+    ];
+  }, [isAdmin, isTeacher]);
+
+  const mobileNavItems = useMemo(() => {
+    if (isAdmin) {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/admin/users", label: "Akun", icon: User2 },
+        { to: "/admin/academic-years", label: "Ajaran", icon: Calendar },
+        { to: "/admin/reports", label: "Laporan", icon: FileSpreadsheet },
+        { to: "/profil", label: "Profil", icon: User2 },
+      ];
+    }
+    if (isTeacher) {
+      return [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/dokumen", label: "Materi", icon: FileText },
+        { to: "/teacher/schedules", label: "Jadwal", icon: Calendar },
+        { to: "/teacher/analytics", label: "Analitik", icon: BarChart3 },
+        { to: "/profil", label: "Profil", icon: User2 },
+      ];
+    }
+    return [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/dokumen", label: "Dokumen", icon: FileText },
+      { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen },
+      { to: "/teman", label: "Teman", icon: Users },
+      { to: "/profil", label: "Profil", icon: User2 },
+    ];
+  }, [isAdmin, isTeacher]);
+
+  const hideMobileNav = /^\/(dokumen|folder|kuis|hasil|recap|admin)\/.+/.test(location.pathname);
+  const hideMobileNavBottom = /^\/(dokumen|folder|kuis|hasil|recap)\/.+/.test(location.pathname);
 
   const doLogout = async () => {
     await logout();
     navigate("/", { replace: true });
   };
 
-  // Mobile bottom nav items (5 only)
-  const mobileNavItems = navItems.filter(
-    (it) =>
-      it.to === "/dashboard" ||
-      it.to === "/dokumen" ||
-      it.to === "/pengaturan-belajar" ||
-      it.to === "/teman" ||
-      it.to === "/profil"
-  );
+  const userTitle = isAdmin
+    ? "Kepala Sekolah"
+    : isTeacher
+      ? labelMap[user?.title] || user?.title
+      : user?.education_level
+        ? `${user.education_level}${user?.major ? ` · ${user.major}` : ""}`
+        : "";
+
+  const userSubtitle = isAdmin
+    ? user?.institution || ""
+    : isTeacher
+      ? user?.assigned_class
+        ? `${user.assigned_class}${user?.assigned_subject ? ` · ${user.assigned_subject}` : ""}`
+        : user?.institution || ""
+      : user?.education_level === "Universitas"
+        ? `Sem ${user?.current_semester}`
+        : user?.current_semester
+          ? `Kelas ${user.current_semester}`
+          : "";
 
   return (
     <div className="min-h-screen bg-[#F8F6F0] paper-grain" data-testid="app-layout">
@@ -59,7 +142,9 @@ export default function AppLayout() {
       <header className={`md:hidden sticky top-0 z-40 bg-[#F8F6F0] border-b border-[#E2E0D8] h-14 flex items-center justify-between px-4 ${hideMobileNav ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2">
           <GraduationCap className="w-5 h-5 text-[#1D2D50]" />
-          <span className="font-heading text-lg">EduScanner</span>
+          <span className="font-heading text-lg">
+            {isAdmin ? "Admin" : "EduScanner"}
+          </span>
         </div>
         <div>
           <NotificationsDropdown />
@@ -69,16 +154,16 @@ export default function AppLayout() {
       <div className="flex">
 
         {/* Sidebar - desktop only */}
-        <aside 
+        <aside
           className={`
             hidden md:flex md:sticky md:top-0 md:h-screen inset-y-0 left-0 z-50
-            w-60 bg-white border-r border-[#E2E0D8]
+            bg-white border-r border-[#E2E0D8]
             flex flex-col
             ${sidebarOpen ? 'md:w-60' : 'md:w-16'}
           `}
           data-testid="sidebar"
         >
-          {/* Sidebar Header: Logo + Toggle Button */}
+          {/* Sidebar Header: Logo + Toggle */}
           <div className="px-3 py-4 border-b border-[#E2E0D8] flex items-center shrink-0 relative">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-md bg-[#1D2D50] grid place-items-center shrink-0">
@@ -86,13 +171,16 @@ export default function AppLayout() {
               </div>
               {sidebarOpen && (
                 <div className="overflow-hidden">
-                  <div className="font-heading text-lg leading-none truncate">EduScanner</div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1] mt-0.5 truncate">University</div>
+                  <div className="font-heading text-lg leading-none truncate">
+                    {isAdmin ? "EduAI Admin" : "EduScanner"}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1] mt-0.5 truncate">
+                    {isAdmin ? "Super Admin" : isTeacher ? "Portal Guru" : "University"}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Desktop Toggle */}
             <Button
               variant="outline"
               size="sm"
@@ -125,6 +213,9 @@ export default function AppLayout() {
             ))}
           </nav>
 
+          {/* ContextSwitcher - multi-role toggle */}
+          <ContextSwitcher collapsed={!sidebarOpen} />
+
           {/* User Section */}
           <div className="p-2 border-t border-[#E2E0D8] mt-auto">
             <div className="px-3 py-2 mb-2">
@@ -136,7 +227,7 @@ export default function AppLayout() {
                   </div>
                   <div className="text-sm font-medium text-[#1A1B26] truncate">{user?.name}</div>
                   <div className="text-[11px] text-[#646675] truncate">
-                    {user?.education_level}{user?.major ? ` · ${user.major.split(" /")[0].split(" (")[0]}` : ""} · {user?.education_level === "Universitas" ? `Sem ${user?.current_semester}` : `Kelas ${user?.current_semester}`}
+                    {userTitle}{userSubtitle ? ` · ${userSubtitle}` : ""}
                   </div>
                 </>
               ) : (
@@ -159,14 +250,14 @@ export default function AppLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 md:ml-0 md:p-10 p-4 pt-4 md:pt-10 overflow-x-hidden ${hideMobileNav ? 'pb-4 md:pb-10' : 'pb-24 md:pb-10'}`}>
+        <main className={`flex-1 md:ml-0 md:p-10 p-4 pt-4 md:pt-10 overflow-x-hidden ${hideMobileNavBottom ? 'pb-4 md:pb-10' : 'pb-24 md:pb-10'}`}>
           <Outlet />
         </main>
 
       </div>
 
       {/* Mobile Bottom Nav */}
-      <nav data-testid="bottom-nav" className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E0D8]/60 rounded-t-[28px] shadow-[0_-10px_30px_-5px_rgba(29,45,80,0.08)] grid grid-cols-5 h-[68px] z-40 px-2 ${hideMobileNav ? 'hidden' : ''}`}>
+      <nav data-testid="bottom-nav" className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E0D8]/60 rounded-t-[28px] shadow-[0_-10px_30px_-5px_rgba(29,45,80,0.08)] grid grid-cols-5 h-[68px] z-40 px-2 ${hideMobileNavBottom ? 'hidden' : ''}`}>
         {mobileNavItems.map((it, idx) => {
           const isMiddle = idx === 2;
 
@@ -175,7 +266,6 @@ export default function AppLayout() {
               <div key={it.to} className="relative flex justify-center items-center">
                 <NavLink
                   to={it.to}
-                  data-testid={it.tid}
                   className="absolute -top-6 w-12 h-12 bg-[#1D2D50] rounded-[14px] rotate-45 shadow-[0_8px_20px_-4px_rgba(29,45,80,0.4)] flex items-center justify-center active:scale-90 transition-all duration-200"
                   title={it.label}
                 >
@@ -191,7 +281,6 @@ export default function AppLayout() {
             <NavLink
               key={it.to}
               to={it.to}
-              data-testid={it.tid}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${isActive ? "text-[#1D2D50]" : "text-[#A0A2B1]"}`
               }

@@ -14,7 +14,7 @@ from core.config import BOT_RATE_LIMIT_MAX_MESSAGES, BOT_RATE_LIMIT_WINDOW_SECON
 from models.user import User
 from models.chat import ChatQuestion, SendMessagePayload, DiscussionInvitePayload, DiscussionKickPayload
 from deps.auth import get_current_user, _create_notification, _is_blocked_pair
-from services.ai_service import _audience, _call_groq, _bg_respond_bot
+from services.ai_service import _audience, _call_groq, _bg_respond_bot, SANDBOX_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -115,38 +115,49 @@ async def send_chat_message(document_id: str, payload: ChatQuestion, user: User 
                 "items": mention_result.get("items", [])[:10],
             }, ensure_ascii=False)
 
-    results_summary = []
-    for r in quiz_results_list[:5]:
-        score = r.get("score", 0)
-        date_str = (r.get("created_at") or "")[:10]
-        rid = r.get("result_id", "")
-        results_summary.append(f"- {date_str} | Skor: {score}/100 | Sebut: @result:{rid}")
-
     doc_context = json.dumps({
         "title": doc.get("title", ""),
         "summary": (doc.get("summary") or "")[:1500],
         "key_concepts": [c.get("concept", "") for c in doc.get("key_concepts", [])[:5]],
     }, ensure_ascii=False)
 
-    system = (
-        f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
-        f"Kamu membantu user memahami dokumen dan hasil kuis mereka. Bahasa Indonesia. "
-        f"Gunakan data dokumen dan riwayat kuis untuk menjawab. "
-        f"Jika user menyebut @result:ID, lihat detail kuis tersebut. "
-        f"Jangan gunakan markdown (** atau ###) dalam jawaban."
-    )
+    if user.role == "pelajar" and user.institution_code:
+        # Sandbox mode
+        system = "Anda adalah AI Mentor EduAI yang disiplin."
+        prompt = SANDBOX_PROMPT_TEMPLATE.format(
+            student_name=user.name,
+            class_name=user.enrolled_class or "Umum",
+            referenced_documents_summary=doc_context,
+            grade_level=user.education_level or "Sekolah",
+            student_question=payload.question
+        )
+    else:
+        system = (
+            f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
+            f"Kamu membantu user memahami dokumen dan hasil kuis mereka. Bahasa Indonesia. "
+            f"Gunakan data dokumen dan riwayat kuis untuk menjawab. "
+            f"Jika user menyebut @result:ID, lihat detail kuis tersebut. "
+            f"Jangan gunakan markdown (** atau ###) dalam jawaban."
+        )
 
-    quiz_context = ""
-    if results_summary:
-        quiz_context = "\nRIWAYAT KUIS:\n" + "\n".join(results_summary)
-    if mention_text:
-        quiz_context += f"\n\nDETAIL KUIS YANG DISEBUT:\n{mention_text}"
+        results_summary = []
+        for r in quiz_results_list[:5]:
+            score = r.get("score", 0)
+            date_str = (r.get("created_at") or "")[:10]
+            rid = r.get("result_id", "")
+            results_summary.append(f"- {date_str} | Skor: {score}/100 | Sebut: @result:{rid}")
 
-    prompt = (
-        f"DOKUMEN:\n{doc_context}\n"
-        f"{quiz_context}\n\n"
-        f"PERTANYAAN: {payload.question}"
-    )
+        quiz_context = ""
+        if results_summary:
+            quiz_context = "\nRIWAYAT KUIS:\n" + "\n".join(results_summary)
+        if mention_text:
+            quiz_context += f"\n\nDETAIL KUIS YANG DISEBUT:\n{mention_text}"
+
+        prompt = (
+            f"DOKUMEN:\n{doc_context}\n"
+            f"{quiz_context}\n\n"
+            f"PERTANYAAN: {payload.question}"
+        )
 
     try:
         resp = await _call_groq(system, prompt)
@@ -247,7 +258,7 @@ async def send_discussion_message(doc_id: str, payload: SendMessagePayload, user
             question = content.lower().replace("@bot", "").strip()
             if not question:
                 question = "Jelaskan materi ini secara singkat"
-            asyncio.create_task(_bg_respond_bot(doc_id, question, doc, audience, doc.get("user_id", "")))
+            asyncio.create_task(_bg_respond_bot(doc_id, question, doc, audience, doc.get("user_id", ""), user=user))
         except Exception as e:
             logger.exception(f"Bot trigger gagal: {e}")
 
@@ -369,14 +380,25 @@ async def chat_with_document(doc_id: str, payload: ChatQuestion, user: User = De
         "learning_objectives": doc.get("learning_objectives", [])[:4],
     }, ensure_ascii=False)
 
-    system = (
-        f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
-        f"Jawab pertanyaan berdasarkan dokumen. Bahasa Indonesia."
-    )
-    prompt = (
-        f"DOKUMEN:\n{context}\n\n"
-        f"PERTANYAAN: {payload.question}"
-    )
+    if user.role == "pelajar" and user.institution_code:
+        # Sandbox mode
+        system = "Anda adalah AI Mentor EduAI yang disiplin."
+        prompt = SANDBOX_PROMPT_TEMPLATE.format(
+            student_name=user.name,
+            class_name=user.enrolled_class or "Umum",
+            referenced_documents_summary=context,
+            grade_level=user.education_level or "Sekolah",
+            student_question=payload.question
+        )
+    else:
+        system = (
+            f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
+            f"Jawab pertanyaan berdasarkan dokumen. Bahasa Indonesia."
+        )
+        prompt = (
+            f"DOKUMEN:\n{context}\n\n"
+            f"PERTANYAAN: {payload.question}"
+        )
 
     try:
         resp = await _call_groq(system, prompt)

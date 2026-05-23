@@ -34,6 +34,46 @@ def _public_quiz(quiz_doc: dict) -> dict:
         out["questions"] = [{k: v for k, v in q.items() if k != "correct_index"} for q in out["questions"]]
     return out
 
+async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:
+    # Check private quiz
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    if quiz:
+        return quiz
+    
+    # Check published institutional quiz for student
+    if user.role == "pelajar" and user.enrolled_class:
+        if user.institution_code:
+            quiz = await db.quizzes.find_one({
+                "quiz_id": quiz_id,
+                "institution_code": user.institution_code,
+                "class_name": user.enrolled_class,
+                "status": "published"
+            }, {"_id": 0})
+            if quiz:
+                return quiz
+        elif user.class_token_used:
+            token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+            if token_doc:
+                quiz = await db.quizzes.find_one({
+                    "quiz_id": quiz_id,
+                    "user_id": token_doc["created_by_user_id"],
+                    "class_name": user.enrolled_class,
+                    "status": "published"
+                }, {"_id": 0})
+                if quiz:
+                    return quiz
+            
+    # For teachers, let's also allow finding any quiz belonging to their institution
+    if user.role == "pengajar" and user.institution_code:
+        quiz = await db.quizzes.find_one({
+            "quiz_id": quiz_id,
+            "institution_code": user.institution_code
+        }, {"_id": 0})
+        if quiz:
+            return quiz
+            
+    return None
+
 async def _resolve_documents(payload_document_id, payload_document_ids, payload_folder_id, user) -> List[dict]:
     """Resolve a list of ready documents from any of the input shapes."""
     ids: List[str] = []
@@ -76,6 +116,13 @@ async def quiz_generate(request: Request, payload: QuizGenerateRequest, user: Us
             if not recap_text and recap.get("per_document_summaries"):
                 recap_text = "\n".join(recap["per_document_summaries"].values())
 
+    # Resolve active academic year id if needed
+    academic_year_id = payload.academic_year_id
+    if not academic_year_id and user.institution_code:
+        active_year = await db.academic_years.find_one({"institution_code": user.institution_code, "is_active": True})
+        if active_year:
+            academic_year_id = active_year.get("academic_year_id")
+
     quiz_id = uuid.uuid4().hex
     quiz_doc = {
         "quiz_id": quiz_id,
@@ -87,6 +134,10 @@ async def quiz_generate(request: Request, payload: QuizGenerateRequest, user: Us
         "folder_id": payload.folder_id,
         "questions": [],
         "status": "processing",
+        "curriculum_code": payload.curriculum_code,
+        "class_id": payload.class_id,
+        "academic_year_id": academic_year_id,
+        "institution_code": user.institution_code,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.quizzes.insert_one(quiz_doc.copy())
@@ -111,9 +162,18 @@ async def quiz_results_list(user: User = Depends(get_current_user), limit: int =
             try:
                 quiz_id = r.get("quiz_id")
                 if quiz_id:
-                    quiz = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "source_titles": 1, "folder_id": 1})
+                    quiz = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0, "source_titles": 1, "folder_id": 1, "institution_code": 1, "subject_name": 1})
                     r["source_titles"] = (quiz or {}).get("source_titles", [])
-                    r["folder_id"] = (quiz or {}).get("folder_id")
+                    if quiz and (quiz.get("institution_code") or user.class_token_used) and user.role == "pelajar":
+                        subj_name = quiz.get("subject_name", "")
+                        subj_lower = subj_name.strip().lower()
+                        r["folder_id"] = None
+                        for s in (user.subjects or []):
+                            if s.get("name") and s["name"].strip().lower() == subj_lower:
+                                r["folder_id"] = s.get("folder_id")
+                                break
+                    else:
+                        r["folder_id"] = (quiz or {}).get("folder_id")
                 else:
                     r["source_titles"] = []
                     r["folder_id"] = None
@@ -130,28 +190,48 @@ async def quiz_results_list(user: User = Depends(get_current_user), limit: int =
 
 @router.get("/quiz/{quiz_id}")
 async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
-    return _public_quiz(quiz)
+    out = _public_quiz(quiz)
+    
+    if quiz.get("institution_code") and user.role == "pelajar":
+        subj_name = quiz.get("subject_name", "")
+        subj_lower = subj_name.strip().lower()
+        for s in (user.subjects or []):
+            if s.get("name") and s["name"].strip().lower() == subj_lower:
+                out["folder_id"] = s.get("folder_id")
+                break
+    return out
 
 
 @router.post("/quiz/{quiz_id}/cancel")
 async def cancel_quiz(request: Request, quiz_id: str, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
     if quiz.get("status") != "processing":
         raise HTTPException(400, "Kuis tidak sedang diproses")
+        
+    if quiz.get("institution_code"):
+        is_allowed = (
+            user.role == "pengajar" and (
+                user.title in ("kepala_sekolah", "kurikulum") or
+                quiz.get("user_id") == user.user_id
+            )
+        )
+        if not is_allowed:
+            raise HTTPException(403, "Anda tidak memiliki akses untuk membatalkan kuis ini")
+            
     await db.quizzes.update_one({"quiz_id": quiz_id}, {"$set": {"status": "cancelled"}})
     await write_audit(user.user_id, "QUIZ_CANCELLED", {"quiz_id": quiz_id}, request.client.host if request.client else "")
-    await _emit_quiz_status(user.user_id, quiz_id, "cancelled")
+    await _emit_quiz_status(quiz.get("user_id") or user.user_id, quiz_id, "cancelled")
     return {"quiz_id": quiz_id, "status": "cancelled"}
 
 
 @router.put("/quiz/{quiz_id}/progress")
 async def save_quiz_progress(quiz_id: str, payload: QuizProgressSave, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0, "questions": 1})
+    quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
     total = len(quiz.get("questions", []))
@@ -159,50 +239,89 @@ async def save_quiz_progress(quiz_id: str, payload: QuizProgressSave, user: User
         raise HTTPException(400, f"Jumlah jawaban ({len(payload.answers)}) tidak sama dengan jumlah soal ({total})")
     if payload.current_step < 0 or payload.current_step >= total:
         raise HTTPException(400, "Langkah tidak valid")
-    await db.quizzes.update_one(
-        {"quiz_id": quiz_id},
-        {"$set": {
-            "progress.answers": payload.answers,
-            "progress.current_step": payload.current_step,
-            "progress.updated_at": datetime.now(timezone.utc).isoformat(),
-        }}
-    )
+        
+    if quiz.get("institution_code"):
+        await db.quiz_progress.update_one(
+            {"quiz_id": quiz_id, "user_id": user.user_id},
+            {"$set": {
+                "answers": payload.answers,
+                "current_step": payload.current_step,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True
+        )
+    else:
+        await db.quizzes.update_one(
+            {"quiz_id": quiz_id},
+            {"$set": {
+                "progress.answers": payload.answers,
+                "progress.current_step": payload.current_step,
+                "progress.updated_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
     return {"quiz_id": quiz_id, "saved": True}
 
 
 @router.get("/quiz/{quiz_id}/progress")
 async def get_quiz_progress(quiz_id: str, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0, "progress": 1})
+    quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
-    return quiz.get("progress") or None
+    if quiz.get("institution_code"):
+        prog = await db.quiz_progress.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+        if prog:
+            return {
+                "answers": prog.get("answers", []),
+                "current_step": prog.get("current_step", 0),
+                "updated_at": prog.get("updated_at")
+            }
+        return None
+    else:
+        return quiz.get("progress") or None
 
 
 @router.delete("/quiz/{quiz_id}")
 async def delete_quiz(request: Request, quiz_id: str, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
-    await db.quiz_results.delete_many({"quiz_id": quiz_id, "user_id": user.user_id})
-    await db.quizzes.delete_one({"quiz_id": quiz_id, "user_id": user.user_id})
+        
+    if quiz.get("institution_code"):
+        is_allowed = (
+            user.role == "pengajar" and (
+                user.title in ("kepala_sekolah", "kurikulum") or 
+                quiz.get("user_id") == user.user_id
+            )
+        )
+        if not is_allowed:
+            raise HTTPException(403, "Anda tidak memiliki akses untuk menghapus kuis ini")
+            
+        await db.quiz_progress.delete_many({"quiz_id": quiz_id})
+        await db.quiz_results.delete_many({"quiz_id": quiz_id})
+        await db.quizzes.delete_one({"quiz_id": quiz_id})
+    else:
+        await db.quiz_results.delete_many({"quiz_id": quiz_id, "user_id": user.user_id})
+        await db.quizzes.delete_one({"quiz_id": quiz_id, "user_id": user.user_id})
+        
     await write_audit(user.user_id, "QUIZ_DELETED", {"quiz_id": quiz_id}, request.client.host if request.client else "")
     return {"quiz_id": quiz_id, "deleted": True}
 
 
 @router.post("/quiz/submit")
 async def quiz_submit(request: Request, payload: QuizSubmission, user: User = Depends(get_current_user)):
-    quiz = await db.quizzes.find_one({"quiz_id": payload.quiz_id, "user_id": user.user_id}, {"_id": 0})
+    quiz = await _find_quiz_for_user(payload.quiz_id, user)
     if not quiz:
         raise HTTPException(404, "Kuis tidak ditemukan")
-    if quiz.get("status") != "ready":
+    if quiz.get("status") not in ("ready", "published"):
         raise HTTPException(400, "Kuis belum siap dinilai")
 
     result_id = uuid.uuid4().hex
     doc = {
         "result_id": result_id,
         "quiz_id": payload.quiz_id,
-        "document_id": quiz["document_id"],
+        "document_id": quiz.get("document_id"),
         "user_id": user.user_id,
+        "created_by": quiz.get("user_id"),
         "answers": payload.answers,
         "score": 0,
         "summary": "",
@@ -210,11 +329,30 @@ async def quiz_submit(request: Request, payload: QuizSubmission, user: User = De
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    
+    if quiz.get("institution_code"):
+        doc["institution_code"] = quiz.get("institution_code")
+        doc["student_class"] = user.enrolled_class
+        doc["subject_name"] = quiz.get("subject_name")
+        doc["academic_year_id"] = quiz.get("academic_year_id") or user.academic_year_id
+        doc["source"] = "institution_class"
+    elif user.class_token_used:
+        doc["student_class"] = user.enrolled_class
+        doc["subject_name"] = quiz.get("subject_name")
+        doc["source"] = "institution_class"
+    else:
+        doc["source"] = "personal"
+        
     await db.quiz_results.insert_one(doc.copy())
     ip = request.client.host if request.client else ""
     await _emit_result_status(user.user_id, result_id, "processing")
     asyncio.create_task(_bg_grade_quiz(result_id, quiz, payload.answers, user, ip))
-    await db.quizzes.update_one({"quiz_id": payload.quiz_id}, {"$unset": {"progress": ""}})
+    
+    if quiz.get("institution_code"):
+        await db.quiz_progress.delete_many({"quiz_id": payload.quiz_id, "user_id": user.user_id})
+    else:
+        await db.quizzes.update_one({"quiz_id": payload.quiz_id}, {"$unset": {"progress": ""}})
+        
     doc.pop("_id", None)
     return doc
 
@@ -231,9 +369,42 @@ async def get_latest_doc_result(doc_id: str, user: User = Depends(get_current_us
 
 @router.get("/folders/{folder_id}/latest-result")
 async def get_latest_folder_result(folder_id: str, user: User = Depends(get_current_user)):
-    quizzes = await db.quizzes.find({"folder_id": folder_id, "user_id": user.user_id}, {"quiz_id": 1}).to_list(100)
-    quiz_ids = [q["quiz_id"] for q in quizzes]
+    # 1. Private quizzes
+    private_quizzes = await db.quizzes.find({"folder_id": folder_id, "user_id": user.user_id}, {"quiz_id": 1}).to_list(100)
+    quiz_ids = [q["quiz_id"] for q in private_quizzes]
     
+    # 2. Institutional quizzes
+    if user.role == "pelajar" and user.enrolled_class:
+        subjects = user.subjects or []
+        folder_subj_names = []
+        for s in subjects:
+            if s.get("folder_id") == folder_id and s.get("name"):
+                folder_subj_names.append(s["name"])
+        
+        folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id, "status": {"$ne": "deleted"}})
+        if folder and folder.get("name") and folder["name"] not in folder_subj_names:
+            folder_subj_names.append(folder["name"])
+            
+        if folder_subj_names:
+            if user.institution_code:
+                inst_quizzes = await db.quizzes.find({
+                    "institution_code": user.institution_code,
+                    "class_name": user.enrolled_class,
+                    "subject_name": {"$in": folder_subj_names},
+                    "status": "published"
+                }, {"quiz_id": 1}).to_list(100)
+                quiz_ids.extend([q["quiz_id"] for q in inst_quizzes])
+            elif user.class_token_used:
+                token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+                if token_doc:
+                    inst_quizzes = await db.quizzes.find({
+                        "user_id": token_doc["created_by_user_id"],
+                        "class_name": user.enrolled_class,
+                        "subject_name": {"$in": folder_subj_names},
+                        "status": "published"
+                    }, {"quiz_id": 1}).to_list(100)
+                    quiz_ids.extend([q["quiz_id"] for q in inst_quizzes])
+            
     if not quiz_ids:
         return None
         
@@ -353,3 +524,55 @@ async def delete_result(request: Request, result_id: str, user: User = Depends(g
     await db.quiz_results.delete_one({"result_id": result_id, "user_id": user.user_id})
     await write_audit(user.user_id, "RESULT_DELETED", {"result_id": result_id}, request.client.host if request.client else "")
     return {"result_id": result_id, "deleted": True}
+
+
+from deps.auth import require_title
+
+@router.post("/teacher/quizzes/{quiz_id}/approve")
+async def approve_quiz(
+    quiz_id: str,
+    request: Request,
+    user: User = Depends(require_title("kurikulum", "kepala_sekolah"))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "institution_code": user.institution_code})
+    if not quiz:
+        raise HTTPException(404, "Kuis tidak ditemukan")
+
+    if quiz.get("status") != "pending_approval":
+        raise HTTPException(400, f"Kuis tidak dalam status pending_approval (status saat ini: {quiz.get('status')})")
+
+    await db.quizzes.update_one(
+        {"quiz_id": quiz_id},
+        {"$set": {
+            "status": "published",
+            "approved_by": user.user_id,
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    await write_audit(
+        user.user_id,
+        "QUIZ_APPROVED",
+        {"quiz_id": quiz_id},
+        request.client.host if request.client else ""
+    )
+
+    return {"status": "published", "quiz_id": quiz_id}
+
+@router.get("/teacher/quizzes/pending-approvals")
+async def get_pending_quizzes(
+    user: User = Depends(require_title("kurikulum", "kepala_sekolah"))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    quizzes = await db.quizzes.find(
+        {"institution_code": user.institution_code, "status": "pending_approval"},
+        {"_id": 0}
+    ).to_list(100)
+
+    return {"quizzes": quizzes}
+

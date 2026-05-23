@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "install:all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "kill:ports": "npx kill-port 3010 8000",
     "dev:frontend": "cd frontend && npm start",
-    "dev:backend": "cd backend && python -m uvicorn server:app --reload --port 8000",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && python -m uvicorn server:app --reload --host 127.0.0.1 --port 8000",
+    "dev": "npm run kill:ports && concurrently -n BE,FE -c cyan,green \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build": "cd frontend && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
   },
   "dependencies": {
     "pdfjs-dist": "^5.7.284"
