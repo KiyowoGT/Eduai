@@ -434,16 +434,13 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
         update_fields["assigned_subject"] = None
     else:
         update_fields["title"] = payload.role_type
-        if payload.role_type == "guru_kelas":
-            update_fields["assigned_class"] = scope_id
-            update_fields["assigned_subject"] = None
-        elif payload.role_type == "guru_pengajar":
-            update_fields["assigned_subject"] = scope_id
-            update_fields["assigned_class"] = None
-        else:
-            # kepala_sekolah, kurikulum
-            update_fields["assigned_class"] = None
-            update_fields["assigned_subject"] = None
+        # If a scope_id was resolved (e.g. from role_assignments), update the active assignment.
+        # Otherwise, keep existing assignments intact to avoid destructive clearing of profile settings.
+        if scope_id is not None:
+            if payload.role_type == "guru_kelas":
+                update_fields["assigned_class"] = scope_id
+            elif payload.role_type == "guru_pengajar":
+                update_fields["assigned_subject"] = scope_id
 
     await db.users.update_one(
         {"user_id": user.user_id},

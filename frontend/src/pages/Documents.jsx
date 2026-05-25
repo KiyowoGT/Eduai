@@ -101,6 +101,7 @@ export default function Documents() {
   const [redeemExpMap, setRedeemExpMap] = useState({});
   const [generatingRedeemMap, setGeneratingRedeemMap] = useState({});
   const [dragActive, setDragActive] = useState(false);
+  const [subjectInput, setSubjectInput] = useState("");
   const fileInputRef = useRef(null);
   const [editingDocClasses, setEditingDocClasses] = useState(null);
   const [editSelectedClasses, setEditSelectedClasses] = useState([]);

@@ -246,20 +246,25 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
             "status": {"$ne": "deleted"}
         }
 
-        # Apply scopes based on teacher title
-        if TeacherTitle.guru_kelas in user.all_titles and TeacherTitle.guru_pengajar in user.all_titles:
-            query["$or"] = [
-                {"target_class_room": user.assigned_class},
-                {"target_class_rooms": user.assigned_class},
-                {"subject_name": user.assigned_subject}
-            ]
-        elif TeacherTitle.guru_kelas in user.all_titles:
-            query["$or"] = [
-                {"target_class_room": user.assigned_class},
-                {"target_class_rooms": user.assigned_class}
-            ]
-        elif TeacherTitle.guru_pengajar in user.all_titles:
-            query["subject_name"] = user.assigned_subject
+        # Apply scopes based on teacher title, but always include the teacher's own uploads.
+        # Only query class/subject parameters if they are actually set (not None/empty) to prevent incorrect matching.
+        or_conditions = [{"user_id": user.user_id}]
+        has_scope = False
+
+        if TeacherTitle.guru_kelas in user.all_titles:
+            has_scope = True
+            if user.assigned_class:
+                or_conditions.extend([
+                    {"target_class_room": user.assigned_class},
+                    {"target_class_rooms": user.assigned_class}
+                ])
+        if TeacherTitle.guru_pengajar in user.all_titles:
+            has_scope = True
+            if user.assigned_subject:
+                or_conditions.append({"subject_name": user.assigned_subject})
+
+        if has_scope:
+            query["$or"] = or_conditions
 
     docs = await db.documents.find(query, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(200)
     
