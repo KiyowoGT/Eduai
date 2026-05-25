@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getAdminAcademicYears, http } from "@/lib/api";
 import { Calendar, Plus, CheckCircle, Archive, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import DualLoader from "@/components/DualLoader";
 
 export default function AcademicYearManager() {
   const { user } = useAuth();
@@ -134,7 +135,7 @@ export default function AcademicYearManager() {
 
       {/* Year List */}
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
+        <DualLoader type="default" text="Memuat daftar tahun ajaran..." />
       ) : years.length === 0 ? (
         <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
           Belum ada tahun ajaran. Buat tahun ajaran baru untuk memulai.

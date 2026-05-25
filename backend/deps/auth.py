@@ -203,7 +203,8 @@ def require_title(*allowed_titles: TeacherTitle):
     async def title_dependency(user: User = Depends(require_pengajar)) -> User:
         # Convert string enum titles to values for comparison
         title_values = [t.value if isinstance(t, Enum) else t for t in allowed_titles]
-        if user.title not in title_values:
+        user_titles = [t.value if isinstance(t, Enum) else t for t in user.all_titles]
+        if not any(ut in title_values for ut in user_titles):
             raise HTTPException(status_code=403, detail=f"Akses ditolak: Hanya jabatan {', '.join(title_values)} yang diperbolehkan")
         return user
     return title_dependency

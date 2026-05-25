@@ -7,7 +7,8 @@ import { updateProfile, updateFriendCode, http } from "@/lib/api";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
-  Copy, Check, Hash, LogOut, User, Mail, School, AtSign, Key, Shield, Building2, Eye, EyeOff
+  Copy, Check, Hash, LogOut, User, Mail, School, AtSign, Key, Shield, ShieldCheck, Building2, Eye, EyeOff,
+  ScrollText, Settings, Users, FolderOpen, BrainCircuit
 } from "lucide-react";
 
 export default function Profile() {
@@ -17,6 +18,27 @@ export default function Profile() {
   const isTeacher = user?.role === "pengajar";
   const isAdmin = isTeacher && user?.title === "kepala_sekolah";
   const isOwner = user?.institution_owner;
+
+  // Mobile additional menus
+  const otherMenus = [];
+  if (isAdmin) {
+    otherMenus.push(
+      { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText },
+      { to: "/admin/settings", label: "Pengaturan", icon: Settings }
+    );
+  } else if (isTeacher) {
+    otherMenus.push(
+      { to: "/teacher/students", label: "Manajemen Kelas", icon: Users },
+      { to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit },
+      { to: "/audit-log", label: "Audit Log", icon: ScrollText }
+    );
+  } else {
+    otherMenus.push(
+      { to: "/folder", label: "Folder Materi", icon: FolderOpen },
+      { to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit },
+      { to: "/audit-log", label: "Audit Log", icon: ScrollText }
+    );
+  }
 
   // Personal info
   const [name, setName] = useState(user?.name || "");
@@ -85,6 +107,14 @@ export default function Profile() {
   // —— Change Password ——
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    if (user?.created_by_admin) {
+      toast.error("Akun Anda dibuat oleh Kepala Sekolah. Anda tidak diperbolehkan mengubah password.");
+      return;
+    }
+    if (!currentPassword) {
+      toast.error("Isi password lama");
+      return;
+    }
     if (!newPassword || !confirmPassword) {
       toast.error("Isi password baru dan verifikasi");
       return;
@@ -93,12 +123,25 @@ export default function Profile() {
       toast.error("Password minimal 8 karakter");
       return;
     }
+    if (newPassword === currentPassword) {
+      toast.error("Password baru tidak boleh sama dengan password lama");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("Password tidak cocok");
       return;
     }
     setSavingPassword(true);
     try {
+      // Verify current password first by signing in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signInError) {
+        throw new Error("Password lama salah");
+      }
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       toast.success("Password berhasil diubah");
@@ -178,7 +221,7 @@ export default function Profile() {
   const inputClass = "w-full pl-11 pr-4 py-2.5 rounded-xl border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20 transition-all";
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <div className="mb-8 fade-up">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">
           {isAdmin ? "Super Admin" : isTeacher ? "Portal Guru" : "Akun"}
@@ -276,45 +319,75 @@ export default function Profile() {
             <Key className="w-5 h-5 text-[#1D2D50]" />
             Ubah Password
           </h2>
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div className="relative">
-              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-              <input
-                type={showPasswords ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Password baru"
-                className={inputClass}
-              />
+          {user?.created_by_admin ? (
+            <div className="p-5 rounded-xl bg-[#F8F6F0] border border-[#E2E0D8]/80 flex gap-4 items-start fade-up">
+              <div className="w-10 h-10 rounded-lg bg-[#E5A93C]/10 flex items-center justify-center text-[#E5A93C] shrink-0 mt-0.5 animate-pulse">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-[#1A1B26] font-heading">Manajemen Sandi Terpusat</div>
+                <p className="text-xs text-[#646675] leading-relaxed">
+                  Identitas Anda didaftarkan secara terpusat oleh Kepala Sekolah. Untuk menjaga keamanan kredensial dan administrasi institusi, Anda tidak diperkenankan mengubah password secara mandiri.
+                </p>
+                <div className="pt-2">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A0A2B1]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E5A93C]" />
+                    Kebijakan Keamanan Institusi
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="relative">
-              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-              <input
-                type={showPasswords ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Verifikasi password baru"
-                className={inputClass}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowPasswords(!showPasswords)}
-                className="flex items-center gap-1.5 text-xs text-[#A0A2B1] hover:text-[#646675] transition-colors"
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="relative">
+                <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
+                <input
+                  type={showPasswords ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Password lama"
+                  className={inputClass}
+                />
+              </div>
+              <div className="relative">
+                <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
+                <input
+                  type={showPasswords ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Password baru"
+                  className={inputClass}
+                />
+              </div>
+              <div className="relative">
+                <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
+                <input
+                  type={showPasswords ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Verifikasi password baru"
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(!showPasswords)}
+                  className="flex items-center gap-1.5 text-xs text-[#A0A2B1] hover:text-[#646675] transition-colors"
+                >
+                  {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPasswords ? "Sembunyikan" : "Tampilkan"}
+                </button>
+              </div>
+              <Button
+                type="submit"
+                disabled={savingPassword}
+                className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm"
               >
-                {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                {showPasswords ? "Sembunyikan" : "Tampilkan"}
-              </button>
-            </div>
-            <Button
-              type="submit"
-              disabled={savingPassword}
-              className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm"
-            >
-              {savingPassword ? "Menyimpan..." : "Ubah Password"}
-            </Button>
-          </form>
+                {savingPassword ? "Menyimpan..." : "Ubah Password"}
+              </Button>
+            </form>
+          )}
         </div>
       )}
 
@@ -388,8 +461,30 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Logout */}
-      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6">
+      {/* Other Menus (Mobile Only) */}
+      {otherMenus.length > 0 && (
+        <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6 md:hidden">
+          <h2 className="font-heading text-lg text-[#1A1B26] mb-4">Bagian Lainnya</h2>
+          <div className="flex flex-col gap-3">
+            {otherMenus.map((menu) => {
+              const Icon = menu.icon;
+              return (
+                <button
+                  key={menu.to}
+                  onClick={() => navigate(menu.to)}
+                  className="flex items-center gap-3 p-4 rounded-xl border border-[#E2E0D8] bg-[#F8F6F0] text-[#1A1B26] hover:bg-[#E2E0D8] transition-all text-left"
+                >
+                  <Icon className="w-5 h-5 text-[#E5A93C] shrink-0" />
+                  <span className="text-sm font-medium">{menu.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Logout (Mobile Only) */}
+      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 md:hidden">
         <h2 className="font-heading text-lg text-[#1A1B26] mb-2">Keluar</h2>
         <p className="text-sm text-[#646675] mb-4">Keluar dari sesi aktif Anda di perangkat ini.</p>
         <Button

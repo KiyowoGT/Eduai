@@ -9,7 +9,6 @@ const TITLE_OPTIONS = [
   { value: "guru_pengajar", label: "Guru Pengajar" },
   { value: "guru_kelas", label: "Guru Kelas (Wali Kelas)" },
   { value: "kurikulum", label: "Kurikulum" },
-  { value: "kepala_sekolah", label: "Kepala Sekolah" },
 ];
 
 export default function MutationManager() {
@@ -59,7 +58,7 @@ export default function MutationManager() {
   };
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full">
       <button
         onClick={() => navigate("/admin/users")}
         className="flex items-center gap-1.5 text-sm text-[#646675] hover:text-[#1D2D50] transition-colors mb-6"

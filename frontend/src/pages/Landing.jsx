@@ -2,6 +2,7 @@ import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, GraduationCap, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 const HERO_IMG = "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/7b6b9737e6374591d9a3b25695ec71d7ac4f0b4c6b036c3a181f991d2e976936.png";
 const PREMIER_IMG = "https://plain-apac-prod-public.komododecks.com/202605/23/CsKoA3Pkqy1TTAAofG8Y/image.png";
@@ -11,13 +12,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   if (loading) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-[#F8F6F0] dark:bg-[#12131A]">
-        <div className="w-12 h-12 rounded-2xl bg-[#1D2D50] flex items-center justify-center animate-pulse shadow-2xl border border-white/10">
-          <GraduationCap className="w-6 h-6 text-[#E5A93C]" />
-        </div>
-      </div>
-    );
+    return <DualLoader type="landing" text="Mempersiapkan portal akademik..." />;
   }
   
   if (user) {
@@ -60,7 +55,7 @@ export default function Landing() {
             </Link>
             <Button
               onClick={() => navigate("/signup")}
-              className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#1D2D50] rounded-xl px-6 h-11 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-[#1D2D50]/20 transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/10"
+              className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] rounded-xl px-6 h-11 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-[#1D2D50]/20 transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/10"
             >
               Mulai Eksplorasi
             </Button>
@@ -93,10 +88,10 @@ export default function Landing() {
             <div className="flex flex-wrap items-center gap-6">
               <Button
                 onClick={() => navigate("/signup")}
-                className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#1D2D50] h-14 px-10 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] shadow-2xl shadow-[#1D2D50]/30 transition-all hover:scale-[1.05] border border-white/5"
+                className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] h-14 px-10 rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] shadow-2xl shadow-[#1D2D50]/30 transition-all hover:scale-[1.05] border border-white/5"
               >
                 Inisialisasi Akses
-                <ChevronRight className="w-4 h-4 ml-2 text-[#E5A93C] dark:text-[#1D2D50]" />
+                <ChevronRight className="w-4 h-4 ml-2 text-[#E5A93C] dark:text-[#12131A]" />
               </Button>
               <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate("/signup")}>
                 <div className="w-12 h-12 rounded-full border-2 border-[#1D2D50]/10 dark:border-white/10 bg-white dark:bg-white/5 flex items-center justify-center shadow-sm group-hover:border-[#1D2D50] dark:group-hover:border-[#E5A93C] transition-all duration-500">
@@ -122,20 +117,21 @@ export default function Landing() {
           <div className="lg:col-span-5 relative fade-up" style={{ animationDelay: "200ms" }}>
             <div className="relative group">
               <div className="absolute -inset-4 bg-gradient-to-tr from-[#E5A93C]/20 via-transparent to-[#1D2D50]/10 rounded-[3rem] blur-3xl opacity-60 group-hover:opacity-100 transition-opacity duration-1000" />
-              <div className="relative rounded-[2.5rem] overflow-hidden border-8 border-white dark:border-[#1D2D50] shadow-2xl transition-transform duration-700 hover:scale-[1.02]">
+              <div className="relative rounded-[2.5rem] overflow-hidden border-8 border-white dark:border-[#1C1D26] shadow-2xl transition-transform duration-700 hover:scale-[1.02]">
                 <img src={PREMIER_IMG} alt="Interface" className="w-full h-auto" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1D2D50]/30 to-transparent" />
               </div>
 
               {/* Floating Prestigious Badge */}
-              <div className="absolute -bottom-8 -right-8 bg-[#1D2D50] dark:bg-[#E5A93C] border-4 border-white dark:border-[#1D2D50] rounded-[2rem] p-6 shadow-2xl transform hover:-translate-y-2 transition-transform duration-500">
+              {/* Floating Prestigious Badge */}
+              <div className="absolute -bottom-8 -right-8 bg-[#1D2D50] dark:bg-[#E5A93C] border-4 border-white dark:border-[#12131A] rounded-[2rem] p-6 shadow-2xl transform hover:-translate-y-2 transition-transform duration-500">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#E5A93C] dark:bg-[#1D2D50] flex items-center justify-center text-[#1D2D50] dark:text-[#E5A93C] text-xl font-black shadow-[0_0_20px_rgba(229,169,60,0.4)]">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E5A93C] dark:bg-[#12131A] flex items-center justify-center text-[#1D2D50] dark:text-[#E5A93C] text-xl font-black shadow-[0_0_20px_rgba(229,169,60,0.4)]">
                     A+
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[9px] uppercase tracking-[0.3em] font-black text-white/50 dark:text-[#1D2D50]/60">Verified tier</span>
-                    <span className="text-sm font-heading font-bold text-white dark:text-[#1D2D50]">Akurasi Riset</span>
+                    <span className="text-[9px] uppercase tracking-[0.3em] font-black text-white/50 dark:text-[#12131A]/60">Verified tier</span>
+                    <span className="text-sm font-heading font-bold text-white dark:text-[#12131A]">Akurasi Riset</span>
                   </div>
                 </div>
               </div>
@@ -171,17 +167,17 @@ export default function Landing() {
 
         <div className="grid md:grid-cols-3 gap-10">
           <FeatureCard 
-            icon={<Globe className="w-6 h-6 text-[#E5A93C]" />}
+            icon={Globe}
             title="Akses Global"
             desc="Sinergi data riset Anda dalam ekosistem aman dengan standar enkripsi militer."
           />
           <FeatureCard 
-            icon={<Zap className="w-6 h-6 text-[#E5A93C]" />}
+            icon={Zap}
             title="Analisis Kilat"
             desc="Pemrosesan ribuan data akademik dalam hitungan detik tanpa reduksi konteks."
           />
           <FeatureCard 
-            icon={<ShieldCheck className="w-6 h-6 text-[#E5A93C]" />}
+            icon={ShieldCheck}
             title="Integritas Total"
             desc="Keamanan tingkat institusi yang menjamin kerahasiaan kekayaan intelektual Anda."
           />
@@ -189,7 +185,7 @@ export default function Landing() {
       </section>
 
       {/* SaaS Pricing - Strictly Themed */}
-      <section id="harga" className="py-32 bg-[#1D2D50] relative overflow-hidden">
+      <section id="harga" className="py-32 bg-[#1D2D50] dark:bg-[#0D1527] relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_20%_20%,rgba(58,82,133,0.3)_0%,transparent_50%)]" />
         <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_80%_80%,rgba(229,169,60,0.1)_0%,transparent_30%)]" />
 
@@ -235,7 +231,7 @@ export default function Landing() {
           <h2 className="font-heading text-5xl md:text-7xl text-[#1D2D50] dark:text-white tracking-tighter leading-none mb-8 italic">Mulai Revolusi <br /> <span className="not-italic font-bold">Akademik Anda.</span></h2>
           <Button
             onClick={() => navigate("/signup")}
-            className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#1D2D50] h-16 px-12 rounded-[2rem] text-[12px] font-black uppercase tracking-[0.4em] shadow-2xl shadow-[#1D2D50]/40 dark:shadow-[#E5A93C]/20 transition-all hover:scale-[1.05]"
+            className="bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] h-16 px-12 rounded-[2rem] text-[12px] font-black uppercase tracking-[0.4em] shadow-2xl shadow-[#1D2D50]/40 dark:shadow-[#E5A93C]/20 transition-all hover:scale-[1.05]"
           >
             Daftar Sekarang Secara Gratis
           </Button>
@@ -298,12 +294,12 @@ export default function Landing() {
   );
 }
 
-function FeatureCard({ icon, title, desc }) {
+function FeatureCard({ icon: Icon, title, desc }) {
   return (
     <div className="p-10 rounded-[3rem] bg-white dark:bg-white/5 border-2 border-[#1D2D50]/5 dark:border-white/5 shadow-xl transition-all duration-700 hover:scale-[1.05] hover:shadow-[0_40px_80px_-20px_rgba(29,45,80,0.15)] hover:border-[#E5A93C]/40 dark:hover:border-[#E5A93C]/60 group relative overflow-hidden">
       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#E5A93C]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
       <div className="w-16 h-16 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center mb-8 shadow-2xl border border-white/10 group-hover:rotate-6 transition-transform duration-500">
-        <div className="dark:text-[#1D2D50]">{icon}</div>
+        <Icon className="w-6 h-6 text-[#E5A93C] dark:text-[#12131A]" />
       </div>
       <h3 className="font-heading text-3xl text-[#1D2D50] dark:text-white mb-5 font-black tracking-tighter italic leading-none text-left">{title}</h3>
       <p className="text-sm text-[#1D2D50] dark:text-white/70 leading-relaxed font-bold opacity-80 group-hover:opacity-100 transition-opacity text-left">{desc}</p>
@@ -313,9 +309,9 @@ function FeatureCard({ icon, title, desc }) {
 
 function PricingCard({ title, price, period = "", desc, features, premium = false }) {
   return (
-    <div className={`relative p-12 rounded-[3.5rem] transition-all duration-1000 hover:scale-[1.03] flex flex-col overflow-hidden ${premium ? 'bg-[#1D2D50] text-white shadow-[0_50px_100px_-20px_rgba(29,45,80,0.4)] scale-105 border-4 border-[#E5A93C] z-10' : 'bg-white dark:bg-white/5 text-[#1D2D50] dark:text-white border-2 border-[#1D2D50]/10 dark:border-white/10 shadow-xl'}`}>
+    <div className={`relative p-12 rounded-[3.5rem] transition-all duration-1000 hover:scale-[1.03] flex flex-col overflow-hidden ${premium ? 'bg-[#1D2D50] dark:bg-[#121E36] text-white shadow-[0_50px_100px_-20px_rgba(29,45,80,0.4)] scale-105 border-4 border-[#E5A93C] z-10' : 'bg-white dark:bg-white/5 text-[#1D2D50] dark:text-white border-2 border-[#1D2D50]/10 dark:border-white/10 shadow-xl'}`}>
       {premium && (
-        <div className="absolute top-0 right-0 px-8 py-3 bg-[#E5A93C] text-[#1D2D50] text-[10px] font-black uppercase tracking-[0.4em] rounded-bl-3xl shadow-2xl z-20">
+        <div className="absolute top-0 right-0 px-8 py-3 bg-[#E5A93C] text-[#1D2D50] dark:text-[#12131A] text-[10px] font-black uppercase tracking-[0.4em] rounded-bl-3xl shadow-2xl z-20">
           Premier tier
         </div>
       )}
@@ -341,7 +337,7 @@ function PricingCard({ title, price, period = "", desc, features, premium = fals
       </div>
 
       <Button
-        className={`w-full h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.4em] transition-all duration-500 ${premium ? 'bg-[#E5A93C] hover:bg-[#D4AF37] text-[#1D2D50] shadow-[0_20px_50px_rgba(229,169,60,0.3)]' : 'bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#1D2D50] shadow-xl hover:shadow-2xl'}`}
+        className={`w-full h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.4em] transition-all duration-500 ${premium ? 'bg-[#E5A93C] hover:bg-[#D4AF37] text-[#1D2D50] dark:text-[#12131A] shadow-[0_20px_50px_rgba(229,169,60,0.3)]' : 'bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] shadow-xl hover:shadow-2xl'}`}
       >
         Aktivasi {title}
       </Button>

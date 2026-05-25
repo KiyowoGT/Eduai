@@ -87,7 +87,7 @@ async def get_my_institution(user: User = Depends(require_pengajar)):
     passcodes = await db.staff_passcodes.find({"institution_code": user.institution_code}, {"_id": 0}).to_list(200)
 
     # Mask passcodes if user is not kepala_sekolah
-    is_admin = user.title == "kepala_sekolah"
+    is_admin = "kepala_sekolah" in [t.value if hasattr(t, "value") else t for t in user.all_titles]
     for pc in passcodes:
         if not is_admin:
             pc["passcode"] = "********"

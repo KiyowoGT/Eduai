@@ -19,12 +19,13 @@ class CreateClassTokenPayload(BaseModel):
     major: Optional[str] = None
 
 async def require_can_create_token(user: User = Depends(require_pengajar)) -> User:
-    is_guru_kelas = user.title == TeacherTitle.guru_kelas
+    is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
+    is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
     is_mandiri = user.account_type == AccountType.pribadi
-    if not (is_guru_kelas or is_mandiri):
+    if not (is_guru_kelas or is_guru_pengajar or is_mandiri):
         raise HTTPException(
             403,
-            "Hanya Guru Kelas (Wali Kelas) atau Guru Mandiri yang bisa membuat token kelas."
+            "Hanya Guru Kelas, Guru Pengajar, atau Guru Mandiri yang bisa membuat token kelas."
         )
     return user
 
@@ -37,8 +38,20 @@ async def create_class_token(
     if user.account_type != AccountType.pribadi:
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
-        if user.assigned_class != payload.target_class_room:
-            raise HTTPException(403, "Guru kelas hanya diperbolehkan membuat token untuk kelas mereka sendiri")
+        
+        is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
+        is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
+        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+        
+        if not is_admin_or_kuri:
+            allowed_classes = []
+            if is_guru_kelas and user.assigned_class:
+                allowed_classes.append(user.assigned_class)
+            if is_guru_pengajar:
+                allowed_classes.extend(list(getattr(user, "teaching_classes", []) or []))
+            
+            if allowed_classes and payload.target_class_room not in allowed_classes:
+                raise HTTPException(403, f"Akses ditolak: Anda hanya diperbolehkan membuat token untuk kelas: {', '.join(allowed_classes)}")
 
     # Generate token: e.g., INSTCODE-CLASS-RAND or MANDIRI-CLASS-RAND
     if user.account_type == AccountType.pribadi:
@@ -90,7 +103,21 @@ async def list_class_tokens(user: User = Depends(require_can_create_token)):
     else:
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
-        query = {"institution_code": user.institution_code, "target_class_room": user.assigned_class}
+        
+        is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
+        is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
+        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+        
+        query = {"institution_code": user.institution_code}
+        if not is_admin_or_kuri:
+            allowed_classes = []
+            if is_guru_kelas and user.assigned_class:
+                allowed_classes.append(user.assigned_class)
+            if is_guru_pengajar:
+                allowed_classes.extend(list(getattr(user, "teaching_classes", []) or []))
+            
+            if allowed_classes:
+                query["target_class_room"] = {"$in": allowed_classes}
         
     tokens = await db.class_tokens.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return tokens
@@ -103,8 +130,20 @@ async def revoke_class_token(token: str, request: Request, user: User = Depends(
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
         token_doc = await db.class_tokens.find_one({"class_token": token, "institution_code": user.institution_code})
-        if token_doc and token_doc["target_class_room"] != user.assigned_class:
-            raise HTTPException(403, "Guru kelas hanya diperbolehkan menghapus token untuk kelas mereka sendiri")
+        if token_doc:
+            is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
+            is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
+            is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+            
+            if not is_admin_or_kuri:
+                allowed_classes = []
+                if is_guru_kelas and user.assigned_class:
+                    allowed_classes.append(user.assigned_class)
+                if is_guru_pengajar:
+                    allowed_classes.extend(list(getattr(user, "teaching_classes", []) or []))
+                
+                if allowed_classes and token_doc.get("target_class_room") not in allowed_classes:
+                    raise HTTPException(403, "Anda tidak diperbolehkan menghapus token kelas ini")
 
     if not token_doc:
         raise HTTPException(404, "Token kelas tidak ditemukan")

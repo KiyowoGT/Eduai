@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { getAdminTeachers } from "@/lib/api";
 import { Search, UserPlus, MoreVertical, Users, Shield } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 const titleLabels = {
   kepala_sekolah: "Kepala Sekolah",
@@ -27,12 +28,12 @@ export default function UserManagement() {
 
   const filtered = teachers.filter((t) => {
     const q = search.toLowerCase();
-    return (
-      !q ||
-      t.name?.toLowerCase().includes(q) ||
-      t.email?.toLowerCase().includes(q) ||
-      t.title?.toLowerCase().includes(q)
+    const matchName = t.name?.toLowerCase().includes(q);
+    const matchEmail = t.email?.toLowerCase().includes(q);
+    const matchTitle = (t.titles && t.titles.length > 0 ? t.titles : [t.title]).some(titleKey => 
+      titleLabels[titleKey]?.toLowerCase().includes(q) || titleKey?.toLowerCase().includes(q)
     );
+    return !q || matchName || matchEmail || matchTitle;
   });
 
   return (
@@ -68,7 +69,7 @@ export default function UserManagement() {
 
       {/* Table */}
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
+        <DualLoader type="friends" text="Memuat daftar guru..." />
       ) : filtered.length === 0 ? (
         <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
           {search ? "Tidak ada guru yang cocok dengan pencarian." : "Belum ada guru terdaftar."}
@@ -100,9 +101,13 @@ export default function UserManagement() {
                   <td className="py-3 px-4 text-[#646675] font-mono text-xs">{t.nip || "-"}</td>
                   <td className="py-3 px-4 text-[#646675]">{t.email || "-"}</td>
                   <td className="py-3 px-4">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#1D2D50]/10 text-[#1D2D50]">
-                      {titleLabels[t.title] || t.title || "Guru"}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {(t.titles && t.titles.length > 0 ? t.titles : [t.title]).filter(Boolean).map((titleKey) => (
+                        <span key={titleKey} className="text-xs px-2 py-0.5 rounded-full bg-[#1D2D50]/10 text-[#1D2D50]">
+                          {titleLabels[titleKey] || titleKey}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -145,7 +150,7 @@ export default function UserManagement() {
           </div>
           <div>
             <div className="text-2xl font-heading text-[#1A1B26]">
-              {teachers.filter((t) => t.title === "kepala_sekolah").length}
+              {teachers.filter((t) => (t.titles || [t.title]).includes("kepala_sekolah")).length}
             </div>
             <div className="text-xs text-[#646675]">Admin</div>
           </div>
@@ -156,7 +161,7 @@ export default function UserManagement() {
           </div>
           <div>
             <div className="text-2xl font-heading text-[#1A1B26]">
-              {teachers.filter((t) => t.title === "guru_kelas" || t.title === "guru_pengajar").length}
+              {teachers.filter((t) => (t.titles || [t.title]).some(val => val === "guru_kelas" || val === "guru_pengajar")).length}
             </div>
             <div className="text-xs text-[#646675]">Pengajar Aktif</div>
           </div>

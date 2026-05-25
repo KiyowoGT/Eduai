@@ -389,46 +389,59 @@ class SwitchRolePayload(BaseModel):
 
 @router.post("/auth/switch-role")
 async def switch_role(payload: SwitchRolePayload, request: Request, user: User = Depends(get_current_user)):
-    if not user.institution_code:
-        raise HTTPException(status_code=400, detail="User tidak terhubung ke institusi")
-
     is_valid_role = False
     scope_id = None
+    target_role = UserRole.pengajar # Default target role
 
-    # Check allowed roles from role_assignments
-    assignment = await db.role_assignments.find_one({
-        "user_id": user.user_id,
-        "role_type": payload.role_type,
-        "status": "active"
-    })
+    if payload.role_type == "pelajar":
+        is_valid_role = True
+        target_role = UserRole.pelajar
+    else:
+        # Check allowed roles from role_assignments
+        assignment = await db.role_assignments.find_one({
+            "user_id": user.user_id,
+            "role_type": payload.role_type,
+            "status": "active"
+        })
 
-    if assignment:
-        is_valid_role = True
-        scope_id = assignment.get("scope_id")
-    elif payload.role_type == "kepala_sekolah" and user.institution_owner:
-        is_valid_role = True
-    elif payload.role_type == user.title:
-        # Allow switching to their own initial onboarding title
-        is_valid_role = True
-        scope_id = user.assigned_class if user.title == "guru_kelas" else user.assigned_subject
+        if assignment:
+            is_valid_role = True
+            scope_id = assignment.get("scope_id")
+        elif payload.role_type == "kepala_sekolah" and user.institution_owner:
+            is_valid_role = True
+        elif payload.role_type in [t.value if hasattr(t, "value") else t for t in user.all_titles]:
+            is_valid_role = True
+            if payload.role_type == "guru_kelas":
+                scope_id = user.assigned_class
+            elif payload.role_type == "guru_pengajar":
+                scope_id = user.assigned_subject
+            else:
+                scope_id = None
 
     if not is_valid_role:
         raise HTTPException(status_code=403, detail="Peran tidak terdaftar atau tidak aktif")
 
     # Update database user model
     update_fields = {
-        "title": payload.role_type
+        "role": target_role
     }
-    if payload.role_type == "guru_kelas":
-        update_fields["assigned_class"] = scope_id
-        update_fields["assigned_subject"] = None
-    elif payload.role_type == "guru_pengajar":
-        update_fields["assigned_subject"] = scope_id
+
+    if target_role == UserRole.pelajar:
+        update_fields["title"] = None
         update_fields["assigned_class"] = None
+        update_fields["assigned_subject"] = None
     else:
-        # kepala_sekolah, kurikulum
-        update_fields["assigned_class"] = None
-        update_fields["assigned_subject"] = None
+        update_fields["title"] = payload.role_type
+        if payload.role_type == "guru_kelas":
+            update_fields["assigned_class"] = scope_id
+            update_fields["assigned_subject"] = None
+        elif payload.role_type == "guru_pengajar":
+            update_fields["assigned_subject"] = scope_id
+            update_fields["assigned_class"] = None
+        else:
+            # kepala_sekolah, kurikulum
+            update_fields["assigned_class"] = None
+            update_fields["assigned_subject"] = None
 
     await db.users.update_one(
         {"user_id": user.user_id},
@@ -465,19 +478,29 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
         "user": updated_user
     }
 
-
 @router.get("/auth/roles")
 async def get_user_roles(user: User = Depends(get_current_user)):
+    roles_list = []
+
+    # Pelajar role is always available
+    roles_list.append({
+        "role_type": "pelajar",
+        "scope_id": None,
+        "status": "active"
+    })
+
     if not user.institution_code:
-        return {"roles": []}
+        return {"roles": roles_list}
 
     assignments = await db.role_assignments.find({
         "user_id": user.user_id,
         "status": "active"
     }, {"_id": 0}).to_list(100)
 
-    roles_list = [a for a in assignments]
-    
+    for a in assignments:
+        if not any(r["role_type"] == a["role_type"] for r in roles_list):
+            roles_list.append(a)
+
     # Ensure owner has kepala_sekolah
     if user.institution_owner and not any(a["role_type"] == "kepala_sekolah" for a in roles_list):
         roles_list.append({
@@ -486,13 +509,20 @@ async def get_user_roles(user: User = Depends(get_current_user)):
             "status": "active"
         })
 
-    # Ensure current title is in list
-    if user.title and not any(a["role_type"] == user.title for a in roles_list):
-        roles_list.append({
-            "role_type": user.title,
-            "scope_id": user.assigned_class if user.title == "guru_kelas" else user.assigned_subject,
-            "status": "active"
-        })
+    # Ensure all titles in user.all_titles are in list
+    for t in user.all_titles:
+        t_val = t.value if hasattr(t, "value") else t
+        if not any(a["role_type"] == t_val for a in roles_list):
+            scope_id = None
+            if t_val == "guru_kelas":
+                scope_id = user.assigned_class
+            elif t_val == "guru_pengajar":
+                scope_id = user.assigned_subject
+            roles_list.append({
+                "role_type": t_val,
+                "scope_id": scope_id,
+                "status": "active"
+            })
 
     return {"roles": roles_list}
 

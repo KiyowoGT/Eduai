@@ -47,10 +47,22 @@ async def list_teacher_schedules(user: User = Depends(require_pengajar)):
         return []
 
     query = {"institution_code": user.institution_code}
-    if user.title == TeacherTitle.guru_kelas:
+    if TeacherTitle.guru_kelas in user.all_titles and TeacherTitle.guru_pengajar in user.all_titles:
+        subject_cond = {"subject_name": user.assigned_subject}
+        classes = list(getattr(user, "teaching_classes", []) or [])
+        if classes:
+            subject_cond["class_name"] = {"$in": classes}
+        query["$or"] = [
+            {"class_name": user.assigned_class},
+            subject_cond
+        ]
+    elif TeacherTitle.guru_kelas in user.all_titles:
         query["class_name"] = user.assigned_class
-    elif user.title == TeacherTitle.guru_pengajar:
+    elif TeacherTitle.guru_pengajar in user.all_titles:
         query["subject_name"] = user.assigned_subject
+        classes = list(getattr(user, "teaching_classes", []) or [])
+        if classes:
+            query["class_name"] = {"$in": classes}
 
     schedules = await db.shared_schedules.find(query, {"_id": 0}).to_list(1000)
     return sort_schedules(schedules)
@@ -167,10 +179,25 @@ async def link_schedule_resources(
         raise HTTPException(404, "Jadwal tidak ditemukan")
 
     # Teachers can link content to their assigned classes/subjects
-    if user.title == TeacherTitle.guru_kelas and schedule.get("class_name") != user.assigned_class:
-        raise HTTPException(403, "Guru kelas hanya diperbolehkan melink resources ke jadwal kelas mereka")
-    if user.title == TeacherTitle.guru_pengajar and schedule.get("subject_name") != user.assigned_subject:
-        raise HTTPException(403, "Guru pengajar hanya diperbolehkan melink resources ke jadwal mata pelajaran mereka")
+    # Teachers can link content to their assigned classes/subjects
+    is_allowed = True
+    if TeacherTitle.guru_kelas in user.all_titles and TeacherTitle.guru_pengajar in user.all_titles:
+        is_class_match = (schedule.get("class_name") == user.assigned_class)
+        is_subject_match = (schedule.get("subject_name") == user.assigned_subject)
+        classes = list(getattr(user, "teaching_classes", []) or [])
+        if classes and is_subject_match:
+            is_subject_match = schedule.get("class_name") in classes
+        is_allowed = is_class_match or is_subject_match
+    elif TeacherTitle.guru_kelas in user.all_titles:
+        is_allowed = (schedule.get("class_name") == user.assigned_class)
+    elif TeacherTitle.guru_pengajar in user.all_titles:
+        is_allowed = (schedule.get("subject_name") == user.assigned_subject)
+        classes = list(getattr(user, "teaching_classes", []) or [])
+        if classes and is_allowed:
+            is_allowed = schedule.get("class_name") in classes
+
+    if not is_allowed:
+        raise HTTPException(403, "Anda tidak diperbolehkan melink resources ke jadwal ini")
 
     updates = {}
     if payload.validated_recap_id is not None:

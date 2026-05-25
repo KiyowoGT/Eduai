@@ -29,17 +29,30 @@ async def get_teacher_students(user: User = Depends(require_pengajar)):
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
-        # Scope validation: Only Kepala Sekolah, Kurikulum, and Guru Kelas (Wali Kelas) are allowed to view the student roster
-        if user.title not in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.guru_kelas):
-            raise HTTPException(403, "Akses ditolak: Hanya Wali Kelas, Kurikulum, atau Kepala Sekolah yang dapat melihat daftar siswa.")
+        # Scope validation: Only Kepala Sekolah, Kurikulum, Guru Kelas, and Guru Pengajar are allowed to view the student roster
+        if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.guru_kelas, TeacherTitle.guru_pengajar)):
+            raise HTTPException(403, "Akses ditolak: Hanya Wali Kelas, Kurikulum, Kepala Sekolah, atau Guru Pengajar yang dapat melihat daftar siswa.")
 
         query = {
             "institution_code": user.institution_code,
             "role": "pelajar"
         }
 
-        if user.title == TeacherTitle.guru_kelas:
-            query["enrolled_class"] = user.assigned_class
+        is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
+        is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
+        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+
+        if not is_admin_or_kuri:
+            allowed_classes = []
+            if is_guru_kelas and user.assigned_class:
+                allowed_classes.append(user.assigned_class)
+            if is_guru_pengajar:
+                allowed_classes.extend(list(getattr(user, "teaching_classes", []) or []))
+            
+            if allowed_classes:
+                query["enrolled_class"] = {"$in": allowed_classes}
+            elif is_guru_kelas or is_guru_pengajar:
+                query["enrolled_class"] = "__none__"
 
     students = await db.users.find(query, {
         "_id": 0,
@@ -69,7 +82,10 @@ async def get_quiz_analytics(
     if user.account_type != "pribadi":
         is_allowed = (
             quiz.get("user_id") == user.user_id or
-            quiz.get("subject_name").lower() == user.assigned_subject.lower()
+            (user.assigned_subject and quiz.get("subject_name") and quiz.get("subject_name").lower() == user.assigned_subject.lower()) or
+            TeacherTitle.kepala_sekolah in user.all_titles or
+            TeacherTitle.kurikulum in user.all_titles or
+            (TeacherTitle.guru_kelas in user.all_titles and quiz.get("class_name") == user.assigned_class)
         )
         if not is_allowed:
             raise HTTPException(403, "Anda tidak memiliki akses ke analitik kuis ini")
@@ -180,14 +196,30 @@ async def get_class_summary(
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
         # Class selection rules
-        if user.title == TeacherTitle.guru_kelas:
+        if TeacherTitle.guru_kelas in user.all_titles and TeacherTitle.guru_pengajar not in user.all_titles:
             class_name = user.assigned_class
         elif not class_name:
-            raise HTTPException(400, "Parameter query class_name wajib ditentukan")
+            # Default to the first class in the institution alphabetically
+            first_class = await db.classes.find_one(
+                {"institution_code": user.institution_code},
+                sort=[("name", 1)]
+            )
+            if first_class:
+                class_name = first_class["name"]
+            else:
+                # Fallback: try finding first student class
+                first_student = await db.users.find_one(
+                    {"institution_code": user.institution_code, "role": "pelajar", "enrolled_class": {"$ne": None}},
+                    sort=[("enrolled_class", 1)]
+                )
+                if first_student:
+                    class_name = first_student.get("enrolled_class")
+                else:
+                    return {"class_name": None, "students": []}
 
         # Access control
-        if user.title not in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.guru_kelas):
-            raise HTTPException(403, "Akses ditolak: Hanya Wali Kelas, Kurikulum, atau Kepala Sekolah yang dapat melihat ringkasan nilai kelas.")
+        if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.guru_kelas, TeacherTitle.guru_pengajar)):
+            return {"class_name": class_name, "students": []}
 
         students = await db.users.find({
             "institution_code": user.institution_code,
@@ -300,22 +332,24 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
         raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
     # 1. Count students
-    if user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum):
+    if any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
         student_count = await db.users.count_documents({"institution_code": user.institution_code, "role": "pelajar"})
-    elif user.title == TeacherTitle.guru_kelas:
-        student_count = await db.users.count_documents({
-            "institution_code": user.institution_code,
-            "enrolled_class": user.assigned_class,
-            "role": "pelajar"
-        })
-    elif user.title == TeacherTitle.guru_pengajar:
-        classes = await db.shared_schedules.distinct("class_name", {
-            "institution_code": user.institution_code,
-            "subject_name": user.assigned_subject
-        })
+    elif TeacherTitle.guru_pengajar in user.all_titles:
+        classes = list(getattr(user, "teaching_classes", []) or [])
+        if not classes:
+            classes = await db.shared_schedules.distinct("class_name", {
+                "institution_code": user.institution_code,
+                "subject_name": user.assigned_subject
+            })
         student_count = await db.users.count_documents({
             "institution_code": user.institution_code,
             "enrolled_class": {"$in": classes},
+            "role": "pelajar"
+        })
+    elif TeacherTitle.guru_kelas in user.all_titles:
+        student_count = await db.users.count_documents({
+            "institution_code": user.institution_code,
+            "enrolled_class": user.assigned_class,
             "role": "pelajar"
         })
     else:
@@ -323,10 +357,17 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
 
     # 2. Count materials (documents)
     mat_query = {"institution_code": user.institution_code, "visibility": "institution", "status": {"$ne": "deleted"}}
-    if user.title == TeacherTitle.guru_kelas:
-        mat_query["target_class_room"] = user.assigned_class
-    elif user.title == TeacherTitle.guru_pengajar:
-        mat_query["subject_name"] = user.assigned_subject
+    if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
+        conditions = []
+        if TeacherTitle.guru_kelas in user.all_titles:
+            conditions.append({"target_class_room": user.assigned_class})
+        if TeacherTitle.guru_pengajar in user.all_titles:
+            conditions.append({"subject_name": user.assigned_subject})
+        if conditions:
+            if len(conditions) == 1:
+                mat_query.update(conditions[0])
+            else:
+                mat_query["$or"] = conditions
     materials_count = await db.documents.count_documents(mat_query)
 
     # 3. Count quizzes
@@ -336,10 +377,17 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
     quiz_query = {"institution_code": user.institution_code, "status": {"$ne": "deleted"}}
     if active_year_id:
         quiz_query["academic_year_id"] = active_year_id
-    if user.title == TeacherTitle.guru_kelas:
-        quiz_query["class_name"] = user.assigned_class
-    elif user.title == TeacherTitle.guru_pengajar:
-        quiz_query["subject_name"] = user.assigned_subject
+    if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
+        conditions = []
+        if TeacherTitle.guru_kelas in user.all_titles:
+            conditions.append({"class_name": user.assigned_class})
+        if TeacherTitle.guru_pengajar in user.all_titles:
+            conditions.append({"subject_name": user.assigned_subject})
+        if conditions:
+            if len(conditions) == 1:
+                quiz_query.update(conditions[0])
+            else:
+                quiz_query["$or"] = conditions
     quizzes_count = await db.quizzes.count_documents(quiz_query)
 
     # 4. Average score
@@ -350,10 +398,17 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
     }
     if active_year_id:
         res_query["academic_year_id"] = active_year_id
-    if user.title == TeacherTitle.guru_kelas:
-        res_query["student_class"] = user.assigned_class
-    elif user.title == TeacherTitle.guru_pengajar:
-        res_query["subject_name"] = user.assigned_subject
+    if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
+        conditions = []
+        if TeacherTitle.guru_kelas in user.all_titles:
+            conditions.append({"student_class": user.assigned_class})
+        if TeacherTitle.guru_pengajar in user.all_titles:
+            conditions.append({"subject_name": user.assigned_subject})
+        if conditions:
+            if len(conditions) == 1:
+                res_query.update(conditions[0])
+            else:
+                res_query["$or"] = conditions
 
     results = await db.quiz_results.find(res_query, {"score": 1}).to_list(10000)
     avg_score = sum(r.get("score", 0) for r in results) / len(results) if results else 0.0
@@ -405,7 +460,10 @@ async def get_teacher_quiz_insights(
     if user.account_type != "pribadi":
         is_allowed = (
             quiz.get("user_id") == user.user_id or
-            quiz.get("subject_name").lower() == user.assigned_subject.lower()
+            (user.assigned_subject and quiz.get("subject_name") and quiz.get("subject_name").lower() == user.assigned_subject.lower()) or
+            TeacherTitle.kepala_sekolah in user.all_titles or
+            TeacherTitle.kurikulum in user.all_titles or
+            (TeacherTitle.guru_kelas in user.all_titles and quiz.get("class_name") == user.assigned_class)
         )
         if not is_allowed:
             raise HTTPException(403, "Anda tidak memiliki akses ke kuis ini")

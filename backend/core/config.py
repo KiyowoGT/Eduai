@@ -27,6 +27,7 @@ GROQ_MODEL = os.environ.get('GROQ_MODEL', "llama-3.3-70b-versatile")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 API_PREFIX = "" if os.environ.get("VERCEL") == "1" else "/api"
 

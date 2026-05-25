@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getRecap, deleteRecap, generateRecapAudio, updateProfile } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, BookMarked, BookOpen, Sparkles, Compass, FileText, Trash2, AlertTriangle, Volume2, Loader2, SlidersHorizontal } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 export default function Recap() {
   const { id } = useParams();
@@ -95,7 +96,7 @@ export default function Recap() {
     }
   };
 
-  if (loading) return <div className="text-sm text-[#646675]">Memuat…</div>;
+  if (loading) return <DualLoader type="document-detail" text="Memuat rangkuman materi..." />;
   if (!recap) return <div className="text-sm text-[#646675]">Rangkuman tidak ditemukan.</div>;
 
   return (

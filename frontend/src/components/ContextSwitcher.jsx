@@ -4,6 +4,7 @@ import { fetchRoles, switchRole } from "@/lib/api";
 import { ChevronDown, RefreshCw } from "lucide-react";
 
 const labelMap = {
+  pelajar: "Pelajar (Siswa)",
   kepala_sekolah: "Kepala Sekolah",
   kurikulum: "Kurikulum",
   guru_kelas: "Guru Kelas",
@@ -30,11 +31,13 @@ export default function ContextSwitcher({ collapsed }) {
     loadRoles();
   }, [loadRoles]);
 
-  if (!user || user.role !== "pengajar") return null;
+  if (!user) return null;
 
-  const currentTitle = user.title;
-  const availableRoles = roles.filter((r) => r.role_type !== currentTitle);
-  if (availableRoles.length === 0) return null;
+  const currentRoleType = user.role === "pelajar" ? "pelajar" : user.title;
+  const availableRoles = roles.filter((r) => r.role_type !== currentRoleType);
+  
+  // Only show if there are multiple roles to switch between
+  if (roles.length <= 1) return null;
 
   const handleSwitch = async (title) => {
     setSwitching(true);
@@ -87,7 +90,7 @@ export default function ContextSwitcher({ collapsed }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-[#1A1B26] hover:bg-[#F8F6F0] transition-colors"
       >
-        <span className="font-medium">{labelMap[currentTitle] || currentTitle}</span>
+        <span className="font-medium">{labelMap[currentRoleType] || currentRoleType}</span>
         {switching ? (
           <RefreshCw className="w-3 h-3 animate-spin text-[#646675]" />
         ) : (

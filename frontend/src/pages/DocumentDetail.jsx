@@ -13,6 +13,7 @@ import { BookOpen, BrainCircuit, FileText, GitBranch, ArrowLeft, Code2, Trash2, 
 import PdfViewer from "@/components/PdfViewer";
 import DocumentDiscussion from "@/components/DocumentDiscussion";
 import DocumentAiChat from "@/components/DocumentAiChat";
+import DualLoader from "@/components/DualLoader";
 
 export default function DocumentDetail() {
   const { id } = useParams();
@@ -137,7 +138,7 @@ export default function DocumentDetail() {
     }
   };
 
-  if (loading) return <div className="text-sm text-[#646675]">Memuat dokumen…</div>;
+  if (loading) return <DualLoader type="document-detail" text="Mengunduh materi akademik..." />;
   if (!doc) return <div className="text-sm text-[#646675]">Dokumen tidak ditemukan.</div>;
 
   return (

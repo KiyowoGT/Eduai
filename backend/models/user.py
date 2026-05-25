@@ -41,6 +41,7 @@ class User(BaseModel):
     role: Optional[UserRole] = None
     account_type: Optional[AccountType] = None
     title: Optional[TeacherTitle] = None          # hanya pengajar
+    titles: Optional[List[TeacherTitle]] = Field(default_factory=list) # multi-jabatan
     institution_code: Optional[str] = None
     institution_owner: bool = False
     assigned_class: Optional[str] = None            # guru_kelas
@@ -64,8 +65,19 @@ class User(BaseModel):
     clone_voice_url: Optional[str] = None
     is_institution_linked: Optional[bool] = None
     is_class_linked: Optional[bool] = None
+    created_by_admin: Optional[bool] = None
     permissions: Optional[List[str]] = Field(default_factory=list)
+    teaching_classes: Optional[List[str]] = Field(default_factory=list)
     created_at: datetime
+
+    @property
+    def all_titles(self) -> List[TeacherTitle]:
+        res = []
+        if self.titles:
+            res.extend(self.titles)
+        if self.title and self.title not in res:
+            res.append(self.title)
+        return res
 
     @model_validator(mode="after")
     def check_title_fields(self) -> "User":
@@ -76,15 +88,16 @@ class User(BaseModel):
 
         # logic for pribadi (guru mandiri)
         if self.account_type == AccountType.pribadi:
-            if self.title is not None:
+            if self.title is not None or (self.titles and len(self.titles) > 0):
                 raise ValueError("Guru mandiri (akun pribadi) tidak boleh memiliki sub-role (title)")
             return self
 
         # logic for perusahaan (institusi)
         if self.account_type == AccountType.perusahaan:
-            if self.title == TeacherTitle.guru_kelas and not self.assigned_class:
+            titles = self.all_titles
+            if TeacherTitle.guru_kelas in titles and not self.assigned_class:
                 raise ValueError("assigned_class wajib untuk guru_kelas")
-            if self.title == TeacherTitle.guru_pengajar and not self.assigned_subject:
+            if TeacherTitle.guru_pengajar in titles and not self.assigned_subject:
                 raise ValueError("assigned_subject wajib untuk guru_pengajar")
         
         return self
@@ -97,16 +110,19 @@ class User(BaseModel):
             # Guru Mandiri: Full Access
             return ["studio_materi", "ruang_kelas", "jadwal_master", "analitik_full"]
         
-        if self.title == TeacherTitle.kepala_sekolah:
-            return ["ruang_kelas_view", "analitik_makro"]
-        if self.title == TeacherTitle.kurikulum:
-            return ["ruang_kelas_view", "jadwal_master", "analitik_makro"]
-        if self.title == TeacherTitle.guru_kelas:
-            return ["ruang_kelas_full", "jadwal_view", "analitik_kelas"]
-        if self.title == TeacherTitle.guru_pengajar:
-            return ["studio_materi", "analitik_butir_soal"]
+        permissions = set()
+        user_titles = self.all_titles
         
-        return []
+        if TeacherTitle.kepala_sekolah in user_titles:
+            permissions.update(["ruang_kelas_view", "analitik_makro"])
+        if TeacherTitle.kurikulum in user_titles:
+            permissions.update(["ruang_kelas_view", "jadwal_master", "analitik_makro"])
+        if TeacherTitle.guru_kelas in user_titles:
+            permissions.update(["ruang_kelas_full", "jadwal_view", "analitik_kelas"])
+        if TeacherTitle.guru_pengajar in user_titles:
+            permissions.update(["studio_materi", "analitik_butir_soal"])
+        
+        return list(permissions)
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None

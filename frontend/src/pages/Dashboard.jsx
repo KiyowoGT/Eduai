@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import useRealtimeSocket from "@/hooks/useRealtimeSocket";
 import { toast } from "sonner";
 import { Upload, FileText, Trophy, BookOpen, ArrowUpRight, X, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp"];
 
@@ -111,7 +112,9 @@ export default function Dashboard() {
     }
   };
 
-  const activeJobs = Object.entries(jobs);
+  if (loading) {
+    return <DualLoader type="dashboard" text="Mempersiapkan dasbor belajar..." />;
+  }
 
   return (
     <div className="w-full" data-testid="dashboard-page">
@@ -146,7 +149,7 @@ export default function Dashboard() {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
         />
         <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-4">
-          <Upload className="w-5 h-5 text-[#1D2D50]" />
+          <Upload className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
         </div>
         <div className="font-heading text-xl text-[#1A1B26]">Upload PDF atau Gambar</div>
         <p className="text-sm text-[#646675] mt-2">
@@ -158,7 +161,7 @@ export default function Dashboard() {
         <div className="mb-10 space-y-2.5 fade-up" data-testid="active-jobs">
           {activeJobs.map(([docId, job]) => (
             <div key={docId} className="flex items-center gap-3 bg-white border border-[#E2E0D8] rounded-lg px-4 py-3" data-testid={`job-${docId}`}>
-              <Loader2 className={`w-4 h-4 ${job.status === "ready" || job.status === "failed" || job.status === "cancelled" ? "" : "animate-spin"} text-[#1D2D50] shrink-0`} />
+              <Loader2 className={`w-4 h-4 ${job.status === "ready" || job.status === "failed" || job.status === "cancelled" ? "" : "animate-spin"} text-[#1D2D50] dark:text-[#E5A93C] shrink-0`} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-[#1A1B26] truncate">{job.filename}</div>
                 <div className="text-[11px] font-mono uppercase tracking-wider text-[#A0A2B1]">
@@ -189,7 +192,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center">
-              <BookOpen className="w-4 h-4 text-[#1D2D50]" />
+              <BookOpen className="w-4 h-4 text-[#1D2D50] dark:text-[#E5A93C]" />
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Pengaturan Belajar</div>
@@ -200,7 +203,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <button onClick={() => navigate("/pengaturan-belajar")} className="text-xs text-[#1D2D50] hover:text-[#B83A4B] transition-colors flex items-center gap-1">
+          <button onClick={() => navigate("/pengaturan-belajar")} className="text-xs text-[#1D2D50] dark:text-[#E5A93C] hover:text-[#B83A4B] dark:hover:text-[#F0B853] transition-colors flex items-center gap-1">
             {user?.education_level ? "Atur Mapel" : "Atur Sekarang"} <ArrowUpRight className="w-3 h-3" />
           </button>
         </div>
@@ -208,14 +211,12 @@ export default function Dashboard() {
 
       <div className="mb-6 flex items-baseline justify-between">
         <h2 className="font-heading text-2xl text-[#1A1B26]">Dokumen Terbaru</h2>
-        <button data-testid="see-all-documents" onClick={() => navigate("/dokumen")} className="text-xs text-[#1D2D50] hover:text-[#B83A4B] transition-colors">
+        <button data-testid="see-all-documents" onClick={() => navigate("/dokumen")} className="text-xs text-[#1D2D50] dark:text-[#E5A93C] hover:text-[#B83A4B] dark:hover:text-[#F0B853] transition-colors">
           Lihat semua →
         </button>
       </div>
 
-      {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
-      ) : (docs?.length || 0) === 0 ? (
+      {(docs?.length || 0) === 0 ? (
         <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
           Belum ada dokumen. Upload file pertama di atas.
         </div>
@@ -234,7 +235,7 @@ function StatCard({ tid, icon, label, value, accent }) {
   return (
     <div data-testid={tid} className={`card-lift rounded-xl p-5 border ${accent ? "bg-[#1D2D50] border-[#1D2D50] text-white" : "bg-white border-[#E2E0D8]"}`}>
       <div className={`inline-flex w-8 h-8 rounded-md ${accent ? "bg-white/10" : "bg-[#F8F6F0] border border-[#E2E0D8]"} items-center justify-center`}>
-        <span className={accent ? "text-[#E5A93C]" : "text-[#1D2D50]"}>{icon}</span>
+        <span className={accent ? "text-[#E5A93C]" : "text-[#1D2D50] dark:text-[#E5A93C]"}>{icon}</span>
       </div>
       <div className={`mt-4 text-xs uppercase tracking-[0.2em] ${accent ? "text-white/60" : "text-[#A0A2B1]"}`}>{label}</div>
       <div className={`font-heading text-3xl mt-1 ${accent ? "text-white" : "text-[#1A1B26]"}`}>{value}</div>
@@ -248,7 +249,7 @@ export function DocCard({ doc, onOpen, onCancel, onDelete }) {
     <div data-testid={`doc-card-${doc.document_id}`} className="card-lift bg-white border border-[#E2E0D8] rounded-xl p-5 relative group">
       <button onClick={onOpen} className="absolute inset-0 rounded-xl" aria-label="Buka dokumen" />
       <div className="flex items-start justify-between relative pointer-events-none">
-        <FileText className="w-5 h-5 text-[#1D2D50]" />
+        <FileText className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
         <ArrowUpRight className="w-4 h-4 text-[#A0A2B1]" />
       </div>
       <div className="font-heading text-lg text-[#1A1B26] mt-3 line-clamp-2 relative pointer-events-none">

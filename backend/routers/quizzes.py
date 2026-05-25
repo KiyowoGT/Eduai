@@ -216,7 +216,7 @@ async def cancel_quiz(request: Request, quiz_id: str, user: User = Depends(get_c
     if quiz.get("institution_code"):
         is_allowed = (
             user.role == "pengajar" and (
-                user.title in ("kepala_sekolah", "kurikulum") or
+                any(t in ("kepala_sekolah", "kurikulum") for t in [ut.value if hasattr(ut, "value") else ut for ut in user.all_titles]) or
                 quiz.get("user_id") == user.user_id
             )
         )
@@ -289,7 +289,7 @@ async def delete_quiz(request: Request, quiz_id: str, user: User = Depends(get_c
     if quiz.get("institution_code"):
         is_allowed = (
             user.role == "pengajar" and (
-                user.title in ("kepala_sekolah", "kurikulum") or 
+                any(t in ("kepala_sekolah", "kurikulum") for t in [ut.value if hasattr(ut, "value") else ut for ut in user.all_titles]) or 
                 quiz.get("user_id") == user.user_id
             )
         )

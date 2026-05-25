@@ -141,7 +141,7 @@ export default function AppLayout() {
       {/* Mobile Top Bar */}
       <header className={`md:hidden sticky top-0 z-40 bg-[#F8F6F0] border-b border-[#E2E0D8] h-14 flex items-center justify-between px-4 ${hideMobileNav ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2">
-          <GraduationCap className="w-5 h-5 text-[#1D2D50]" />
+          <GraduationCap className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
           <span className="font-heading text-lg">
             {isAdmin ? "Admin" : "EduScanner"}
           </span>
@@ -185,7 +185,7 @@ export default function AppLayout() {
               variant="outline"
               size="sm"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden md:flex h-6 w-6 p-0 rounded-full border border-[#E2E0D8] bg-white shadow-sm hover:bg-[#F8F6F0] text-[#646675] absolute -right-3 top-1/2 -translate-y-1/2 z-10"
+              className="hidden md:flex h-6 w-6 p-0 rounded-full border border-[#E2E0D8] bg-white shadow-sm hover:bg-[#F8F6F0] dark:hover:bg-white/10 text-[#646675] absolute -right-3 top-1/2 -translate-y-1/2 z-10"
               data-testid="sidebar-toggle"
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
@@ -202,7 +202,7 @@ export default function AppLayout() {
                 data-testid={it.tid}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
-                    isActive ? "bg-[#1D2D50] text-white" : "text-[#646675] hover:bg-[#F8F6F0] hover:text-[#1A1B26]"
+                    isActive ? "bg-[#1D2D50] dark:bg-[#E5A93C] text-white dark:text-[#12131A]" : "text-[#646675] hover:bg-[#F8F6F0] dark:hover:bg-white/5 hover:text-[#1A1B26] dark:hover:text-white"
                   } ${!sidebarOpen ? 'md:justify-center md:px-2' : ''}`
                 }
                 title={!sidebarOpen ? it.label : undefined}
@@ -282,7 +282,7 @@ export default function AppLayout() {
               key={it.to}
               to={it.to}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${isActive ? "text-[#1D2D50]" : "text-[#A0A2B1]"}`
+                `flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${isActive ? "text-[#1D2D50] dark:text-[#E5A93C]" : "text-[#A0A2B1] dark:text-zinc-400"}`
               }
             >
               <it.icon className="w-5 h-5" />

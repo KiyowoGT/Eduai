@@ -1,29 +1,139 @@
-import { useEffect, useState } from "react";
-import { listDocuments, listFolders, cancelDocument, deleteDocument, moveDocuments } from "@/lib/api";
+import { useEffect, useState, useRef } from "react";
+import {
+  listDocuments,
+  listFolders,
+  cancelDocument,
+  deleteDocument,
+  moveDocuments,
+  listTeacherMaterials,
+  listTeacherMaterialsClasses,
+  uploadTeacherMaterial,
+  publishTeacherMaterial,
+  generateTeacherQuiz,
+  publishTeacherQuiz,
+  generateRedeemCode
+} from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { FileText, ArrowUpRight, FolderInput, Trash2, X, AlertTriangle, FolderOpen, MoreVertical } from "lucide-react";
+import {
+  FileText,
+  ArrowUpRight,
+  FolderInput,
+  Trash2,
+  X,
+  AlertTriangle,
+  FolderOpen,
+  MoreVertical,
+  Upload,
+  Loader2,
+  BookOpen,
+  Send,
+  Plus,
+  QrCode,
+  CheckCircle2,
+  Bot
+} from "lucide-react";
+import DualLoader from "@/components/DualLoader";
+import { useAuth } from "@/context/AuthContext";
+import useRealtimeSocket from "@/hooks/useRealtimeSocket";
 
 export default function Documents() {
-  const [docs, setDocs] = useState([]);
-  const [folders, setFolders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(new Set());
+  const { user } = useAuth();
+  const isTeacher = user?.role === "pengajar";
   const navigate = useNavigate();
 
-  const load = async () => {
+  // Common states
+  const [loading, setLoading] = useState(true);
+
+  // Student specific states
+  const [docs, setDocs] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+
+  // Teacher specific states
+  const [materials, setMaterials] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [quizCountMap, setQuizCountMap] = useState({});
+  const [quizGeneratingMap, setQuizGeneratingMap] = useState({});
+  const [publishClassMap, setPublishClassMap] = useState({});
+  const [publishingQuizMap, setPublishingQuizMap] = useState({});
+  const [redeemExpMap, setRedeemExpMap] = useState({});
+  const [generatingRedeemMap, setGeneratingRedeemMap] = useState({});
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Realtime updates for teacher/student documents
+  useRealtimeSocket((payload) => {
+    if (payload?.type === "document_status") {
+      if (isTeacher) {
+        // Refresh materials list if there is a processing state change
+        listTeacherMaterials().then(setMaterials).catch(() => []);
+      } else {
+        // Refresh student docs
+        listDocuments().then(setDocs).catch(() => []);
+      }
+    }
+  });
+
+  const loadStudentData = async () => {
     try {
       const [d, f] = await Promise.all([listDocuments(), listFolders()]);
-      setDocs(d ?? []); setFolders(f ?? []);
-    } finally { setLoading(false); }
+      setDocs(d ?? []);
+      setFolders(f ?? []);
+    } catch {
+      toast.error("Gagal memuat pustaka dokumen");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  const loadTeacherData = async () => {
+    try {
+      const [mList, cList] = await Promise.all([
+        listTeacherMaterials(),
+        listTeacherMaterialsClasses()
+      ]);
+      setMaterials(mList ?? []);
+      setClasses(cList ?? []);
+    } catch {
+      toast.error("Gagal memuat materi pengajar");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    if (isTeacher) {
+      loadTeacherData();
+    } else {
+      loadStudentData();
+    }
+  }, [isTeacher]);
+
+  // ================= STUDENT ACTIONS =================
   const toggle = (id) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -33,11 +143,24 @@ export default function Documents() {
   const clearSel = () => setSelected(new Set());
 
   const onCancel = async (id) => {
-    try { await cancelDocument(id); toast.success("Dibatalkan"); load(); }
+    try {
+      await cancelDocument(id);
+      toast.success("Dibatalkan");
+      if (isTeacher) loadTeacherData(); else loadStudentData();
+    }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
   const onDelete = async (id, name) => {
-    try { await deleteDocument(id); toast.success(`Dihapus: ${name}`); clearSel(); load(); }
+    try {
+      await deleteDocument(id);
+      toast.success(`Dihapus: ${name}`);
+      if (isTeacher) {
+        loadTeacherData();
+      } else {
+        clearSel();
+        loadStudentData();
+      }
+    }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
 
@@ -46,7 +169,7 @@ export default function Documents() {
     try {
       const r = await moveDocuments(Array.from(selected), folderId);
       toast.success(`${r.moved} dokumen dipindahkan${folderId ? "" : " keluar dari folder"}`);
-      clearSel(); load();
+      clearSel(); loadStudentData();
     } catch (e) { toast.error("Gagal memindahkan"); }
   };
 
@@ -56,11 +179,10 @@ export default function Documents() {
       try { await deleteDocument(id); success++; } catch {}
     }
     toast.success(`${success} dokumen dihapus`);
-    clearSel(); load();
+    clearSel(); loadStudentData();
   };
 
   const handleDragStart = (e, docId) => {
-    // If selection contains the dragged doc, drag all selected; otherwise drag just this one
     const ids = selected.has(docId) ? Array.from(selected) : [docId];
     e.dataTransfer.setData("doc-ids", ids.join(","));
     e.dataTransfer.effectAllowed = "move";
@@ -74,12 +196,421 @@ export default function Documents() {
     try {
       const r = await moveDocuments(idList, folderId);
       toast.success(`${r.moved} dokumen dipindahkan`);
-      clearSel(); load();
+      clearSel(); loadStudentData();
     } catch { toast.error("Gagal memindahkan"); }
   };
 
   const folderById = (id) => folders.find(f => f.folder_id === id);
 
+  // ================= TEACHER ACTIONS =================
+  const handleTeacherUpload = async (files) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const subjectName = user?.assigned_subject;
+    if (!subjectName) {
+      toast.error("Profil Anda tidak memiliki mata pelajaran yang ditugaskan.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      await uploadTeacherMaterial(file, subjectName, selectedClasses);
+      toast.success("Materi berhasil diunggah dan sedang dianalisis oleh AI.");
+      setSelectedClasses([]);
+      loadTeacherData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal mengunggah materi.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePublishMaterial = async (docId) => {
+    try {
+      await publishTeacherMaterial(docId);
+      toast.success("Materi berhasil dipublikasikan ke siswa sekolah!");
+      loadTeacherData();
+    } catch (err) {
+      toast.error("Gagal mempublikasikan materi.");
+    }
+  };
+
+  const handleGenerateQuiz = async (docId) => {
+    const qCount = quizCountMap[docId] || 5;
+    setQuizGeneratingMap(prev => ({ ...prev, [docId]: true }));
+    try {
+      await generateTeacherQuiz(docId, qCount);
+      toast.success("Kuis AI sedang diproses. Silakan tunggu.");
+      loadTeacherData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal membuat kuis.");
+    } finally {
+      setQuizGeneratingMap(prev => ({ ...prev, [docId]: false }));
+    }
+  };
+
+  const handlePublishQuiz = async (quizId, docId) => {
+    const className = publishClassMap[quizId];
+    if (!className) {
+      toast.error("Pilih kelas terlebih dahulu");
+      return;
+    }
+    setPublishingQuizMap(prev => ({ ...prev, [quizId]: true }));
+    try {
+      await publishTeacherQuiz(quizId, className);
+      toast.success(`Kuis berhasil diterbitkan untuk kelas ${className}`);
+      loadTeacherData();
+    } catch (err) {
+      toast.error("Gagal menerbitkan kuis.");
+    } finally {
+      setPublishingQuizMap(prev => ({ ...prev, [quizId]: false }));
+    }
+  };
+
+  const handleGenerateRedeemCode = async (quizId) => {
+    const rawExp = redeemExpMap[quizId];
+    const expiresAt = rawExp ? new Date(rawExp) : null;
+    setGeneratingRedeemMap(prev => ({ ...prev, [quizId]: true }));
+    try {
+      await generateRedeemCode(quizId, expiresAt);
+      toast.success("Kode redeem berhasil diterbitkan!");
+      loadTeacherData();
+    } catch (err) {
+      toast.error("Gagal membuat kode redeem.");
+    } finally {
+      setGeneratingRedeemMap(prev => ({ ...prev, [quizId]: false }));
+    }
+  };
+
+  // Toggle selected classes for upload
+  const toggleClassSelect = (clsName) => {
+    if (selectedClasses.includes(clsName)) {
+      setSelectedClasses(selectedClasses.filter((c) => c !== clsName));
+    } else {
+      setSelectedClasses([...selectedClasses, clsName]);
+    }
+  };
+
+  // ================= RENDER INTERFACE =================
+
+  // 1. TEACHER MATERIAL MANAGEMENT VIEW
+  if (isTeacher) {
+    return (
+      <div className="w-full" data-testid="teacher-documents-page">
+        <div className="mb-6 fade-up">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Pengajar Portal</div>
+          <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Materi & Kuis</h1>
+          <p className="text-sm text-[#646675] mt-2">
+            Unggah modul ajar ({user?.assigned_subject}) dan hasilkan kuis AI untuk siswa Anda.
+          </p>
+        </div>
+
+        {/* Drag & Drop Upload Zone with Class Selection */}
+        {user?.permissions?.includes("studio_materi") && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={(e) => { e.preventDefault(); setDragActive(false); handleTeacherUpload(e.dataTransfer.files); }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`dropzone cursor-pointer rounded-xl bg-white p-8 border border-[#E2E0D8] text-center transition-all ${dragActive ? "drag bg-[#F8F6F0]" : ""}`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/*"
+                  className="hidden"
+                  onChange={(e) => { handleTeacherUpload(e.target.files); e.target.value = ""; }}
+                />
+                <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-3">
+                  {uploading ? (
+                    <Loader2 className="w-5 h-5 text-[#1D2D50] animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-[#1D2D50]" />
+                  )}
+                </div>
+                <div className="font-heading text-lg text-[#1A1B26] font-semibold">Unggah File Modul Baru</div>
+                <p className="text-xs text-[#646675] mt-1.5">
+                  Pilih atau seret file PDF / Gambar. AI akan menganalisis konten untuk kuis.
+                </p>
+                <p className="text-[10px] text-[#A0A2B1] font-mono mt-3 uppercase tracking-wider bg-[#F8F6F0] inline-block px-2.5 py-1 rounded">
+                  Mata Pelajaran: {user?.assigned_subject}
+                </p>
+              </div>
+            </div>
+
+            {/* Class Targeting checkboxes for uploaded material */}
+            <div className="bg-white border border-[#E2E0D8] rounded-xl p-5 shadow-sm">
+              <h3 className="font-heading text-sm text-[#1A1B26] uppercase tracking-wider mb-3">
+                Sasaran Kelas Unggahan
+              </h3>
+              {classes.length === 0 ? (
+                <p className="text-xs text-[#646675] bg-[#F8F6F0] p-3 rounded-lg border border-dashed border-[#E2E0D8]">
+                  Belum ada kelas terdaftar. Hasilkan token kelas di menu Kelas terlebih dahulu.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                  {classes.map((clsName) => (
+                    <label key={clsName} className="flex items-center gap-2 text-xs font-medium text-[#1A1B26] cursor-pointer hover:bg-[#F8F6F0]/50 p-1.5 rounded transition-all">
+                      <input
+                        type="checkbox"
+                        checked={selectedClasses.includes(clsName)}
+                        onChange={() => toggleClassSelect(clsName)}
+                        className="rounded border-[#E2E0D8] text-[#1D2D50] focus:ring-0"
+                      />
+                      {clsName}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-[#A0A2B1] mt-3">
+                Centang untuk mengaitkan materi langsung ke kelas sasaran Anda.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Materials List */}
+        <h2 className="font-heading text-2xl text-[#1A1B26] mb-4">Perpustakaan Modul Ajar</h2>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="w-8 h-8 animate-spin text-[#1D2D50]" />
+          </div>
+        ) : materials.length === 0 ? (
+          <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675]">
+            Belum ada materi ajar yang diunggah. Gunakan area unggah di atas.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6">
+            {materials.map((m) => (
+              <div key={m.document_id} className="bg-white border border-[#E2E0D8] rounded-xl p-5 shadow-sm transition-all hover:border-[#1D2D50]/30">
+                
+                {/* Header of Material Card */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center">
+                      <FileText className="w-5 h-5 text-[#1D2D50]" />
+                    </div>
+                    <div>
+                      <h3 className="font-heading text-lg font-bold text-[#1A1B26]">{m.title || m.filename}</h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#646675] mt-1">
+                        <span className="font-semibold text-[#1D2D50]">{m.subject_name}</span>
+                        <span>•</span>
+                        <span>Kelas: <strong>{m.target_class_rooms?.join(", ") || m.target_class_room || "Umum"}</strong></span>
+                        <span>•</span>
+                        <span className="font-mono text-[#A0A2B1]">{new Date(m.created_at).toLocaleDateString("id-ID")}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top actions/status */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      m.status === "published" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" :
+                      m.status === "ready" ? "bg-[#E5A93C]/10 text-[#E5A93C]" :
+                      m.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" :
+                      "bg-[#646675]/10 text-[#646675]"
+                    }`}>
+                      {m.status === "published" ? "Terbit" : m.status === "ready" ? "Draf" : m.status === "failed" ? "Gagal" : "Proses"}
+                    </span>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button className="text-[#A0A2B1] hover:text-[#B83A4B] p-1.5 transition-all">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-heading flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus Materi ini?</AlertDialogTitle>
+                          <AlertDialogDescription>Materi, kuis, dan hasil belajar terkait akan dihapus permanen.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Batal</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => onDelete(m.document_id, m.title)} className="bg-[#B83A4B] text-white">Hapus permanen</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+
+                {/* Operations area: Publish & AI quiz creator */}
+                {m.status === "processing" ? (
+                  <div className="mt-4 p-3 bg-[#F8F6F0] border border-[#E2E0D8]/60 rounded-lg flex items-center gap-2 text-xs text-[#646675]">
+                     <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E5A93C]" />
+                    AI sedang menganalisis file Anda. Halaman akan terupdate otomatis.
+                  </div>
+                ) : (
+                  <div className="mt-4 pt-4 border-t border-[#E2E0D8]/50 flex flex-wrap gap-3 items-center justify-between">
+                    
+                    {/* Left: Material Publish */}
+                    <div>
+                      {m.status === "ready" && (
+                        <Button
+                          onClick={() => handlePublishMaterial(m.document_id)}
+                          size="sm"
+                          className="bg-[#2D6A4F] hover:bg-[#204e39] text-white text-xs"
+                        >
+                          <Send className="w-3.5 h-3.5 mr-1" /> Terbitkan Modul Ke Siswa
+                        </Button>
+                      )}
+                      {m.status === "published" && (
+                        <p className="text-xs text-[#2D6A4F] flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Modul telah diterbitkan ke perpustakaan siswa.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Right: AI Quiz generator tool */}
+                    {user?.permissions?.includes("studio_materi") && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-[#646675]">Jumlah Soal:</div>
+                        <Select
+                          value={String(quizCountMap[m.document_id] || 5)}
+                          onValueChange={(val) => setQuizCountMap(prev => ({ ...prev, [m.document_id]: parseInt(val) }))}
+                        >
+                          <SelectTrigger className="w-[70px] h-8 text-xs border-[#E2E0D8]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="15">15</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          onClick={() => handleGenerateQuiz(m.document_id)}
+                          disabled={quizGeneratingMap[m.document_id]}
+                          size="sm"
+                          className="bg-[#1D2D50] hover:bg-[#15223E] text-white text-xs"
+                        >
+                          {quizGeneratingMap[m.document_id] ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Bot className="w-3.5 h-3.5 mr-1 text-[#E5A93C]" />
+                          )}
+                          Buat Kuis AI
+                        </Button>
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {/* Linked Quizzes Sub-section */}
+                {m.quizzes && m.quizzes.length > 0 && (
+                  <div className="mt-5 pt-4 border-t border-[#E2E0D8]/40 space-y-3">
+                    <h4 className="text-xs font-semibold text-[#A0A2B1] uppercase tracking-wider">Kuis Terkait Materi</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {m.quizzes.map((q) => (
+                        <div key={q.quiz_id} className="p-3 bg-[#F8F6F0]/80 border border-[#E2E0D8]/80 rounded-xl relative">
+                          <div className="text-xs font-bold text-[#1A1B26] truncate">
+                            {q.title || "Kuis AI"}
+                          </div>
+                          <div className="text-[10px] text-[#646675] mt-0.5">
+                            Status: <span className={q.status === "published" ? "text-[#2D6A4F] font-bold" : "text-[#E5A93C]"}>
+                              {q.status === "published" ? "Terbit" : "Draf"}
+                            </span>
+                          </div>
+
+                          {/* Publish Quiz Controls */}
+                          {q.status === "processing" ? (
+                            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[#A0A2B1]">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              AI sedang merumuskan butir kuis...
+                            </div>
+                          ) : q.status === "published" ? (
+                            <div className="mt-2 space-y-1">
+                              {q.class_name && (
+                                <div className="text-[10px] text-[#1D2D50] bg-[#1D2D50]/5 px-2 py-0.5 rounded inline-block font-semibold">
+                                  Diterbitkan di: {q.class_name}
+                                </div>
+                              )}
+                              {q.redeem_code && (
+                                <div className="text-[10px] text-[#E5A93C] bg-[#E5A93C]/10 border border-[#E5A93C]/20 px-2 py-1 rounded flex items-center gap-1 justify-between font-mono font-bold mt-1">
+                                  <span>Kode Redeem: {q.redeem_code}</span>
+                                  {q.redeem_usage_count > 0 && <span className="text-[9px] text-[#646675]">({q.redeem_usage_count} kali dipakai)</span>}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-3 pt-2.5 border-t border-[#E2E0D8]/40 space-y-2">
+                              {user.account_type === "pribadi" ? (
+                                /* B2C / Guru Mandiri: Generate Redeem Code */
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="datetime-local"
+                                      onChange={(e) => setRedeemExpMap(prev => ({ ...prev, [q.quiz_id]: e.target.value }))}
+                                      className="h-7 text-[10px] p-1 bg-white border-[#E2E0D8]"
+                                      title="Exp Date"
+                                    />
+                                    <Button
+                                      onClick={() => handleGenerateRedeemCode(q.quiz_id)}
+                                      disabled={generatingRedeemMap[q.quiz_id]}
+                                      size="xs"
+                                      className="bg-[#E5A93C] hover:bg-[#c9912e] text-[#1D2D50] h-7 text-[10px] px-2"
+                                    >
+                                      {generatingRedeemMap[q.quiz_id] ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <QrCode className="w-3 h-3 mr-1" />
+                                      )}
+                                      Hasilkan Kode
+                                    </Button>
+                                  </div>
+                                  <span className="text-[9px] text-[#A0A2B1] block">Kosongkan tgl kadaluwarsa jika aktif selamanya.</span>
+                                </div>
+                              ) : (
+                                /* B2B / Institutional Teacher: Assign/Publish to Class */
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={publishClassMap[q.quiz_id] || ""}
+                                    onValueChange={(val) => setPublishClassMap(prev => ({ ...prev, [q.quiz_id]: val }))}
+                                  >
+                                    <SelectTrigger className="w-full h-8 text-[10px] bg-white border-[#E2E0D8]">
+                                      <SelectValue placeholder="Pilih Kelas" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {classes.map((cls) => (
+                                        <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    onClick={() => handlePublishQuiz(q.quiz_id, m.document_id)}
+                                    disabled={publishingQuizMap[q.quiz_id]}
+                                    size="sm"
+                                    className="bg-[#2D6A4F] hover:bg-[#204e39] text-white text-[10px] h-8 px-3 shrink-0"
+                                  >
+                                    {publishingQuizMap[q.quiz_id] ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      "Terbit"
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2. ORIGINAL STUDENT LIBRARY VIEW
   return (
     <div className="w-full" data-testid="documents-page">
       <div className="mb-6">
@@ -167,7 +698,7 @@ export default function Documents() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat…</div>
+        <DualLoader type="documents" text="Memuat pustaka berkas..." />
       ) : docs.length === 0 ? (
         <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675]">
           Belum ada dokumen. Upload PDF dari Dashboard.
@@ -205,11 +736,11 @@ export default function Documents() {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Pindahkan ke</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => moveDocuments([d.document_id], null).then(load)} data-testid={`doc-move-none-${d.document_id}`}>
+                      <DropdownMenuItem onClick={() => moveDocuments([d.document_id], null).then(loadStudentData)} data-testid={`doc-move-none-${d.document_id}`}>
                         Tanpa folder
                       </DropdownMenuItem>
                       {folders.map((f) => (
-                        <DropdownMenuItem key={f.folder_id} onClick={() => moveDocuments([d.document_id], f.folder_id).then(load)} data-testid={`doc-move-${f.folder_id}-${d.document_id}`}>
+                        <DropdownMenuItem key={f.folder_id} onClick={() => moveDocuments([d.document_id], f.folder_id).then(loadStudentData)} data-testid={`doc-move-${f.folder_id}-${d.document_id}`}>
                           <FolderOpen className="w-3.5 h-3.5 mr-2 text-[#E5A93C]" /> {f.name}
                         </DropdownMenuItem>
                       ))}
@@ -230,7 +761,7 @@ export default function Documents() {
                     <FileText className="w-4 h-4 text-[#1D2D50]" />
                     <div className="font-heading text-lg text-[#1A1B26] line-clamp-2">{d.title || d.filename}</div>
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-xs">
+                  <div className="mt-3 flex items-center justify-between text-xs relative pointer-events-none">
                     <div className="flex items-center gap-2 min-w-0">
                       {folder && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E5A93C]/10 text-[#1A1B26] min-w-0 max-w-[120px] sm:max-w-[180px]">

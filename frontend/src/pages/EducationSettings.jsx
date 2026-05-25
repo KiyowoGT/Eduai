@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Plus, Trash2, Loader2, BrainCircuit, CalendarDays, Bot, BookText, Upload, Camera, FileText, ArrowRight, Eye, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import DualLoader from "@/components/DualLoader";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 
@@ -199,11 +200,7 @@ export default function EducationSettings() {
   const hasProfile = user?.education_level && user?.current_semester;
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-[#646675]">
-        <Loader2 className="w-4 h-4 animate-spin" /> Memuat...
-      </div>
-    );
+    return <DualLoader type="education-settings" text="Memuat kurikulum belajar..." />;
   }
 
   return (

@@ -1,11 +1,14 @@
 import csv
 import io
 import logging
+import uuid
+import httpx
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, Field
 
+from core.config import SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 from core.database import db, client
 from models.user import User, TeacherTitle
 from deps.auth import get_current_user, require_title, write_audit
@@ -20,6 +23,26 @@ class CreateAcademicYearPayload(BaseModel):
 
 class ResignPayload(BaseModel):
     email: str
+
+class CreateTeacherPayload(BaseModel):
+    name: str
+    email: str
+    nip: str
+    password: str
+    title: str
+    titles: Optional[List[TeacherTitle]] = None
+    assigned_class: Optional[str] = None
+    assigned_subject: Optional[str] = None
+    teaching_classes: Optional[List[str]] = None
+
+class UpdateTeacherPayload(BaseModel):
+    name: Optional[str] = None
+    nip: Optional[str] = None
+    title: Optional[TeacherTitle] = None
+    titles: Optional[List[TeacherTitle]] = None
+    assigned_class: Optional[str] = None
+    assigned_subject: Optional[str] = None
+    teaching_classes: Optional[List[str]] = None
 
 class SwitchRolePayload(BaseModel):
     role_type: str
@@ -134,6 +157,7 @@ async def create_academic_year(
     }
 
     await db.academic_years.insert_one(doc)
+    doc.pop("_id", None)
 
     await write_audit(
         user.user_id,
@@ -451,3 +475,234 @@ async def get_institution_audit_logs(
     ).sort("timestamp", -1).to_list(limit)
 
     return {"audit_logs": logs}
+
+@router.post("/admin/users/teachers")
+async def create_institution_teacher(
+    payload: CreateTeacherPayload,
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    email = payload.email.strip().lower()
+    
+    # Check if user already exists locally
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(400, "Email sudah terdaftar di sistem")
+
+    # 1. Sign up user in Supabase Auth to enable login
+    supa_user_id = None
+    if SUPABASE_URL:
+        if SUPABASE_SERVICE_ROLE_KEY:
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as hc:
+                    r = await hc.post(
+                        f"{SUPABASE_URL}/auth/v1/admin/users",
+                        headers={
+                            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "email": email,
+                            "password": payload.password,
+                            "email_confirm": True,
+                            "user_metadata": {
+                                "full_name": payload.name,
+                                "name": payload.name,
+                                "created_by_admin": True
+                            }
+                        }
+                    )
+                if r.status_code in (200, 201):
+                    supa_data = r.json()
+                    supa_user_id = supa_data.get("id") or supa_data.get("user", {}).get("id")
+                else:
+                    logger.warning(f"Supabase admin signup returned {r.status_code}: {r.text}")
+                    raise HTTPException(400, f"Gagal membuat kredensial login (admin): {r.json().get('msg', 'Error Supabase')}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception(f"Error registering teacher in Supabase via Admin API: {e}")
+                raise HTTPException(500, f"Gagal sinkronisasi kredensial auth (admin): {e}")
+        elif SUPABASE_ANON_KEY:
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as hc:
+                    r = await hc.post(
+                        f"{SUPABASE_URL}/auth/v1/signup",
+                        headers={
+                            "apikey": SUPABASE_ANON_KEY,
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "email": email,
+                            "password": payload.password,
+                            "options": {
+                                "data": {
+                                    "full_name": payload.name,
+                                    "name": payload.name,
+                                    "created_by_admin": True
+                                }
+                            }
+                        }
+                    )
+                if r.status_code == 200:
+                    supa_data = r.json()
+                    supa_user_id = supa_data.get("id") or supa_data.get("user", {}).get("id")
+                else:
+                    logger.warning(f"Supabase signup returned {r.status_code}: {r.text}")
+                    raise HTTPException(400, f"Gagal membuat kredensial login: {r.json().get('msg', 'Error Supabase')}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception(f"Error registering teacher in Supabase: {e}")
+                raise HTTPException(500, f"Gagal sinkronisasi kredensial auth: {e}")
+
+    user_id = supa_user_id or f"user_{uuid.uuid4().hex[:12]}"
+
+    from deps.auth import _generate_unique_friend_code
+    friend_code = await _generate_unique_friend_code(payload.name)
+
+    titles_list = payload.titles if payload.titles else ([payload.title] if payload.title else [])
+    primary_title = payload.title if payload.title else (titles_list[0] if titles_list else None)
+
+    # 2. Insert user doc to local MongoDB users collection
+    new_teacher = {
+        "user_id": user_id,
+        "email": email,
+        "name": payload.name,
+        "picture": "",
+        "friend_code": friend_code,
+        "role": "pengajar",
+        "title": primary_title,
+        "titles": titles_list,
+        "status": "active",
+        "onboarded": True,
+        "is_institution_linked": True,
+        "institution_code": user.institution_code,
+        "institution": user.institution,
+        "education_level": user.education_level,
+        "major": user.major,
+        "account_type": "perusahaan",
+        "nip": payload.nip,
+        "created_by_admin": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    if TeacherTitle.guru_kelas in titles_list or "guru_kelas" in titles_list:
+        new_teacher["assigned_class"] = payload.assigned_class
+    else:
+        new_teacher["assigned_class"] = None
+
+    if TeacherTitle.guru_pengajar in titles_list or "guru_pengajar" in titles_list:
+        new_teacher["assigned_subject"] = payload.assigned_subject
+        new_teacher["teaching_classes"] = payload.teaching_classes or []
+    else:
+        new_teacher["assigned_subject"] = None
+        new_teacher["teaching_classes"] = []
+
+    await db.users.insert_one(new_teacher)
+    new_teacher.pop("_id", None)
+
+    await write_audit(
+        user.user_id,
+        "TEACHER_CREATED",
+        {"teacher_user_id": user_id, "email": email, "titles": [t.value if hasattr(t, "value") else t for t in titles_list]},
+        request.client.host if request.client else ""
+    )
+
+    return {"status": "success", "user": new_teacher}
+
+@router.get("/admin/users/teachers/{id}")
+async def get_teacher_details(
+    id: str,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    teacher = await db.users.find_one({
+        "user_id": id,
+        "institution_code": user.institution_code,
+        "role": "pengajar"
+    }, {"_id": 0})
+    if not teacher:
+        raise HTTPException(404, "Guru tidak ditemukan")
+
+    return teacher
+
+@router.put("/admin/users/teachers/{id}")
+async def update_teacher_details(
+    id: str,
+    payload: UpdateTeacherPayload,
+    request: Request,
+    user: User = Depends(require_title(TeacherTitle.kepala_sekolah))
+):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    teacher = await db.users.find_one({
+        "user_id": id,
+        "institution_code": user.institution_code,
+        "role": "pengajar"
+    })
+    if not teacher:
+        raise HTTPException(404, "Guru tidak ditemukan")
+
+    updates = {}
+    if payload.name is not None:
+        updates["name"] = payload.name.strip()
+    if payload.nip is not None:
+        updates["nip"] = payload.nip.strip()
+
+    if payload.titles is not None:
+        updates["titles"] = payload.titles
+        if payload.titles:
+            updates["title"] = payload.titles[0]
+        else:
+            updates["title"] = None
+    elif payload.title is not None:
+        updates["title"] = payload.title
+        updates["titles"] = [payload.title]
+
+    active_titles = updates.get("titles", teacher.get("titles") or ([updates.get("title")] if updates.get("title") else ([teacher.get("title")] if teacher.get("title") else [])))
+
+    if TeacherTitle.guru_kelas in active_titles or "guru_kelas" in active_titles:
+        if payload.assigned_class is not None:
+            updates["assigned_class"] = payload.assigned_class
+    else:
+        updates["assigned_class"] = None
+
+    if TeacherTitle.guru_pengajar in active_titles or "guru_pengajar" in active_titles:
+        if payload.assigned_subject is not None:
+            updates["assigned_subject"] = payload.assigned_subject
+        if payload.teaching_classes is not None:
+            updates["teaching_classes"] = payload.teaching_classes
+    else:
+        updates["assigned_subject"] = None
+        updates["teaching_classes"] = []
+
+    if updates:
+        # Convert any enum objects to string values before saving to MongoDB
+        mongo_updates = {}
+        for k, v in updates.items():
+            if k == "title" and v is not None:
+                mongo_updates[k] = v.value if hasattr(v, "value") else v
+            elif k == "titles" and v is not None:
+                mongo_updates[k] = [item.value if hasattr(item, "value") else item for item in v]
+            else:
+                mongo_updates[k] = v
+        
+        await db.users.update_one({"user_id": id}, {"$set": mongo_updates})
+        
+        await write_audit(
+            user.user_id,
+            "TEACHER_UPDATED",
+            {"teacher_user_id": id, "updates": list(mongo_updates.keys())},
+            request.client.host if request.client else ""
+        )
+
+    updated_teacher = await db.users.find_one({"user_id": id}, {"_id": 0})
+    return {"status": "success", "user": updated_teacher}

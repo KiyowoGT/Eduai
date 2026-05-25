@@ -40,7 +40,7 @@ class TeacherQuizPublishPayload(BaseModel):
     schedule_id: Optional[str] = None
 
 async def require_can_manage_materials(user: User = Depends(require_pengajar)) -> User:
-    is_guru_pengajar = user.title == TeacherTitle.guru_pengajar
+    is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
     is_mandiri = user.account_type == AccountType.pribadi
     if not (is_guru_pengajar or is_mandiri):
         raise HTTPException(
@@ -61,9 +61,21 @@ async def list_available_classes(user: User = Depends(require_pengajar)):
         # Institutional teachers: list all unique classes in the institution
         classes = await db.class_tokens.distinct("target_class_room", {"institution_code": user.institution_code})
         
+        # Also query active academic year classes to display them even if no token was created yet
+        active_year = await db.academic_years.find_one({"institution_code": user.institution_code, "is_active": True})
+        if active_year:
+            year_classes = await db.classes.distinct("name", {"institution_code": user.institution_code, "academic_year_id": active_year["academic_year_id"]})
+            classes = list(set(classes + year_classes))
+        
         # Also include assigned class if not in the list
         if user.assigned_class and user.assigned_class not in classes:
             classes.append(user.assigned_class)
+
+        # Also include teaching classes if not in the list
+        if getattr(user, "teaching_classes", None):
+            for c in user.teaching_classes:
+                if c and c not in classes:
+                    classes.append(c)
             
     return sorted(classes)
 
@@ -235,12 +247,18 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
         }
 
         # Apply scopes based on teacher title
-        if user.title == TeacherTitle.guru_kelas:
+        if TeacherTitle.guru_kelas in user.all_titles and TeacherTitle.guru_pengajar in user.all_titles:
+            query["$or"] = [
+                {"target_class_room": user.assigned_class},
+                {"target_class_rooms": user.assigned_class},
+                {"subject_name": user.assigned_subject}
+            ]
+        elif TeacherTitle.guru_kelas in user.all_titles:
             query["$or"] = [
                 {"target_class_room": user.assigned_class},
                 {"target_class_rooms": user.assigned_class}
             ]
-        elif user.title == TeacherTitle.guru_pengajar:
+        elif TeacherTitle.guru_pengajar in user.all_titles:
             query["subject_name"] = user.assigned_subject
 
     docs = await db.documents.find(query, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(200)
@@ -297,7 +315,13 @@ async def update_teacher_material(
 
     is_allowed = (
         doc.get("user_id") == user.user_id or
-        (user.account_type != AccountType.pribadi and doc.get("subject_name") == user.assigned_subject)
+        (user.account_type != AccountType.pribadi and (
+            (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
+            (TeacherTitle.guru_kelas in user.all_titles and (
+                doc.get("target_class_room") == user.assigned_class or
+                user.assigned_class in doc.get("target_class_rooms", [])
+            ))
+        ))
     )
     if not is_allowed:
         raise HTTPException(403, "Anda tidak memiliki akses untuk mengubah materi ini")
@@ -340,7 +364,13 @@ async def publish_teacher_material(
 
     is_allowed = (
         doc.get("user_id") == user.user_id or
-        (user.account_type != AccountType.pribadi and doc.get("subject_name") == user.assigned_subject)
+        (user.account_type != AccountType.pribadi and (
+            (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
+            (TeacherTitle.guru_kelas in user.all_titles and (
+                doc.get("target_class_room") == user.assigned_class or
+                user.assigned_class in doc.get("target_class_rooms", [])
+            ))
+        ))
     )
     if not is_allowed:
         raise HTTPException(403, "Anda tidak memiliki akses untuk mempublikasikan materi ini")
@@ -393,7 +423,13 @@ async def generate_teacher_quiz(
 
     is_allowed = (
         doc.get("user_id") == user.user_id or
-        (user.account_type != AccountType.pribadi and doc.get("subject_name") == user.assigned_subject)
+        (user.account_type != AccountType.pribadi and (
+            (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
+            (TeacherTitle.guru_kelas in user.all_titles and (
+                doc.get("target_class_room") == user.assigned_class or
+                user.assigned_class in doc.get("target_class_rooms", [])
+            ))
+        ))
     )
     if not is_allowed:
         raise HTTPException(403, "Anda tidak memiliki akses untuk membuat kuis dari materi ini")
@@ -440,7 +476,10 @@ async def publish_teacher_quiz(
 
     is_allowed = (
         quiz.get("user_id") == user.user_id or
-        (user.account_type != AccountType.pribadi and quiz.get("subject_name") == user.assigned_subject)
+        (user.account_type != AccountType.pribadi and (
+            (user.assigned_subject and quiz.get("subject_name") == user.assigned_subject) or
+            (TeacherTitle.guru_kelas in user.all_titles and quiz.get("class_name") == user.assigned_class)
+        ))
     )
     if not is_allowed:
         raise HTTPException(403, "Anda tidak memiliki akses untuk mempublikasikan kuis ini ke kelas tersebut")

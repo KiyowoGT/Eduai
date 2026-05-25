@@ -431,8 +431,13 @@ export async function fetchRoles() {
   return r.data;
 }
 
-export async function switchRole(title) {
-  const r = await http.post("/auth/switch-role", { title });
+export async function switchRole(role_type) {
+  const r = await http.post("/auth/switch-role", { role_type });
+  return r.data;
+}
+
+export async function onboardingComplete(payload) {
+  const r = await http.post("/onboarding/complete", payload);
   return r.data;
 }
 
@@ -456,6 +461,72 @@ export async function listTeacherMaterials() {
   return r.data;
 }
 
+export async function uploadTeacherMaterial(file, subjectName, targetClasses) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("subject_name", subjectName);
+  if (targetClasses && targetClasses.length > 0) {
+    form.append("target_classes", JSON.stringify(targetClasses));
+  }
+  const r = await http.post("/teacher/materials/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return r.data;
+}
+
+export async function publishTeacherMaterial(docId) {
+  const r = await http.post(`/teacher/materials/${docId}/publish`);
+  return r.data;
+}
+
+export async function updateTeacherMaterial(docId, payload) {
+  const r = await http.put(`/teacher/materials/${docId}`, payload);
+  return r.data;
+}
+
+export async function generateTeacherQuiz(docId, questionCount) {
+  const r = await http.post("/teacher/quizzes/generate", {
+    document_id: docId,
+    question_count: questionCount,
+  });
+  return r.data;
+}
+
+export async function publishTeacherQuiz(quizId, className, scheduleId) {
+  const r = await http.post(`/teacher/quizzes/${quizId}/publish`, {
+    class_name: className,
+    schedule_id: scheduleId,
+  });
+  return r.data;
+}
+
+export async function generateRedeemCode(quizId, expiresAt) {
+  const r = await http.post(`/redeem/teacher/quizzes/${quizId}/redeem-code`, {
+    expires_at: expiresAt,
+  });
+  return r.data;
+}
+
+export async function createClassToken(payload) {
+  const r = await http.post("/class-tokens", payload);
+  return r.data;
+}
+
+export async function listClassTokens() {
+  const r = await http.get("/class-tokens");
+  return r.data;
+}
+
+export async function deleteClassToken(token) {
+  const r = await http.delete(`/class-tokens/${token}`);
+  return r.data;
+}
+
+export async function listTeacherMaterialsClasses() {
+  const r = await http.get("/teacher/materials/classes");
+  return r.data;
+}
+
 export async function listTeacherSchedules() {
   const r = await http.get("/teacher/schedules");
   return r.data;
@@ -463,6 +534,21 @@ export async function listTeacherSchedules() {
 
 export async function getAdminTeachers() {
   const r = await http.get("/admin/teachers");
+  return r.data;
+}
+
+export async function getAdminTeacherDetails(id) {
+  const r = await http.get(`/admin/users/teachers/${id}`);
+  return r.data;
+}
+
+export async function createAdminTeacher(payload) {
+  const r = await http.post("/admin/users/teachers", payload);
+  return r.data;
+}
+
+export async function updateAdminTeacher(id, payload) {
+  const r = await http.put(`/admin/users/teachers/${id}`, payload);
   return r.data;
 }
 

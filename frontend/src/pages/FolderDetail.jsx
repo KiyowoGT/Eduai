@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { getFolder, generateQuiz, getQuiz, createRecap, getRecap, cancelQuiz, cancelRecap, getLatestFolderResult, waitForStatus } from "@/lib/api";
 import { toast } from "sonner";
 import { FolderOpen, BrainCircuit, BookOpen, FileText, ArrowLeft, ArrowUpRight, X, Sparkles, TrendingUp, History } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 export default function FolderDetail() {
   const { id } = useParams();
@@ -124,7 +125,7 @@ export default function FolderDetail() {
     } catch {}
   };
 
-  if (loading) return <div className="text-sm text-[#646675]">Memuat folder…</div>;
+  if (loading) return <DualLoader type="folders" text="Memuat berkas folder..." />;
   if (!folder) return <div className="text-sm text-[#646675]">Folder tidak ditemukan.</div>;
 
   return (

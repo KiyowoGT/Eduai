@@ -322,6 +322,153 @@ def test_shadow_workspace_firewall_queries(mongo_db, test_session):
         
     finally:
         # Clean up
+        # Clean up
         mongo_db.users.delete_one({"user_id": student1_id})
         mongo_db.academic_years.delete_many({"institution_code": "SCH-FIREWALL"})
         mongo_db.quiz_results.delete_many({"result_id": {"$in": [res_b2b_id, res_saas_id]}})
+
+
+@pytest.mark.asyncio
+async def test_create_teacher_by_admin_direct():
+    """
+    Test teacher creation by admin sets created_by_admin flag in MongoDB (fallback signup API path).
+    """
+    from routers.institution_mgmt import create_institution_teacher, CreateTeacherPayload
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from models.user import User
+    from fastapi import Request
+    
+    mock_db = MagicMock()
+    mock_db.users = AsyncMock()
+    mock_db.users.find_one.return_value = None
+    mock_db.users.insert_one = AsyncMock()
+    
+    # Mock current user (Kepala Sekolah)
+    mock_admin = MagicMock(spec=User)
+    mock_admin.user_id = "admin-123"
+    mock_admin.institution_code = "SCH-TEST"
+    mock_admin.institution = "Sekolah Test"
+    mock_admin.education_level = "SMA"
+    mock_admin.major = None
+    mock_admin.title = "kepala_sekolah"
+    
+    payload = CreateTeacherPayload(
+        name="Budi Pengajar",
+        email="budi.pengajar@example.com",
+        nip="1234567890",
+        password="password123",
+        title="guru_pengajar",
+        assigned_subject="Kimia"
+    )
+    
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"id": "mock-supa-id-123"}
+    
+    mock_request = MagicMock(spec=Request)
+    mock_request.client = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+    
+    with patch("routers.institution_mgmt.db", mock_db):
+        with patch("routers.institution_mgmt.SUPABASE_URL", "https://mock-supabase.co"):
+            with patch("routers.institution_mgmt.SUPABASE_ANON_KEY", "mock-anon-key"):
+                with patch("routers.institution_mgmt.SUPABASE_SERVICE_ROLE_KEY", ""):
+                    with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+                        with patch("deps.auth._generate_unique_friend_code", return_value="budi_friend_123"):
+                            with patch("routers.institution_mgmt.write_audit") as mock_audit:
+                                res = await create_institution_teacher(
+                                    payload=payload,
+                                    request=mock_request,
+                                    user=mock_admin
+                                )
+                                assert res["status"] == "success"
+                                assert res["user"]["created_by_admin"] is True
+                                assert res["user"]["user_id"] == "mock-supa-id-123"
+                                
+                                # Verify MongoDB insert call
+                                mock_db.users.insert_one.assert_called_once()
+                                inserted_doc = mock_db.users.insert_one.call_args[0][0]
+                                assert inserted_doc["created_by_admin"] is True
+                                assert inserted_doc["email"] == "budi.pengajar@example.com"
+                                
+                                # Verify fallback signup API endpoint was used
+                                mock_post.assert_called_once()
+                                args, kwargs = mock_post.call_args
+                                url = args[0]
+                                assert "auth/v1/signup" in url
+                                assert kwargs["headers"]["apikey"] == "mock-anon-key"
+
+
+@pytest.mark.asyncio
+async def test_create_teacher_by_admin_with_service_key_direct():
+    """
+    Test teacher creation by admin uses Admin API if service key exists.
+    """
+    from routers.institution_mgmt import create_institution_teacher, CreateTeacherPayload
+    from unittest.mock import patch, AsyncMock, MagicMock
+    from models.user import User
+    from fastapi import Request
+    
+    mock_db = MagicMock()
+    mock_db.users = AsyncMock()
+    mock_db.users.find_one.return_value = None
+    mock_db.users.insert_one = AsyncMock()
+    
+    # Mock current user (Kepala Sekolah)
+    mock_admin = MagicMock(spec=User)
+    mock_admin.user_id = "admin-123"
+    mock_admin.institution_code = "SCH-TEST"
+    mock_admin.institution = "Sekolah Test"
+    mock_admin.education_level = "SMA"
+    mock_admin.major = None
+    mock_admin.title = "kepala_sekolah"
+    
+    payload = CreateTeacherPayload(
+        name="Budi Admin Created",
+        email="budi.admin.direct@example.com",
+        nip="1234567890",
+        password="password123",
+        title="guru_pengajar",
+        assigned_subject="Kimia"
+    )
+    
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.json.return_value = {"id": "mock-supa-id-admin"}
+    
+    mock_request = MagicMock(spec=Request)
+    mock_request.client = MagicMock()
+    mock_request.client.host = "127.0.0.1"
+    
+    with patch("routers.institution_mgmt.db", mock_db):
+        with patch("routers.institution_mgmt.SUPABASE_URL", "https://mock-supabase.co"):
+            with patch("routers.institution_mgmt.SUPABASE_SERVICE_ROLE_KEY", "mock-service-role-key"):
+                with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+                    with patch("deps.auth._generate_unique_friend_code", return_value="budi_friend_123"):
+                        with patch("routers.institution_mgmt.write_audit") as mock_audit:
+                            res = await create_institution_teacher(
+                                payload=payload,
+                                request=mock_request,
+                                user=mock_admin
+                            )
+                            assert res["status"] == "success"
+                            assert res["user"]["created_by_admin"] is True
+                            assert res["user"]["user_id"] == "mock-supa-id-admin"
+                            
+                            # Verify MongoDB insert call
+                            mock_db.users.insert_one.assert_called_once()
+                            inserted_doc = mock_db.users.insert_one.call_args[0][0]
+                            assert inserted_doc["created_by_admin"] is True
+                            assert inserted_doc["email"] == "budi.admin.direct@example.com"
+                            
+                            # Check that the endpoint used is auth/v1/admin/users
+                            mock_post.assert_called_once()
+                            args, kwargs = mock_post.call_args
+                            url = args[0]
+                            assert "auth/v1/admin/users" in url
+                            assert kwargs["headers"]["apikey"] == "mock-service-role-key"
+                            assert kwargs["headers"]["Authorization"] == "Bearer mock-service-role-key"
+                            assert kwargs["json"]["email_confirm"] is True
+
+
+

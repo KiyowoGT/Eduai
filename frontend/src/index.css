@@ -163,9 +163,9 @@ main.sidebar-collapsed > [class*="max-w-"] {
 .dark .text-white { color: #ffffff !important; }
 .dark .text-\[\#1A1B26\] { color: var(--ink) !important; }
 .dark .text-\[\#646675\] { color: var(--ink-secondary) !important; }
-.dark .text-\[\#A0A2B1\] { color: var(--ink-disabled) !important; }
-.dark .text-\[\#1D2D50\] { color: var(--brand-primary) !important; }
-.dark .text-\[\#15223E\] { color: var(--brand-primary-hover) !important; }
+.dark .text-\[\#A0A2B1\] { color: var(--ink-secondary) !important; }
+.dark .text-\[\#1D2D50\] { color: var(--ink) !important; }
+.dark .text-\[\#15223E\] { color: var(--ink) !important; }
 .dark .text-\[\#B83A4B\] { color: var(--brand-secondary) !important; }
 .dark .text-\[\#E5A93C\] { color: var(--brand-tertiary) !important; }
 .dark .text-\[\#2D6A4F\] { color: var(--success) !important; }

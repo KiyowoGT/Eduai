@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { listAuditLogs } from "@/lib/api";
 import { Search, Download, Shield } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 export default function AuditLogViewer() {
   const { user } = useAuth();
@@ -74,7 +75,7 @@ export default function AuditLogViewer() {
 
       {/* Table */}
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
+        <DualLoader type="default" text="Memuat audit log..." />
       ) : filtered.length === 0 ? (
         <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
           {search || actionFilter ? "Tidak ada log yang cocok dengan filter." : "Belum ada audit log."}

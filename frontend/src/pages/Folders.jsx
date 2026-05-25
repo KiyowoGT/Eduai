@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { listFolders, createFolder, deleteFolder, moveDocuments, renameFolder } from "@/lib/api";
 import { toast } from "sonner";
 import { FolderPlus, FolderOpen, Trash2, AlertTriangle, Plus, ArrowUpRight, Pencil } from "lucide-react";
+import DualLoader from "@/components/DualLoader";
 
 export default function Folders() {
   const navigate = useNavigate();
@@ -128,7 +129,7 @@ export default function Folders() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
+        <DualLoader type="folders" text="Memuat daftar folder..." />
       ) : folders.length === 0 ? (
         <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-12 text-center" data-testid="empty-folders">
           <FolderOpen className="w-10 h-10 text-[#A0A2B1] mx-auto mb-3" />
