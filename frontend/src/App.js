@@ -36,6 +36,7 @@ import ReportsPage from "@/pages/admin/ReportsPage";
 import SettingsPage from "@/pages/admin/SettingsPage";
 import AuditLogViewer from "@/pages/admin/AuditLogViewer";
 
+
 function AppRouter() {
   return (
     <Routes>

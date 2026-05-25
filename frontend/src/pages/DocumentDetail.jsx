@@ -20,6 +20,7 @@ export default function DocumentDetail() {
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const { user, setUser } = useAuth();
+  const isTeacher = user?.role === "pengajar";
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "ringkasan";
   const [tab, setTab] = useState(initialTab);
@@ -182,120 +183,124 @@ export default function DocumentDetail() {
             </button>
           </div>
         )}
-        <Dialog open={isQuizDialogOpen} onOpenChange={setIsQuizDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              data-testid="start-quiz-btn"
-              disabled={generating || doc.status !== "ready"}
-              className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white h-11 px-5 rounded-md"
-            >
-              <BrainCircuit className="w-4 h-4 mr-2" />
-              {generating ? "Menyiapkan…" : "Mulai Kuis HOTS"}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md bg-white border border-[#E2E0D8] rounded-xl shadow-xl p-6">
-            <DialogHeader>
-              <DialogTitle className="font-heading text-xl text-[#1A1B26] flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-[#B83A4B]" />
-                Kustomisasi Kuis HOTS
-              </DialogTitle>
-              <DialogDescription className="text-xs text-[#646675]">
-                Atur jumlah soal kuis dan pilih preset pengerjaan yang kamu inginkan untuk memulai latihan kuis cerdas.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-5">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Pilih Preset Soal</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { count: 5, label: "Latihan Kilat", desc: "5 Soal HOTS" },
-                    { count: 10, label: "Ujian Harian", desc: "10 Soal HOTS" },
-                    { count: 30, label: "Tryout UTS", desc: "30 Soal HOTS" },
-                    { count: 60, label: "Tryout Utama", desc: "60 Soal HOTS" }
-                  ].map((preset) => (
-                    <button
-                      key={preset.count}
-                      onClick={() => setSelectedQuestionCount(preset.count)}
-                      className={`p-3 text-left rounded-lg border transition-all duration-200 ${
-                        selectedQuestionCount === preset.count
-                          ? "border-[#B83A4B] bg-[#B83A4B]/5"
-                          : "border-[#E2E0D8] hover:border-[#A0A2B1] bg-[#FBFAF7]"
-                      }`}
-                    >
-                      <div className="text-sm font-bold text-[#1A1B26]">{preset.label}</div>
-                      <div className="text-xs text-[#646675] mt-0.5">{preset.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+        {!isTeacher && (
+          <>
+            <Dialog open={isQuizDialogOpen} onOpenChange={setIsQuizDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  data-testid="start-quiz-btn"
+                  disabled={generating || doc.status !== "ready"}
+                  className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white h-11 px-5 rounded-md"
+                >
+                  <BrainCircuit className="w-4 h-4 mr-2" />
+                  {generating ? "Menyiapkan…" : "Mulai Kuis HOTS"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white border border-[#E2E0D8] rounded-xl shadow-xl p-6">
+                <DialogHeader>
+                  <DialogTitle className="font-heading text-xl text-[#1A1B26] flex items-center gap-2">
+                    <BrainCircuit className="w-5 h-5 text-[#B83A4B]" />
+                    Kustomisasi Kuis HOTS
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-[#646675]">
+                    Atur jumlah soal kuis dan pilih preset pengerjaan yang kamu inginkan untuk memulai latihan kuis cerdas.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Pilih Preset Soal</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { count: 5, label: "Latihan Kilat", desc: "5 Soal HOTS" },
+                        { count: 10, label: "Ujian Harian", desc: "10 Soal HOTS" },
+                        { count: 30, label: "Tryout UTS", desc: "30 Soal HOTS" },
+                        { count: 60, label: "Tryout Utama", desc: "60 Soal HOTS" }
+                      ].map((preset) => (
+                        <button
+                          key={preset.count}
+                          onClick={() => setSelectedQuestionCount(preset.count)}
+                          className={`p-3 text-left rounded-lg border transition-all duration-200 ${
+                            selectedQuestionCount === preset.count
+                              ? "border-[#B83A4B] bg-[#B83A4B]/5"
+                              : "border-[#E2E0D8] hover:border-[#A0A2B1] bg-[#FBFAF7]"
+                          }`}
+                        >
+                          <div className="text-sm font-bold text-[#1A1B26]">{preset.label}</div>
+                          <div className="text-xs text-[#646675] mt-0.5">{preset.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Jumlah Soal Kustom</Label>
-                  <span className="text-sm font-bold text-[#B83A4B] bg-[#B83A4B]/10 px-2 py-0.5 rounded-full">
-                    {selectedQuestionCount} Soal
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="5"
-                  max="60"
-                  step="5"
-                  value={selectedQuestionCount}
-                  onChange={(e) => setSelectedQuestionCount(parseInt(e.target.value))}
-                  className="w-full accent-[#B83A4B] cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-[#A0A2B1]">
-                  <span>Minimal: 5</span>
-                  <span>Maksimal: 60</span>
-                </div>
-              </div>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Jumlah Soal Kustom</Label>
+                      <span className="text-sm font-bold text-[#B83A4B] bg-[#B83A4B]/10 px-2 py-0.5 rounded-full">
+                        {selectedQuestionCount} Soal
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="60"
+                      step="5"
+                      value={selectedQuestionCount}
+                      onChange={(e) => setSelectedQuestionCount(parseInt(e.target.value))}
+                      className="w-full accent-[#B83A4B] cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-[#A0A2B1]">
+                      <span>Minimal: 5</span>
+                      <span>Maksimal: 60</span>
+                    </div>
+                  </div>
 
-              <div className="bg-[#FBFAF7] border border-[#E2E0D8] rounded-lg p-3 text-xs text-[#646675] space-y-1.5">
-                <div className="flex justify-between">
-                  <span>Estimasi Pembuatan AI:</span>
-                  <strong className="text-[#1A1B26]">~{Math.max(5, Math.ceil(selectedQuestionCount / 10) * 3)} Detik</strong>
+                  <div className="bg-[#FBFAF7] border border-[#E2E0D8] rounded-lg p-3 text-xs text-[#646675] space-y-1.5">
+                    <div className="flex justify-between">
+                      <span>Estimasi Pembuatan AI:</span>
+                      <strong className="text-[#1A1B26]">~{Math.max(5, Math.ceil(selectedQuestionCount / 10) * 3)} Detik</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Waktu Pengerjaan Kuis:</span>
+                      <strong className="text-[#1A1B26]">~{selectedQuestionCount * 2} Menit</strong>
+                    </div>
+                    <p className="text-[10px] text-[#A0A2B1] italic mt-1 leading-relaxed">
+                      * Kuis berskala besar (lebih dari 10 soal) akan di-generate secara paralel dengan model AI tangguh untuk menjamin performa cepat dan bebas timeout.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Waktu Pengerjaan Kuis:</span>
-                  <strong className="text-[#1A1B26]">~{selectedQuestionCount * 2} Menit</strong>
-                </div>
-                <p className="text-[10px] text-[#A0A2B1] italic mt-1 leading-relaxed">
-                  * Kuis berskala besar (lebih dari 10 soal) akan di-generate secara paralel dengan model AI tangguh untuk menjamin performa cepat dan bebas timeout.
-                </p>
-              </div>
-            </div>
-            <DialogFooter className="flex gap-2">
+                <DialogFooter className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => setIsQuizDialogOpen(false)}
+                    className="border-[#E2E0D8] text-[#646675] hover:bg-slate-50"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setIsQuizDialogOpen(false);
+                      startQuiz(selectedQuestionCount);
+                    }}
+                    className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white"
+                  >
+                    Mulai Kuis Sekarang
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            {generating && (
               <Button
+                data-testid="cancel-quiz-gen"
+                onClick={cancelGenerating}
                 variant="outline"
-                type="button"
-                onClick={() => setIsQuizDialogOpen(false)}
-                className="border-[#E2E0D8] text-[#646675] hover:bg-slate-50"
+                className="border-[#E2E0D8] text-[#B83A4B] hover:bg-[#B83A4B]/5 h-11 px-4"
               >
-                Batal
+                <X className="w-4 h-4 mr-1.5" /> Batal
               </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  setIsQuizDialogOpen(false);
-                  startQuiz(selectedQuestionCount);
-                }}
-                className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white"
-              >
-                Mulai Kuis Sekarang
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {generating && (
-          <Button
-            data-testid="cancel-quiz-gen"
-            onClick={cancelGenerating}
-            variant="outline"
-            className="border-[#E2E0D8] text-[#B83A4B] hover:bg-[#B83A4B]/5 h-11 px-4"
-          >
-            <X className="w-4 h-4 mr-1.5" /> Batal
-          </Button>
+            )}
+          </>
         )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -353,12 +358,16 @@ export default function DocumentDetail() {
               <FileSearch className="w-4 h-4 mr-1.5" /> PDF
             </TabsTrigger>
           )}
-          <TabsTrigger data-testid="tab-diskusi" value="diskusi" className="data-[state=active]:bg-[#1D2D50] data-[state=active]:text-white px-3 py-2 text-xs md:text-sm">
-            <MessageSquare className="w-4 h-4 mr-1.5" /> Diskusi
-          </TabsTrigger>
-          <TabsTrigger data-testid="tab-ai" value="ai" className="data-[state=active]:bg-[#1D2D50] data-[state=active]:text-white px-3 py-2 text-xs md:text-sm">
-            <Bot className="w-4 h-4 mr-1.5" /> Tanya AI
-          </TabsTrigger>
+          {!isTeacher && (
+            <>
+              <TabsTrigger data-testid="tab-diskusi" value="diskusi" className="data-[state=active]:bg-[#1D2D50] data-[state=active]:text-white px-3 py-2 text-xs md:text-sm">
+                <MessageSquare className="w-4 h-4 mr-1.5" /> Diskusi
+              </TabsTrigger>
+              <TabsTrigger data-testid="tab-ai" value="ai" className="data-[state=active]:bg-[#1D2D50] data-[state=active]:text-white px-3 py-2 text-xs md:text-sm">
+                <Bot className="w-4 h-4 mr-1.5" /> Tanya AI
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="ringkasan" className="mt-6">
@@ -502,13 +511,17 @@ export default function DocumentDetail() {
           )}
         </TabsContent>
 
-        <TabsContent value="diskusi" className="mt-6">
-          <DocumentDiscussion documentId={id} documentTitle={doc.title} />
-        </TabsContent>
+        {!isTeacher && (
+          <>
+            <TabsContent value="diskusi" className="mt-6">
+              <DocumentDiscussion documentId={id} documentTitle={doc.title} />
+            </TabsContent>
 
-        <TabsContent value="ai" className="mt-6">
-          <DocumentAiChat documentId={id} prefillResultId={searchParams.get("mention")} />
-        </TabsContent>
+            <TabsContent value="ai" className="mt-6">
+              <DocumentAiChat documentId={id} prefillResultId={searchParams.get("mention")} />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );

@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Plus, X } from "lucide-react";
 import { http } from "@/lib/api";
+import { getJurusanByLevel, parseMajorFromClass } from "@/lib/jurusan";
 
 const TITLE_OPTIONS = [
   { value: "guru_pengajar", label: "Guru Pengajar" },
   { value: "guru_kelas", label: "Guru Kelas (Wali Kelas)" },
-  { value: "kurikulum", label: "Kurikulum" },
+  { value: "kajur", label: "Kajur (Kepala Jurusan)" },
 ];
 
 export default function CreateTeacher() {
@@ -26,20 +27,34 @@ export default function CreateTeacher() {
     assigned_class: "",
     assigned_subject: "",
     teaching_classes: [],
+    major: "",
   });
+  const [showNewClassInput, setShowNewClassInput] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
 
   useEffect(() => {
     http.get("/teacher/materials/classes")
       .then((r) => {
-        setAvailableClasses(r.data || []);
+        const cls = r.data || [];
+        setAvailableClasses(cls);
       })
       .catch((err) => {
         console.error("Gagal memuat daftar kelas:", err);
       });
   }, []);
 
+  const educationLevel = user?.education_level?.toUpperCase();
+  const jurusanOptions = getJurusanByLevel(educationLevel);
+
   const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "assigned_class" && value) {
+        const parsed = parseMajorFromClass(value, educationLevel);
+        if (parsed && !prev.major) next.major = parsed;
+      }
+      return next;
+    });
   };
 
   const handleCheckboxChange = (value) => {
@@ -82,6 +97,7 @@ export default function CreateTeacher() {
 
   const showClass = form.titles.includes("guru_kelas");
   const showSubject = form.titles.includes("guru_pengajar");
+  const showMajor = form.titles.includes("kajur");
 
   return (
     <div className="w-full">
@@ -168,20 +184,84 @@ export default function CreateTeacher() {
           </div>
         </div>
 
-        {/* Assign Class & Subject (conditional) */}
-        {(showClass || showSubject) && (
+        {/* Assign Class, Subject & Major (conditional) */}
+        {(showClass || showSubject || showMajor) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {showClass && (
-              <div>
-                <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Kelas Wali</label>
-                <input
-                  type="text"
-                  value={form.assigned_class}
-                  onChange={(e) => handleChange("assigned_class", e.target.value)}
-                  placeholder="10-A, 11-B, dll"
-                  className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Kelas Wali</label>
+                  {!showNewClassInput ? (
+                    <div className="flex gap-2">
+                      <select
+                        value={form.assigned_class}
+                        onChange={(e) => handleChange("assigned_class", e.target.value)}
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                      >
+                        <option value="">Pilih kelas wali...</option>
+                        {availableClasses.map((cls) => (
+                          <option key={cls} value={cls}>{cls}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewClassInput(true)}
+                        className="px-3 py-2.5 bg-[#1D2D50] text-white text-sm rounded-lg hover:bg-[#1D2D50]/90 transition-colors"
+                        title="Buat kelas baru"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newClassName}
+                        onChange={(e) => setNewClassName(e.target.value)}
+                        placeholder="Nama kelas baru..."
+                        className="flex-1 px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newClassName.trim()) {
+                            const val = newClassName.trim();
+                            handleChange("assigned_class", val);
+                            if (!availableClasses.includes(val)) {
+                              setAvailableClasses([...availableClasses, val].sort());
+                            }
+                            setNewClassName("");
+                            setShowNewClassInput(false);
+                          }
+                        }}
+                        className="px-3 py-2.5 bg-[#2D6A4F] text-white text-sm rounded-lg hover:bg-[#2D6A4F]/90 transition-colors"
+                      >
+                        Pakai
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowNewClassInput(false); setNewClassName(""); }}
+                        className="px-3 py-2.5 text-[#646675] text-sm rounded-lg hover:bg-[#F8F6F0] transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Jurusan</label>
+                  <select
+                    value={form.major}
+                    onChange={(e) => handleChange("major", e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                  >
+                    <option value="">Pilih jurusan...</option>
+                    {jurusanOptions.map((j) => (
+                      <option key={j.value} value={j.value}>{j.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
             {showSubject && (
               <div className="space-y-3.5">
@@ -220,6 +300,21 @@ export default function CreateTeacher() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            {showMajor && (
+              <div>
+                <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Jurusan / Rumpun Keahlian</label>
+                <select
+                  value={form.major}
+                  onChange={(e) => handleChange("major", e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                >
+                  <option value="">Pilih jurusan...</option>
+                  {jurusanOptions.map((j) => (
+                    <option key={j.value} value={j.value}>{j.label}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>

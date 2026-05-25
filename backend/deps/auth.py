@@ -136,8 +136,8 @@ async def get_current_user(request: Request) -> User:
                     try:
                         return User(**user_doc)
                     except ValidationError as e:
-                        logger.error(f"User validation error (session): {e}")
-                        raise HTTPException(500, f"Data profil tidak valid: {e}")
+                        logger.error(f"User validation error (session): {e.json()}")
+                        raise HTTPException(500, f"Data profil tidak valid: {str(e)}")
 
     if header_token:
         supa_user = await fetch_supabase_user(header_token)
@@ -162,8 +162,8 @@ async def get_current_user(request: Request) -> User:
         try:
             return User(**user_doc)
         except ValidationError as e:
-            logger.error(f"User validation error (header): {e}")
-            raise HTTPException(500, f"Data profil tidak valid: {e}")
+            logger.error(f"User validation error (header): {e.json()}")
+            raise HTTPException(500, f"Data profil tidak valid: {str(e)}")
 
     raise HTTPException(401, "Tidak terautentikasi")
 

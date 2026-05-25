@@ -42,6 +42,8 @@ export default function AppLayout() {
 
   const isTeacher = user?.role === "pengajar";
   const isAdmin = isTeacher && user?.title === "kepala_sekolah";
+  const isStudent = user?.role === "pelajar";
+  const perms = user?.permissions || [];
 
   const navItems = useMemo(() => {
     if (isAdmin) {
@@ -50,23 +52,42 @@ export default function AppLayout() {
         { to: "/admin/users", label: "Manajemen Akun", icon: Users, tid: "nav-admin-users" },
         { to: "/admin/academic-years", label: "Tahun Ajaran", icon: Calendar, tid: "nav-academic-years" },
         { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
+        { to: "/audit-log", label: "Aktivitas Saya", icon: User2, tid: "nav-my-audit" },
         { to: "/admin/reports", label: "Laporan", icon: FileSpreadsheet, tid: "nav-reports" },
         { to: "/admin/settings", label: "Pengaturan", icon: Settings, tid: "nav-settings" },
         { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
       ];
     }
+    
     if (isTeacher) {
-      return [
+      const items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
-        { to: "/dokumen", label: "Materi", icon: FileText, tid: "nav-materials" },
-        { to: "/teacher/schedules", label: "Jadwal", icon: Calendar, tid: "nav-schedules" },
-        { to: "/teacher/students", label: "Kelas", icon: Users, tid: "nav-students" },
-        { to: "/teacher/analytics", label: "Analitik", icon: BarChart3, tid: "nav-analytics" },
-        { to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit, tid: "nav-quiz-history" },
-        { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
-        { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
       ];
+
+      if (perms.includes("studio_materi")) {
+        items.push({ to: "/dokumen", label: "Materi", icon: FileText, tid: "nav-materials" });
+      }
+      
+      if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) {
+        items.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar, tid: "nav-schedules" });
+      }
+
+      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view")) {
+        items.push({ to: "/teacher/students", label: "Kelas", icon: Users, tid: "nav-students" });
+      }
+
+      if (perms.includes("analitik_kelas") || perms.includes("analitik_butir_soal") || perms.includes("analitik_makro") || perms.includes("analitik_full")) {
+        items.push({ to: "/teacher/analytics", label: "Analitik", icon: BarChart3, tid: "nav-analytics" });
+      }
+
+      items.push({ to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit, tid: "nav-quiz-history" });
+      items.push({ to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" });
+      items.push({ to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" });
+      
+      return items;
     }
+
+    // Student / Default
     return [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
       { to: "/dokumen", label: "Dokumen", icon: FileText, tid: "nav-documents" },
@@ -77,7 +98,7 @@ export default function AppLayout() {
       { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
       { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
     ];
-  }, [isAdmin, isTeacher]);
+  }, [isAdmin, isTeacher, perms]);
 
   const mobileNavItems = useMemo(() => {
     if (isAdmin) {
@@ -85,18 +106,20 @@ export default function AppLayout() {
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { to: "/admin/users", label: "Akun", icon: User2 },
         { to: "/admin/academic-years", label: "Ajaran", icon: Calendar },
+        { to: "/audit-log", label: "Aktivitas", icon: User2 },
         { to: "/admin/reports", label: "Laporan", icon: FileSpreadsheet },
         { to: "/profil", label: "Profil", icon: User2 },
       ];
     }
     if (isTeacher) {
-      return [
+      const items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { to: "/dokumen", label: "Materi", icon: FileText },
-        { to: "/teacher/schedules", label: "Jadwal", icon: Calendar },
-        { to: "/teacher/analytics", label: "Analitik", icon: BarChart3 },
-        { to: "/profil", label: "Profil", icon: User2 },
       ];
+      if (perms.includes("studio_materi")) items.push({ to: "/dokumen", label: "Materi", icon: FileText });
+      if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) items.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar });
+      if (perms.includes("analitik_kelas") || perms.includes("analitik_makro")) items.push({ to: "/teacher/analytics", label: "Analitik", icon: BarChart3 });
+      items.push({ to: "/profil", label: "Profil", icon: User2 });
+      return items;
     }
     return [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -105,7 +128,7 @@ export default function AppLayout() {
       { to: "/teman", label: "Teman", icon: Users },
       { to: "/profil", label: "Profil", icon: User2 },
     ];
-  }, [isAdmin, isTeacher]);
+  }, [isAdmin, isTeacher, perms]);
 
   const hideMobileNav = /^\/(dokumen|folder|kuis|hasil|recap|admin)\/.+/.test(location.pathname);
   const hideMobileNavBottom = /^\/(dokumen|folder|kuis|hasil|recap)\/.+/.test(location.pathname);
@@ -119,8 +142,10 @@ export default function AppLayout() {
     ? "Kepala Sekolah"
     : isTeacher
       ? labelMap[user?.title] || user?.title
-      : user?.education_level
-        ? `${user.education_level}${user?.major ? ` · ${user.major}` : ""}`
+      : isStudent
+        ? user?.education_level
+          ? `${user.education_level}${user?.major ? ` · ${user.major}` : ""}`
+          : "Pelajar"
         : "";
 
   const userSubtitle = isAdmin
@@ -129,11 +154,13 @@ export default function AppLayout() {
       ? user?.assigned_class
         ? `${user.assigned_class}${user?.assigned_subject ? ` · ${user.assigned_subject}` : ""}`
         : user?.institution || ""
-      : user?.education_level === "Universitas"
-        ? `Sem ${user?.current_semester}`
-        : user?.current_semester
-          ? `Kelas ${user.current_semester}`
-          : "";
+      : isStudent
+        ? user?.education_level === "Universitas"
+          ? `Sem ${user?.current_semester}`
+          : user?.current_semester
+            ? `Kelas ${user.current_semester}`
+            : user?.institution || ""
+        : "";
 
   return (
     <div className="min-h-screen bg-[#F8F6F0] paper-grain" data-testid="app-layout">

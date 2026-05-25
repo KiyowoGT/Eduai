@@ -12,7 +12,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   if (loading) {
-    return <DualLoader type="landing" text="Mempersiapkan portal akademik..." />;
+    return <DualLoader variant="full" type="landing" text="Mempersiapkan portal akademik..." />;
   }
   
   if (user) {

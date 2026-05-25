@@ -88,13 +88,17 @@ export default function TeacherDashboard() {
           </div>
           <div className="space-y-3">
             {materials.slice(0, 5).map((m, i) => (
-              <div key={m.document_id || i} className="flex items-center justify-between py-2 border-b border-[#E2E0D8]/50 last:border-0">
+              <div
+                key={m.document_id || i}
+                onClick={() => navigate(`/dokumen/${m.document_id}`)}
+                className="flex items-center justify-between py-2 border-b border-[#E2E0D8]/50 last:border-0 cursor-pointer group/item"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center">
+                  <div className="w-8 h-8 rounded-lg bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center group-hover/item:border-[#B83A4B]/50 transition-colors">
                     <FileText className="w-4 h-4 text-[#1D2D50]" />
                   </div>
                   <div>
-                    <div className="text-sm text-[#1A1B26] font-medium">{m.title || m.filename}</div>
+                    <div className="text-sm text-[#1A1B26] font-medium group-hover/item:text-[#B83A4B] transition-colors">{m.title || m.filename}</div>
                     <div className="text-xs text-[#646675]">{m.subject_name}</div>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ import httpx
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, UploadFile, File
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from core.config import SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 from core.database import db, client
@@ -34,15 +34,40 @@ class CreateTeacherPayload(BaseModel):
     assigned_class: Optional[str] = None
     assigned_subject: Optional[str] = None
     teaching_classes: Optional[List[str]] = None
+    major: Optional[str] = None
+
+    @model_validator(mode="after")
+    def normalize_empty_strings(self):
+        if self.assigned_class is not None and self.assigned_class.strip() == "":
+            self.assigned_class = None
+        if self.assigned_subject is not None and self.assigned_subject.strip() == "":
+            self.assigned_subject = None
+        if self.major is not None and self.major.strip() == "":
+            self.major = None
+        return self
 
 class UpdateTeacherPayload(BaseModel):
     name: Optional[str] = None
     nip: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    admin_password: Optional[str] = None
     title: Optional[TeacherTitle] = None
     titles: Optional[List[TeacherTitle]] = None
     assigned_class: Optional[str] = None
     assigned_subject: Optional[str] = None
     teaching_classes: Optional[List[str]] = None
+    major: Optional[str] = None
+
+    @model_validator(mode="after")
+    def normalize_empty_strings(self):
+        if self.assigned_class is not None and self.assigned_class.strip() == "":
+            self.assigned_class = None
+        if self.assigned_subject is not None and self.assigned_subject.strip() == "":
+            self.assigned_subject = None
+        if self.major is not None and self.major.strip() == "":
+            self.major = None
+        return self
 
 class SwitchRolePayload(BaseModel):
     role_type: str
@@ -603,6 +628,11 @@ async def create_institution_teacher(
         new_teacher["assigned_subject"] = None
         new_teacher["teaching_classes"] = []
 
+    if TeacherTitle.kajur in titles_list or "kajur" in titles_list:
+        new_teacher["major"] = payload.major
+    elif TeacherTitle.guru_kelas in titles_list or "guru_kelas" in titles_list:
+        new_teacher["major"] = payload.major
+
     await db.users.insert_one(new_teacher)
     new_teacher.pop("_id", None)
 
@@ -684,6 +714,62 @@ async def update_teacher_details(
         updates["assigned_subject"] = None
         updates["teaching_classes"] = []
 
+    if TeacherTitle.kajur in active_titles or "kajur" in active_titles:
+        if payload.major is not None:
+            updates["major"] = payload.major
+    elif TeacherTitle.guru_kelas in active_titles or "guru_kelas" in active_titles:
+        if payload.major is not None:
+            updates["major"] = payload.major
+    else:
+        updates["major"] = None
+
+    # Verify admin password if changing password
+    if payload.password is not None:
+        if not payload.admin_password:
+            raise HTTPException(400, "Password admin wajib diisi untuk verifikasi")
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as hc:
+                vr = await hc.post(
+                    f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+                    headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+                    json={"email": user.email, "password": payload.admin_password},
+                )
+            if vr.status_code != 200:
+                raise HTTPException(403, "Verifikasi password admin gagal: password salah")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Gagal verifikasi password admin: {e}")
+            raise HTTPException(500, "Gagal memverifikasi password admin")
+
+    # Update Supabase Auth (email / password) if service role key is available
+    if payload.email is not None or payload.password is not None:
+        supa_update = {}
+        if payload.email is not None:
+            supa_update["email"] = payload.email.strip().lower()
+        if payload.password is not None:
+            supa_update["password"] = payload.password
+
+        if SUPABASE_SERVICE_ROLE_KEY and supa_update:
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as hc:
+                    r = await hc.put(
+                        f"{SUPABASE_URL}/auth/v1/admin/users/{id}",
+                        headers={
+                            "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json=supa_update,
+                    )
+                if r.status_code not in (200, 201):
+                    logger.warning(f"Supabase admin update user returned {r.status_code}: {r.text[:200]}")
+            except Exception as e:
+                logger.exception(f"Gagal update kredensial auth Supabase: {e}")
+
+        if payload.email is not None:
+            updates["email"] = payload.email.strip().lower()
+
     if updates:
         # Convert any enum objects to string values before saving to MongoDB
         mongo_updates = {}
@@ -706,3 +792,89 @@ async def update_teacher_details(
 
     updated_teacher = await db.users.find_one({"user_id": id}, {"_id": 0})
     return {"status": "success", "user": updated_teacher}
+
+
+@router.get("/admin/academic-summary")
+async def get_academic_summary(user: User = Depends(require_title(TeacherTitle.kepala_sekolah))):
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi")
+
+    active_year = await db.academic_years.find_one(
+        {"institution_code": user.institution_code, "is_active": True},
+        {"_id": 0}
+    )
+
+    results = await db.quiz_results.find(
+        {
+            "institution_code": user.institution_code,
+            "source": "institution_class",
+            "status": "ready"
+        },
+        {"_id": 0, "score": 1, "student_class": 1, "subject_name": 1, "user_id": 1}
+    ).to_list(5000)
+
+    from collections import defaultdict
+    groups = defaultdict(lambda: {
+        "classes": set(),
+        "student_ids": set(),
+        "subject_scores": defaultdict(list),
+        "all_scores": []
+    })
+
+    GRADE_MAJOR_CACHE = {}
+
+    def parse_grade_major(class_name):
+        if not class_name:
+            return ("", "")
+        if class_name in GRADE_MAJOR_CACHE:
+            return GRADE_MAJOR_CACHE[class_name]
+        tokens = class_name.split()
+        grade = tokens[0] if tokens and tokens[0].isdigit() else ""
+        major = ""
+        for t in tokens[1:-1] if len(tokens) > 2 else tokens[1:]:
+            if t and not t.isdigit():
+                major = t
+                break
+        GRADE_MAJOR_CACHE[class_name] = (grade, major)
+        return (grade, major)
+
+    for r in results:
+        cls_name = r.get("student_class") or ""
+        grade, major = parse_grade_major(cls_name)
+        key = (grade, major)
+        groups[key]["classes"].add(cls_name)
+        if r.get("user_id"):
+            groups[key]["student_ids"].add(r["user_id"])
+        score = r.get("score", 0)
+        groups[key]["all_scores"].append(score)
+        subj = r.get("subject_name") or "Umum"
+        groups[key]["subject_scores"][subj].append(score)
+
+    grouped = []
+    for (grade, major), data in groups.items():
+        avg_score = round(sum(data["all_scores"]) / len(data["all_scores"]), 1) if data["all_scores"] else 0
+        subjects = []
+        for sname, scores in data["subject_scores"].items():
+            subjects.append({
+                "name": sname,
+                "avg_score": round(sum(scores) / len(scores), 1) if scores else 0,
+                "quiz_count": len(scores)
+            })
+        subjects.sort(key=lambda x: x["quiz_count"], reverse=True)
+        grouped.append({
+            "grade": grade,
+            "major": major or "-",
+            "class_names": sorted(data["classes"]),
+            "student_count": len(data["student_ids"]),
+            "quiz_count": len(data["all_scores"]),
+            "avg_score": avg_score,
+            "subjects": subjects
+        })
+
+    grouped.sort(key=lambda g: (g["grade"], g["major"]))
+
+    return {
+        "active_year": active_year,
+        "groups": grouped,
+        "total_results": len(results)
+    }

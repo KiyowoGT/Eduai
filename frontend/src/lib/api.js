@@ -456,6 +456,28 @@ export async function listTeacherStudents() {
   return r.data;
 }
 
+export async function createStudent(payload) {
+  const r = await http.post("/teacher/students", payload);
+  return r.data;
+}
+
+export async function updateStudent(studentId, payload) {
+  const r = await http.put(`/teacher/students/${studentId}`, payload);
+  return r.data;
+}
+
+export async function deleteStudent(studentId) {
+  const r = await http.delete(`/teacher/students/${studentId}`);
+  return r.data;
+}
+
+export async function uploadStudentsCsv(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const r = await http.post("/teacher/students/upload", form);
+  return r.data;
+}
+
 export async function listTeacherMaterials() {
   const r = await http.get("/teacher/materials");
   return r.data;
@@ -554,6 +576,11 @@ export async function updateAdminTeacher(id, payload) {
 
 export async function getAdminAcademicYears() {
   const r = await http.get("/admin/academic-years");
+  return r.data;
+}
+
+export async function getAdminAcademicSummary() {
+  const r = await http.get("/admin/academic-summary");
   return r.data;
 }
 

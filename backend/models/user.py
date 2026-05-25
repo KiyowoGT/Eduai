@@ -16,6 +16,7 @@ class TeacherTitle(str, Enum):
     kurikulum = "kurikulum"
     guru_kelas = "guru_kelas"
     guru_pengajar = "guru_pengajar"
+    kajur = "kajur"
 
 EducationLevel = Literal["SD", "SMP", "SMA", "SMK", "MA", "Universitas"]
 
@@ -82,23 +83,24 @@ class User(BaseModel):
     @model_validator(mode="after")
     def check_title_fields(self) -> "User":
         if self.role != UserRole.pengajar:
-            # Reset pengajar-only fields if role is not pengajar
-            # (only if they were accidentally set)
             return self
 
-        # logic for pribadi (guru mandiri)
         if self.account_type == AccountType.pribadi:
             if self.title is not None or (self.titles and len(self.titles) > 0):
                 raise ValueError("Guru mandiri (akun pribadi) tidak boleh memiliki sub-role (title)")
             return self
 
-        # logic for perusahaan (institusi)
         if self.account_type == AccountType.perusahaan:
+            import logging
             titles = self.all_titles
             if TeacherTitle.guru_kelas in titles and not self.assigned_class:
-                raise ValueError("assigned_class wajib untuk guru_kelas")
+                logging.getLogger(__name__).warning(
+                    f"User {self.user_id} has guru_kelas title but no assigned_class"
+                )
             if TeacherTitle.guru_pengajar in titles and not self.assigned_subject:
-                raise ValueError("assigned_subject wajib untuk guru_pengajar")
+                logging.getLogger(__name__).warning(
+                    f"User {self.user_id} has guru_pengajar title but no assigned_subject"
+                )
         
         return self
 
@@ -111,16 +113,19 @@ class User(BaseModel):
             return ["studio_materi", "ruang_kelas", "jadwal_master", "analitik_full"]
         
         permissions = set()
-        user_titles = self.all_titles
+        # USE ACTIVE TITLE ONLY for strict role switching
+        active_title = self.title
         
-        if TeacherTitle.kepala_sekolah in user_titles:
+        if active_title == TeacherTitle.kepala_sekolah:
             permissions.update(["ruang_kelas_view", "analitik_makro"])
-        if TeacherTitle.kurikulum in user_titles:
+        elif active_title == TeacherTitle.kurikulum:
             permissions.update(["ruang_kelas_view", "jadwal_master", "analitik_makro"])
-        if TeacherTitle.guru_kelas in user_titles:
+        elif active_title == TeacherTitle.guru_kelas:
             permissions.update(["ruang_kelas_full", "jadwal_view", "analitik_kelas"])
-        if TeacherTitle.guru_pengajar in user_titles:
+        elif active_title == TeacherTitle.guru_pengajar:
             permissions.update(["studio_materi", "analitik_butir_soal"])
+        elif active_title == TeacherTitle.kajur:
+            permissions.update(["ruang_kelas_view", "studio_materi", "analitik_butir_soal"])
         
         return list(permissions)
 

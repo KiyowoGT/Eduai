@@ -2,21 +2,22 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { http } from "@/lib/api";
-import { ArrowLeft, Mail, Shield, AlertTriangle } from "lucide-react";
+import { getJurusanByLevel, parseMajorFromClass } from "@/lib/jurusan";
+import { ArrowLeft, Mail, Shield, AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import DualLoader from "@/components/DualLoader";
 
 const TITLE_OPTIONS = [
   { value: "guru_pengajar", label: "Guru Pengajar" },
   { value: "guru_kelas", label: "Guru Kelas (Wali Kelas)" },
-  { value: "kurikulum", label: "Kurikulum" },
+  { value: "kajur", label: "Kajur (Kepala Jurusan)" },
 ];
 
 const titleLabels = {
   kepala_sekolah: "Kepala Sekolah",
-  kurikulum: "Kurikulum",
   guru_kelas: "Guru Kelas (Wali Kelas)",
   guru_pengajar: "Guru Pengajar",
+  kajur: "Kajur (Kepala Jurusan)",
 };
 
 export default function TeacherDetail() {
@@ -33,11 +34,20 @@ export default function TeacherDetail() {
   const [editForm, setEditForm] = useState({
     name: "",
     nip: "",
+    email: "",
+    password: "",
     titles: [],
     assigned_class: "",
     assigned_subject: "",
     teaching_classes: [],
+    major: "",
   });
+  const [showNewClassInput, setShowNewClassInput] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [newClassName, setNewClassName] = useState("");
+
+  const educationLevel = user?.education_level?.toUpperCase();
+  const jurusanOptions = getJurusanByLevel(educationLevel);
 
   useEffect(() => {
     http.get("/teacher/materials/classes")
@@ -53,18 +63,30 @@ export default function TeacherDetail() {
     http.get(`/admin/users/teachers/${id}`)
       .then((r) => {
         setTeacher(r.data);
+        const ac = r.data.assigned_class;
+        const tc = r.data.teaching_classes || [];
+        const savedMajor = r.data.major || parseMajorFromClass(ac, educationLevel);
         setEditForm({
           name: r.data.name || "",
           nip: r.data.nip || "",
+          email: r.data.email || "",
+          password: "",
           titles: r.data.titles || (r.data.title ? [r.data.title] : []),
-          assigned_class: r.data.assigned_class || "",
+          assigned_class: ac || "",
           assigned_subject: r.data.assigned_subject || "",
-          teaching_classes: r.data.teaching_classes || [],
+          teaching_classes: tc,
+          major: savedMajor,
+        });
+        setAvailableClasses((prev) => {
+          const merged = new Set(prev);
+          if (ac) merged.add(ac);
+          tc.forEach((c) => { if (c) merged.add(c); });
+          return [...merged].sort();
         });
       })
       .catch(() => setTeacher(null))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, educationLevel]);
 
   const handleCheckboxChange = (value) => {
     setEditForm((prev) => {
@@ -90,9 +112,16 @@ export default function TeacherDetail() {
       toast.error("Pilih minimal satu jabatan/role");
       return;
     }
+    if (editForm.password && !adminPassword) {
+      toast.error("Masukkan password Anda untuk verifikasi");
+      return;
+    }
     setSavingUpdates(true);
     try {
-      const r = await http.put(`/admin/users/teachers/${id}`, editForm);
+      const body = { ...editForm };
+      if (!body.password) delete body.password;
+      if (body.password) body.admin_password = adminPassword;
+      const r = await http.put(`/admin/users/teachers/${id}`, body);
       setTeacher(r.data.user || r.data);
       setIsEditing(false);
       toast.success("Profil guru berhasil diperbarui");
@@ -198,6 +227,48 @@ export default function TeacherDetail() {
             />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Email</label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="guru@sekolah.sch.id"
+                className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Password Baru</label>
+              <input
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                placeholder="Kosongkan jika tidak diubah"
+                className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+              />
+            </div>
+          </div>
+
+          {editForm.password && (
+            <div>
+              <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Verifikasi Password Anda</label>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Masukkan password Anda saat ini untuk verifikasi"
+                required
+                className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+              />
+              <p className="text-xs text-[#646675] mt-1">
+                {teacher.user_id === user?.user_id
+                  ? "Masukkan password lama Anda untuk mengganti password sendiri."
+                  : "Masukkan password Anda untuk mengotorisasi perubahan password guru ini."}
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-2.5">Jabatan / Peran</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-[#F8F6F0] border border-[#E2E0D8] rounded-lg">
@@ -215,19 +286,83 @@ export default function TeacherDetail() {
             </div>
           </div>
 
-          {(editForm.titles.includes("guru_kelas") || editForm.titles.includes("guru_pengajar")) && (
+          {(editForm.titles.includes("guru_kelas") || editForm.titles.includes("guru_pengajar") || editForm.titles.includes("kajur")) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {editForm.titles.includes("guru_kelas") && (
-                <div>
-                  <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Kelas Wali</label>
-                  <input
-                    type="text"
-                    value={editForm.assigned_class}
-                    onChange={(e) => setEditForm({ ...editForm, assigned_class: e.target.value })}
-                    placeholder="10-A, 11-B, dll"
-                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Kelas Wali</label>
+                    {!showNewClassInput ? (
+                      <div className="flex gap-2">
+                        <select
+                          value={editForm.assigned_class}
+                          onChange={(e) => setEditForm({ ...editForm, assigned_class: e.target.value })}
+                          className="flex-1 px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                        >
+                          <option value="">Pilih kelas wali...</option>
+                          {availableClasses.map((cls) => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setShowNewClassInput(true)}
+                          className="px-3 py-2.5 bg-[#1D2D50] text-white text-sm rounded-lg hover:bg-[#1D2D50]/90 transition-colors"
+                          title="Buat kelas baru"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newClassName}
+                          onChange={(e) => setNewClassName(e.target.value)}
+                          placeholder="Nama kelas baru..."
+                          className="flex-1 px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newClassName.trim()) {
+                              const val = newClassName.trim();
+                              setEditForm({ ...editForm, assigned_class: val });
+                              if (!availableClasses.includes(val)) {
+                                setAvailableClasses([...availableClasses, val].sort());
+                              }
+                              setNewClassName("");
+                              setShowNewClassInput(false);
+                            }
+                          }}
+                          className="px-3 py-2.5 bg-[#2D6A4F] text-white text-sm rounded-lg hover:bg-[#2D6A4F]/90 transition-colors"
+                        >
+                          Pakai
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowNewClassInput(false); setNewClassName(""); }}
+                          className="px-3 py-2.5 text-[#646675] text-sm rounded-lg hover:bg-[#F8F6F0] transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Jurusan</label>
+                    <select
+                      value={editForm.major}
+                      onChange={(e) => setEditForm({ ...editForm, major: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                    >
+                      <option value="">Pilih jurusan...</option>
+                      {jurusanOptions.map((j) => (
+                        <option key={j.value} value={j.value}>{j.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
               {editForm.titles.includes("guru_pengajar") && (
                 <div className="space-y-3.5">
@@ -268,6 +403,21 @@ export default function TeacherDetail() {
                   </div>
                 </div>
               )}
+              {editForm.titles.includes("kajur") && (
+                <div>
+                  <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1.5">Jurusan / Rumpun Keahlian</label>
+                  <select
+                    value={editForm.major}
+                    onChange={(e) => setEditForm({ ...editForm, major: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                  >
+                    <option value="">Pilih jurusan...</option>
+                    {jurusanOptions.map((j) => (
+                      <option key={j.value} value={j.value}>{j.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -278,11 +428,15 @@ export default function TeacherDetail() {
                 setEditForm({
                   name: teacher.name || "",
                   nip: teacher.nip || "",
+                  email: teacher.email || "",
+                  password: "",
                   titles: teacher.titles || (teacher.title ? [teacher.title] : []),
                   assigned_class: teacher.assigned_class || "",
                   assigned_subject: teacher.assigned_subject || "",
                   teaching_classes: teacher.teaching_classes || [],
+                  major: teacher.major || "",
                 });
+                setAdminPassword("");
               }}
               className="px-4 py-2 text-sm text-[#646675] hover:text-[#1A1B26] transition-colors"
             >
@@ -327,6 +481,12 @@ export default function TeacherDetail() {
                       <span className="font-medium">Kelas yang diajar:</span> {teacher.teaching_classes.join(", ")}
                     </div>
                   )}
+                </div>
+              )}
+              {teacher.major && (
+                <div className="text-sm text-[#646675] flex items-center gap-2 mt-2 p-2 bg-[#E5A93C]/5 rounded border border-[#E5A93C]/10">
+                  <span className="font-semibold text-[#E5A93C]">Jurusan / Rumpun:</span>
+                  <span className="text-[#646675]">{teacher.major}</span>
                 </div>
               )}
             </div>

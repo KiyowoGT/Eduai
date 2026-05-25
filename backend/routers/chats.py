@@ -47,9 +47,46 @@ async def _can_access_discussion(doc_id: str, user_id: str) -> Optional[dict]:
         return doc
     return None
 
+async def _find_accessible_document(doc_id: str, user: User) -> Optional[dict]:
+    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if doc:
+        return doc
+    if user.role == "pelajar":
+        if user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": doc_id,
+                "institution_code": user.institution_code,
+                "visibility": "institution",
+                "status": "published"
+            }, {"_id": 0})
+            if doc:
+                return doc
+        elif user.class_token_used:
+            token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+            if token_doc:
+                doc = await db.documents.find_one({
+                    "document_id": doc_id,
+                    "user_id": token_doc["created_by_user_id"],
+                    "$or": [
+                        {"target_class_room": token_doc["target_class_room"]},
+                        {"target_class_rooms": token_doc["target_class_room"]}
+                    ],
+                    "status": "published"
+                }, {"_id": 0})
+                if doc:
+                    return doc
+    if user.role == "pengajar" and user.institution_code:
+        doc = await db.documents.find_one({
+            "document_id": doc_id,
+            "institution_code": user.institution_code
+        }, {"_id": 0})
+        if doc:
+            return doc
+    return None
+
 @router.get("/chat/{document_id}")
 async def get_chat_messages(document_id: str, user: User = Depends(get_current_user)):
-    doc = await db.documents.find_one({"document_id": document_id, "user_id": user.user_id}, {"_id": 0})
+    doc = await _find_accessible_document(document_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     session_id = f"chat:{user.user_id}:{document_id}"
@@ -58,7 +95,7 @@ async def get_chat_messages(document_id: str, user: User = Depends(get_current_u
 
 @router.post("/chat/{document_id}")
 async def send_chat_message(document_id: str, payload: ChatQuestion, user: User = Depends(get_current_user)):
-    doc = await db.documents.find_one({"document_id": document_id, "user_id": user.user_id}, {"_id": 0})
+    doc = await _find_accessible_document(document_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     if doc.get("status") != "ready":
@@ -175,7 +212,7 @@ async def send_chat_message(document_id: str, payload: ChatQuestion, user: User 
 
 @router.delete("/chat/{document_id}")
 async def clear_chat_messages(document_id: str, user: User = Depends(get_current_user)):
-    doc = await db.documents.find_one({"document_id": document_id, "user_id": user.user_id}, {"_id": 0})
+    doc = await _find_accessible_document(document_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     session_id = f"chat:{user.user_id}:{document_id}"
@@ -363,7 +400,7 @@ async def leave_discussion(doc_id: str, user: User = Depends(get_current_user)):
 
 @router.post("/documents/{doc_id}/chat")
 async def chat_with_document(doc_id: str, payload: ChatQuestion, user: User = Depends(get_current_user)):
-    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    doc = await _find_accessible_document(doc_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     if doc.get("status") != "ready":

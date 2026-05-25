@@ -13,7 +13,7 @@ const config = {
 };
 
 // Determine backend target for proxy
-const BACKEND_TARGET = process.env.REACT_APP_BACKEND_URL?.trim() || "http://localhost:8000";
+const BACKEND_TARGET = process.env.REACT_APP_BACKEND_URL?.trim() || "http://127.0.0.1:8000";
 
 // Conditionally load health check modules only if enabled
 let WebpackHealthPlugin;

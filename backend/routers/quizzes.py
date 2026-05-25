@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from core.database import db
-from models.user import User
+from models.user import User, UserRole
 from models.quiz import QuizGenerateRequest, QuizSubmission, QuizProgressSave
 from deps.auth import get_current_user, write_audit
 from services.ai_service import (
@@ -41,7 +41,7 @@ async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:
         return quiz
     
     # Check published institutional quiz for student
-    if user.role == "pelajar" and user.enrolled_class:
+    if user.role == UserRole.pelajar and user.enrolled_class:
         if user.institution_code:
             quiz = await db.quizzes.find_one({
                 "quiz_id": quiz_id,
@@ -64,7 +64,7 @@ async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:
                     return quiz
             
     # For teachers, let's also allow finding any quiz belonging to their institution
-    if user.role == "pengajar" and user.institution_code:
+    if user.role == UserRole.pengajar and user.institution_code:
         quiz = await db.quizzes.find_one({
             "quiz_id": quiz_id,
             "institution_code": user.institution_code
@@ -96,9 +96,36 @@ async def _resolve_documents(payload_document_id, payload_document_ids, payload_
         {"_id": 0, "file_path": 0},
     ):
         docs.append(d)
+
+    # Check for institutional/published documents if not all ids are resolved
+    resolved_ids = {d["document_id"] for d in docs}
+    missing_ids = [i for i in ids if i not in resolved_ids]
+    if missing_ids and user.role == "pelajar":
+        if user.institution_code:
+            async for d in db.documents.find({
+                "document_id": {"$in": missing_ids},
+                "institution_code": user.institution_code,
+                "visibility": "institution",
+                "status": "published"
+            }, {"_id": 0, "file_path": 0}):
+                docs.append(d)
+        elif user.class_token_used:
+            token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+            if token_doc:
+                async for d in db.documents.find({
+                    "document_id": {"$in": missing_ids},
+                    "user_id": token_doc["created_by_user_id"],
+                    "$or": [
+                        {"target_class_room": token_doc["target_class_room"]},
+                        {"target_class_rooms": token_doc["target_class_room"]}
+                    ],
+                    "status": "published"
+                }, {"_id": 0, "file_path": 0}):
+                    docs.append(d)
+
     if not docs:
         raise HTTPException(404, "Dokumen tidak ditemukan")
-    not_ready = [d.get("filename") for d in docs if d.get("status") != "ready"]
+    not_ready = [d.get("filename") for d in docs if d.get("status") not in ("ready", "published")]
     if not_ready:
         raise HTTPException(400, f"Dokumen belum siap: {', '.join(not_ready)}")
     return docs

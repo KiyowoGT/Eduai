@@ -36,8 +36,8 @@ export default function ContextSwitcher({ collapsed }) {
   const currentRoleType = user.role === "pelajar" ? "pelajar" : user.title;
   const availableRoles = roles.filter((r) => r.role_type !== currentRoleType);
   
-  // Only show if there are multiple roles to switch between
-  if (roles.length <= 1) return null;
+  // Show nothing if roles are not loaded yet or empty
+  if (roles.length === 0) return null;
 
   const handleSwitch = async (title) => {
     setSwitching(true);
@@ -53,6 +53,9 @@ export default function ContextSwitcher({ collapsed }) {
   };
 
   if (collapsed) {
+    // Only show switch icon if there are other roles
+    if (availableRoles.length === 0) return null;
+    
     return (
       <div className="relative">
         <button
@@ -87,17 +90,18 @@ export default function ContextSwitcher({ collapsed }) {
     <div className="relative px-3 py-2 border-t border-[#E2E0D8]">
       <div className="text-[10px] uppercase tracking-[0.15em] text-[#A0A2B1] mb-1">Akses sebagai</div>
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-[#1A1B26] hover:bg-[#F8F6F0] transition-colors"
+        onClick={() => availableRoles.length > 0 && setOpen(!open)}
+        disabled={availableRoles.length === 0}
+        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm text-[#1A1B26] ${availableRoles.length > 0 ? "hover:bg-[#F8F6F0] transition-colors" : "cursor-default"}`}
       >
         <span className="font-medium">{labelMap[currentRoleType] || currentRoleType}</span>
         {switching ? (
           <RefreshCw className="w-3 h-3 animate-spin text-[#646675]" />
         ) : (
-          <ChevronDown className="w-3 h-3 text-[#646675]" />
+          availableRoles.length > 0 && <ChevronDown className="w-3 h-3 text-[#646675]" />
         )}
       </button>
-      {open && (
+      {open && availableRoles.length > 0 && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-3 right-3 bottom-full mb-1 bg-white border border-[#E2E0D8] rounded-lg shadow-lg p-1 z-50">

@@ -26,6 +26,8 @@ export default function Dashboard() {
       const [d, p] = await Promise.all([listDocuments(), getProgress()]);
       setDocs(d);
       setProgress(p);
+    } catch {
+      if (window.location.pathname === "/") return;
     } finally {
       setLoading(false);
     }
@@ -111,6 +113,8 @@ export default function Dashboard() {
       toast.error(e?.response?.data?.detail || "Gagal menghapus");
     }
   };
+
+  const activeJobs = Object.entries(jobs);
 
   if (loading) {
     return <DualLoader type="dashboard" text="Mempersiapkan dasbor belajar..." />;

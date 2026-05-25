@@ -1,6 +1,6 @@
 import { GraduationCap, Sparkles } from "lucide-react";
 
-export default function DualLoader({ type = "default", text = "Memuat data..." }) {
+export default function DualLoader({ type = "default", text = "Memuat data...", variant = "skeleton" }) {
   // Skeleton renderers based on type
   const renderSkeleton = () => {
     switch (type) {
@@ -152,33 +152,27 @@ export default function DualLoader({ type = "default", text = "Memuat data..." }
         {renderSkeleton()}
       </div>
 
-      {/* Foreground cool animated loader overlay */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-transparent backdrop-blur-[2px]">
-        <div className="p-8 rounded-[2.5rem] bg-white/90 dark:bg-white/5 border border-white/50 dark:border-white/10 shadow-2xl backdrop-blur-xl text-center scale-95 md:scale-100 transition-all">
-          <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-            {/* Outer rotating dotted ring */}
-            <div className="absolute inset-0 rounded-[1.7rem] border-2 border-dashed border-[#E5A93C]/40 dark:border-[#E5A93C]/30 animate-[spin_15s_linear_infinite]" />
-            
-            {/* Middle spinning gradient border */}
-            <div className="absolute inset-1.5 rounded-full border-2 border-t-[#E5A93C] border-r-[#1D2D50] border-b-[#B83A4B] border-l-transparent dark:border-r-white/40 animate-[spin_1.5s_linear_infinite]" />
-            
-            {/* Inner core */}
-            <div className="absolute inset-3.5 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10">
-              <GraduationCap className="w-6 h-6 text-[#E5A93C] dark:text-[#12131A] animate-pulse" />
+      {/* Foreground cool animated loader overlay — only shown for 'full' variant */}
+      {variant === "full" && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-transparent backdrop-blur-[2px]">
+          <div className="p-8 rounded-[2.5rem] bg-white/90 dark:bg-white/5 border border-white/50 dark:border-white/10 shadow-2xl backdrop-blur-xl text-center scale-95 md:scale-100 transition-all">
+            <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-[1.7rem] border-2 border-dashed border-[#E5A93C]/40 dark:border-[#E5A93C]/30 animate-[spin_15s_linear_infinite]" />
+              <div className="absolute inset-1.5 rounded-full border-2 border-t-[#E5A93C] border-r-[#1D2D50] border-b-[#B83A4B] border-l-transparent dark:border-r-white/40 animate-[spin_1.5s_linear_infinite]" />
+              <div className="absolute inset-3.5 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10">
+                <GraduationCap className="w-6 h-6 text-[#E5A93C] dark:text-[#12131A] animate-pulse" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#E5A93C] dark:bg-[#1D2D50] border-2 border-white dark:border-[#12131A] flex items-center justify-center shadow-lg animate-bounce">
+                <Sparkles className="w-2.5 h-2.5 text-[#1D2D50] dark:text-[#E5A93C]" />
+              </div>
             </div>
-            
-            {/* Orbiting badge */}
-            <div className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#E5A93C] dark:bg-[#1D2D50] border-2 border-white dark:border-[#12131A] flex items-center justify-center shadow-lg animate-bounce">
-              <Sparkles className="w-2.5 h-2.5 text-[#1D2D50] dark:text-[#E5A93C]" />
+            <div className="space-y-1">
+              <p className="font-heading text-lg text-[#1A1B26] dark:text-white tracking-tight leading-none">EduScanner AI</p>
+              <p className="text-[10px] uppercase tracking-widest text-[#646675] dark:text-[#A0A2B1] font-black">{text}</p>
             </div>
-          </div>
-          
-          <div className="space-y-1">
-            <p className="font-heading text-lg text-[#1A1B26] dark:text-white tracking-tight leading-none">EduScanner AI</p>
-            <p className="text-[10px] uppercase tracking-widest text-[#646675] dark:text-[#A0A2B1] font-black">{text}</p>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -13,7 +13,8 @@ function sessionToUser(session) {
     email: u.email,
     name: u.user_metadata?.full_name || u.user_metadata?.name || "",
     picture: u.user_metadata?.avatar_url,
-    onboarded: false,
+    // Don't assume onboarded is false; wait for enrich or trust prev state
+    onboarded: true, 
     subjects: [],
     schedule: [],
   };
@@ -31,11 +32,11 @@ export const AuthProvider = ({ children }) => {
       try {
         const me = await fetchMe();
         if (!cancelled && me) {
-          // Normalize: ensure `id` field exists so the identity check works
+          // Keep the ID from session but use all data from backend
           setUser({ id: session.user.id, ...me });
         }
       } catch (err) {
-        // fetchMe failed — fall back to session user so the app doesn't get stuck
+        // fetchMe failed — fall back to session user but don't force onboarded: false
         if (!cancelled) {
           setUser((prev) => prev ?? sessionToUser(session));
         }
@@ -49,22 +50,21 @@ export const AuthProvider = ({ children }) => {
       if (cancelled) return;
 
       if (session) {
+        // Only reset user if the identity actually changed
         setUser((prev) => {
-          if (!prev) return null;
+          if (!prev) return sessionToUser(session);
           const prevId = prev?.id || prev?.user_id;
-          if (prevId === session.user.id) return prev;
-          if (prev?.onboarded) return prev;
-          return null;
+          if (prevId !== session.user.id) return sessionToUser(session);
+          return prev;
         });
 
-        // Enrich immediately — setLoading(false) happens inside enrich()
+        // Enrich immediately
         if (enrichRef.current) clearTimeout(enrichRef.current);
         enrichRef.current = setTimeout(() => enrich(session), 0);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setLoading(false);
       }
-      // Ignore null sessions from non-SIGNED_OUT events (transient states)
     });
 
     // Also check existing session on mount (for page refresh)

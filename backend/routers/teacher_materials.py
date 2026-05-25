@@ -30,6 +30,7 @@ class UpdateMaterialPayload(BaseModel):
     title: Optional[str] = None
     summary: Optional[str] = None
     key_concepts: Optional[List[dict]] = None
+    target_class_rooms: Optional[List[str]] = None
 
 class TeacherQuizGeneratePayload(BaseModel):
     document_id: str
@@ -52,28 +53,27 @@ async def require_can_manage_materials(user: User = Depends(require_pengajar)) -
 @router.get("/teacher/materials/classes")
 async def list_available_classes(user: User = Depends(require_pengajar)):
     if user.account_type == AccountType.pribadi:
-        # Personal teachers: list unique classes they created tokens for
         classes = await db.class_tokens.distinct("target_class_room", {"created_by_user_id": user.user_id})
     else:
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
         
-        # Institutional teachers: list all unique classes in the institution
         classes = await db.class_tokens.distinct("target_class_room", {"institution_code": user.institution_code})
         
-        # Also query active academic year classes to display them even if no token was created yet
         active_year = await db.academic_years.find_one({"institution_code": user.institution_code, "is_active": True})
         if active_year:
             year_classes = await db.classes.distinct("name", {"institution_code": user.institution_code, "academic_year_id": active_year["academic_year_id"]})
             classes = list(set(classes + year_classes))
         
-        # Also include assigned class if not in the list
-        if user.assigned_class and user.assigned_class not in classes:
-            classes.append(user.assigned_class)
-
-        # Also include teaching classes if not in the list
-        if getattr(user, "teaching_classes", None):
-            for c in user.teaching_classes:
+        # Include assigned_class and teaching_classes from all teachers in this institution
+        inst_users = await db.users.find(
+            {"institution_code": user.institution_code, "role": "pengajar"},
+            {"assigned_class": 1, "teaching_classes": 1, "_id": 0}
+        ).to_list(500)
+        for u in inst_users:
+            if u.get("assigned_class") and u["assigned_class"] not in classes:
+                classes.append(u["assigned_class"])
+            for c in (u.get("teaching_classes") or []):
                 if c and c not in classes:
                     classes.append(c)
             
@@ -96,8 +96,8 @@ async def upload_teacher_material(
     if not subject_name:
         raise HTTPException(400, "Nama mata pelajaran wajib diisi")
 
-    if user.account_type != AccountType.pribadi:
-        if not user.assigned_subject or subject_name.lower() != user.assigned_subject.lower():
+    if user.account_type != AccountType.pribadi and user.assigned_subject:
+        if subject_name.lower() != user.assigned_subject.lower():
             raise HTTPException(403, f"Guru pengajar hanya diperbolehkan mengunggah materi untuk mata pelajaran mereka sendiri ({user.assigned_subject})")
 
     # Parse target_classes if provided
@@ -333,6 +333,9 @@ async def update_teacher_material(
         updates["summary"] = payload.summary
     if payload.key_concepts is not None:
         updates["key_concepts"] = payload.key_concepts
+    if payload.target_class_rooms is not None:
+        updates["target_class_rooms"] = payload.target_class_rooms
+        updates["target_class_room"] = payload.target_class_rooms[0] if payload.target_class_rooms else None
 
     if updates:
         await db.documents.update_one({"document_id": doc_id}, {"$set": updates})

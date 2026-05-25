@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from core.database import db
-from models.user import User, ProfileUpdate, TeachingMethodsUpdate, FriendCodeUpdate, OnboardingCompletePayload
+from models.user import User, UserRole, TeacherTitle, ProfileUpdate, TeachingMethodsUpdate, FriendCodeUpdate, OnboardingCompletePayload
 from deps.auth import (
     get_current_user,
     write_audit,
@@ -99,6 +99,8 @@ async def auth_me(user: User = Depends(get_current_user)):
     user_dict["is_institution_linked"] = bool(user.institution_code)
     user_dict["is_class_linked"] = bool(user.enrolled_class or user.class_token_used)
     user_dict["permissions"] = user.get_permissions()
+    # Explicitly ensure onboarded is included from the validated model
+    user_dict["onboarded"] = user.onboarded
     return user_dict
 
 
@@ -393,7 +395,7 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
     scope_id = None
     target_role = UserRole.pengajar # Default target role
 
-    if payload.role_type == "pelajar":
+    if payload.role_type == "pelajar" and (user.role == UserRole.pelajar or user.enrolled_class):
         is_valid_role = True
         target_role = UserRole.pelajar
     else:
@@ -464,34 +466,62 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
     )
 
     # Fetch updated user doc
-    updated_user = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
-    if isinstance(updated_user.get("created_at"), str):
-        updated_user["created_at"] = datetime.fromisoformat(updated_user["created_at"])
+    updated_user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not updated_user_doc:
+        raise HTTPException(404, "User tidak ditemukan")
 
-    # Include permissions dynamically based on the target User model method
-    updated_user_model = User(**updated_user)
-    updated_user["permissions"] = updated_user_model.get_permissions()
+    if isinstance(updated_user_doc.get("created_at"), str):
+        updated_user_doc["created_at"] = datetime.fromisoformat(updated_user_doc["created_at"])
+
+    # Ensure linked status flags are set for the model
+    updated_user_doc["is_institution_linked"] = bool(updated_user_doc.get("institution_code"))
+    updated_user_doc["is_class_linked"] = bool(updated_user_doc.get("enrolled_class") or updated_user_doc.get("class_token_used"))
+
+    # Validate with model
+    updated_user_model = User(**updated_user_doc)
+    
+    # Get clean dict with permissions
+    user_dict = updated_user_model.model_dump()
+    user_dict["permissions"] = updated_user_model.get_permissions()
 
     return {
         "ok": True,
         "active_role": payload.role_type,
-        "user": updated_user
+        "user": user_dict
     }
 
 @router.get("/auth/roles")
 async def get_user_roles(user: User = Depends(get_current_user)):
     roles_list = []
 
-    # Pelajar role is always available
-    roles_list.append({
-        "role_type": "pelajar",
-        "scope_id": None,
-        "status": "active"
-    })
+    # Pelajar role only if user is a student or has student data
+    if user.role == UserRole.pelajar or user.enrolled_class:
+        roles_list.append({
+            "role_type": "pelajar",
+            "scope_id": None,
+            "status": "active"
+        })
 
     if not user.institution_code:
         return {"roles": roles_list}
 
+    # Ensure all titles in user.all_titles (from titles array and title field) are in list
+    for t in user.all_titles:
+        t_val = t.value if hasattr(t, "value") else t
+        if not any(r["role_type"] == t_val for r in roles_list):
+            scope_id = None
+            if t_val == "guru_kelas":
+                scope_id = user.assigned_class
+            elif t_val == "guru_pengajar":
+                scope_id = user.assigned_subject
+            
+            roles_list.append({
+                "role_type": t_val,
+                "scope_id": scope_id,
+                "status": "active"
+            })
+
+    # Check for additional active role assignments in DB
     assignments = await db.role_assignments.find({
         "user_id": user.user_id,
         "status": "active"
@@ -502,27 +532,12 @@ async def get_user_roles(user: User = Depends(get_current_user)):
             roles_list.append(a)
 
     # Ensure owner has kepala_sekolah
-    if user.institution_owner and not any(a["role_type"] == "kepala_sekolah" for a in roles_list):
+    if user.institution_owner and not any(r["role_type"] == "kepala_sekolah" for r in roles_list):
         roles_list.append({
             "role_type": "kepala_sekolah",
             "scope_id": None,
             "status": "active"
         })
-
-    # Ensure all titles in user.all_titles are in list
-    for t in user.all_titles:
-        t_val = t.value if hasattr(t, "value") else t
-        if not any(a["role_type"] == t_val for a in roles_list):
-            scope_id = None
-            if t_val == "guru_kelas":
-                scope_id = user.assigned_class
-            elif t_val == "guru_pengajar":
-                scope_id = user.assigned_subject
-            roles_list.append({
-                "role_type": t_val,
-                "scope_id": scope_id,
-                "status": "active"
-            })
 
     return {"roles": roles_list}
 

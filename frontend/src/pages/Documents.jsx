@@ -11,7 +11,8 @@ import {
   publishTeacherMaterial,
   generateTeacherQuiz,
   publishTeacherQuiz,
-  generateRedeemCode
+  generateRedeemCode,
+  updateTeacherMaterial
 } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import {
   FileText,
   ArrowUpRight,
@@ -52,7 +69,8 @@ import {
   Plus,
   QrCode,
   CheckCircle2,
-  Bot
+  Bot,
+  Edit3
 } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
 import { useAuth } from "@/context/AuthContext";
@@ -84,6 +102,9 @@ export default function Documents() {
   const [generatingRedeemMap, setGeneratingRedeemMap] = useState({});
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
+  const [editingDocClasses, setEditingDocClasses] = useState(null);
+  const [editSelectedClasses, setEditSelectedClasses] = useState([]);
+  const [savingClasses, setSavingClasses] = useState(false);
 
   // Realtime updates for teacher/student documents
   useRealtimeSocket((payload) => {
@@ -206,9 +227,9 @@ export default function Documents() {
   const handleTeacherUpload = async (files) => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    const subjectName = user?.assigned_subject;
+    const subjectName = user?.assigned_subject || subjectInput.trim();
     if (!subjectName) {
-      toast.error("Profil Anda tidak memiliki mata pelajaran yang ditugaskan.");
+      toast.error("Isi mata pelajaran terlebih dahulu.");
       return;
     }
 
@@ -217,11 +238,29 @@ export default function Documents() {
       await uploadTeacherMaterial(file, subjectName, selectedClasses);
       toast.success("Materi berhasil diunggah dan sedang dianalisis oleh AI.");
       setSelectedClasses([]);
+      setSubjectInput("");
       loadTeacherData();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Gagal mengunggah materi.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleUpdateClasses = async () => {
+    if (!editingDocClasses) return;
+    setSavingClasses(true);
+    try {
+      await updateTeacherMaterial(editingDocClasses.document_id, {
+        target_class_rooms: editSelectedClasses
+      });
+      toast.success("Sasaran kelas materi berhasil diperbarui!");
+      setEditingDocClasses(null);
+      loadTeacherData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal memperbarui sasaran kelas.");
+    } finally {
+      setSavingClasses(false);
     }
   };
 
@@ -301,7 +340,7 @@ export default function Documents() {
           <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Pengajar Portal</div>
           <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Materi & Kuis</h1>
           <p className="text-sm text-[#646675] mt-2">
-            Unggah modul ajar ({user?.assigned_subject}) dan hasilkan kuis AI untuk siswa Anda.
+            Unggah modul ajar ({user?.assigned_subject || subjectInput || "mata pelajaran"}) dan hasilkan kuis AI untuk siswa Anda.
           </p>
         </div>
 
@@ -334,9 +373,20 @@ export default function Documents() {
                 <p className="text-xs text-[#646675] mt-1.5">
                   Pilih atau seret file PDF / Gambar. AI akan menganalisis konten untuk kuis.
                 </p>
-                <p className="text-[10px] text-[#A0A2B1] font-mono mt-3 uppercase tracking-wider bg-[#F8F6F0] inline-block px-2.5 py-1 rounded">
-                  Mata Pelajaran: {user?.assigned_subject}
-                </p>
+                {user?.assigned_subject ? (
+                  <p className="text-[10px] text-[#A0A2B1] font-mono mt-3 uppercase tracking-wider bg-[#F8F6F0] inline-block px-2.5 py-1 rounded">
+                    Mata Pelajaran: {user?.assigned_subject}
+                  </p>
+                ) : (
+                  <input
+                    type="text"
+                    value={subjectInput}
+                    onChange={(e) => setSubjectInput(e.target.value)}
+                    placeholder="Masukkan mata pelajaran..."
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-3 w-full max-w-xs mx-auto px-3 py-1.5 text-xs text-center border border-[#E2E0D8] rounded-lg bg-white text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                  />
+                )}
               </div>
             </div>
 
@@ -383,22 +433,39 @@ export default function Documents() {
             Belum ada materi ajar yang diunggah. Gunakan area unggah di atas.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6">
+          <>
+            <div className="grid grid-cols-1 gap-6">
             {materials.map((m) => (
               <div key={m.document_id} className="bg-white border border-[#E2E0D8] rounded-xl p-5 shadow-sm transition-all hover:border-[#1D2D50]/30">
                 
                 {/* Header of Material Card */}
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center">
+                  <div
+                    onClick={() => navigate(`/dokumen/${m.document_id}`)}
+                    className="flex items-center gap-3 cursor-pointer group/title"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center group-hover/title:border-[#B83A4B]/50 transition-colors">
                       <FileText className="w-5 h-5 text-[#1D2D50]" />
                     </div>
                     <div>
-                      <h3 className="font-heading text-lg font-bold text-[#1A1B26]">{m.title || m.filename}</h3>
+                      <h3 className="font-heading text-lg font-bold text-[#1A1B26] group-hover/title:text-[#B83A4B] transition-colors">{m.title || m.filename}</h3>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#646675] mt-1">
                         <span className="font-semibold text-[#1D2D50]">{m.subject_name}</span>
                         <span>•</span>
-                        <span>Kelas: <strong>{m.target_class_rooms?.join(", ") || m.target_class_room || "Umum"}</strong></span>
+                        <span className="inline-flex items-center gap-1">
+                          Kelas: <strong>{m.target_class_rooms?.join(", ") || m.target_class_room || "Umum"}</strong>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingDocClasses(m);
+                              setEditSelectedClasses(m.target_class_rooms || (m.target_class_room ? [m.target_class_room] : []));
+                            }}
+                            className="p-1 text-[#A0A2B1] hover:text-[#B83A4B] transition-colors"
+                            title="Ubah sasaran kelas"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
                         <span>•</span>
                         <span className="font-mono text-[#A0A2B1]">{new Date(m.created_at).toLocaleDateString("id-ID")}</span>
                       </div>
@@ -605,6 +672,67 @@ export default function Documents() {
               </div>
             ))}
           </div>
+        {/* Dialog untuk Ubah Sasaran Kelas */}
+        <Dialog open={!!editingDocClasses} onOpenChange={(open) => !open && setEditingDocClasses(null)}>
+          <DialogContent className="max-w-md bg-white border border-[#E2E0D8] rounded-xl shadow-xl p-6">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-xl text-[#1A1B26]">Ubah Sasaran Kelas</DialogTitle>
+              <DialogDescription className="text-xs text-[#646675] mt-1">
+                Pilih kelas sasaran baru untuk modul ajar: <strong>{editingDocClasses?.title || editingDocClasses?.filename}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4">
+              {classes.length === 0 ? (
+                <p className="text-xs text-[#646675] bg-[#F8F6F0] p-3 rounded-lg border border-dashed border-[#E2E0D8]">
+                  Belum ada kelas terdaftar. Hasilkan token kelas di menu Kelas terlebih dahulu.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                  {classes.map((clsName) => {
+                    const isChecked = editSelectedClasses.includes(clsName);
+                    return (
+                      <label key={clsName} className="flex items-center gap-2.5 text-sm font-medium text-[#1A1B26] cursor-pointer hover:bg-[#F8F6F0]/50 p-2 rounded transition-all">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => {
+                            const nextSelected = editSelectedClasses.includes(clsName)
+                              ? editSelectedClasses.filter((c) => c !== clsName)
+                              : [...editSelectedClasses, clsName];
+                            setEditSelectedClasses(nextSelected);
+                          }}
+                        />
+                        <span className="select-none">{clsName}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditingDocClasses(null)}
+                className="border-[#E2E0D8] text-[#646675] hover:bg-slate-50"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleUpdateClasses}
+                disabled={savingClasses}
+                className="bg-[#1D2D50] hover:bg-[#151f3d] text-white"
+              >
+                {savingClasses ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Simpan Perubahan"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+          </>
         )}
       </div>
     );

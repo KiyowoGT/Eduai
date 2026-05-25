@@ -8,6 +8,10 @@ export default function HomeRedirect() {
 
   if (!user) return null;
 
+  if (user.role === "pelajar") {
+    return <Dashboard />;
+  }
+
   if (user.role === "pengajar") {
     if (user.title === "kepala_sekolah") {
       return <AdminDashboard />;

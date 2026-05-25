@@ -22,10 +22,11 @@ async def require_can_create_token(user: User = Depends(require_pengajar)) -> Us
     is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
     is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
     is_mandiri = user.account_type == AccountType.pribadi
-    if not (is_guru_kelas or is_guru_pengajar or is_mandiri):
+    is_admin = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    if not (is_guru_kelas or is_guru_pengajar or is_mandiri or is_admin):
         raise HTTPException(
             403,
-            "Hanya Guru Kelas, Guru Pengajar, atau Guru Mandiri yang bisa membuat token kelas."
+            "Hanya Guru Kelas, Guru Pengajar, Guru Mandiri, atau Kepala Sekolah yang bisa membuat token kelas."
         )
     return user
 
@@ -41,7 +42,7 @@ async def create_class_token(
         
         is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
         is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
-        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
         
         if not is_admin_or_kuri:
             allowed_classes = []
@@ -106,7 +107,7 @@ async def list_class_tokens(user: User = Depends(require_can_create_token)):
         
         is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
         is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
-        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
         
         query = {"institution_code": user.institution_code}
         if not is_admin_or_kuri:
@@ -133,7 +134,7 @@ async def revoke_class_token(token: str, request: Request, user: User = Depends(
         if token_doc:
             is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
             is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
-            is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
+            is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
             
             if not is_admin_or_kuri:
                 allowed_classes = []

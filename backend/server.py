@@ -26,7 +26,8 @@ from deps.auth import get_current_user, get_current_user_from_access_token
 from routers import (
     auth, documents, quizzes, folders, recaps, chats, friends, audio,
     institutions, class_tokens, teacher_schedules, teacher_materials,
-    teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace
+    teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace,
+    teacher_students
 )
 
 app = fastapi_app = FastAPI(title="EduScanner AI")
@@ -287,6 +288,7 @@ api_router.include_router(learner_sync.router)
 api_router.include_router(redeem.router)
 api_router.include_router(institution_mgmt.router)
 api_router.include_router(shadow_workspace.router)
+api_router.include_router(teacher_students.router)
 
 # Mount the api_router to app
 fastapi_app.include_router(api_router)

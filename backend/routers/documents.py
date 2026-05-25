@@ -20,9 +20,9 @@ except ImportError:
 
 from core.database import db
 from core.config import UPLOAD_DIR, AUDIO_DIR, SUPABASE_URL, SUPABASE_ANON_KEY, MAX_UPLOAD_BYTES, API_PREFIX
-from models.user import User, SubjectItem, ScheduleItem, EducationSettingsPayload
+from models.user import User, UserRole, SubjectItem, ScheduleItem, EducationSettingsPayload
 from models.document import MaterialGeneratePayload, DocumentMove
-from deps.auth import get_current_user, write_audit
+from deps.auth import get_current_user, require_pengajar, write_audit
 from services.ai_service import (
     _audience,
     _call_groq,
@@ -286,7 +286,8 @@ async def delete_material(material_id: str, request: Request, user: User = Depen
 
 @router.post("/documents/upload")
 async def upload_document(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
-    if user.role == "pelajar" and user.account_type == "perusahaan":
+    # RBAC: Institutional students are blocked from manual uploads
+    if user.role == UserRole.pelajar and user.institution_code:
         raise HTTPException(403, "Pelajar institusi tidak dapat mengunggah dokumen secara mandiri.")
 
     if not file.filename:
@@ -373,11 +374,9 @@ async def upload_subject_material(
     request: Request,
     subject_id: str,
     files: List[UploadFile] = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_pengajar),
 ):
-    if user.role == "pelajar" and user.account_type == "perusahaan":
-        raise HTTPException(403, "Pelajar institusi tidak dapat mengunggah materi pelajaran secara mandiri.")
-
+    # This route is specifically for institutional materials, so we use require_pengajar
     if not files or len(files) == 0:
         raise HTTPException(400, "Pilih minimal 1 file")
 
@@ -493,36 +492,51 @@ async def upload_subject_material(
 async def list_documents(user: User = Depends(get_current_user)):
     docs = await db.documents.find({"user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
     
-    if user.role == "pelajar" and user.institution_code:
+    if user.role == UserRole.pelajar:
         subjects = user.subjects or []
         subject_names = [s.get("name") for s in subjects if s.get("name")]
         
-        inst_docs = await db.documents.find({
-            "institution_code": user.institution_code,
-            "subject_name": {"$in": subject_names},
-            "visibility": "institution",
-            "status": "published"
-        }, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
+        inst_docs = []
+        if user.institution_code:
+            inst_docs = await db.documents.find({
+                "institution_code": user.institution_code,
+                "subject_name": {"$in": subject_names},
+                "visibility": "institution",
+                "status": "published"
+            }, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
+        elif user.class_token_used:
+            token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+            if token_doc:
+                inst_docs = await db.documents.find({
+                    "user_id": token_doc["created_by_user_id"],
+                    "$or": [
+                        {"target_class_room": token_doc["target_class_room"]},
+                        {"target_class_rooms": token_doc["target_class_room"]}
+                    ],
+                    "subject_name": {"$in": subject_names},
+                    "status": "published"
+                }, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
         
-        name_to_folder = {s["name"].strip().lower(): s.get("folder_id") for s in subjects if s.get("name")}
-        name_to_subject_id = {s["name"].strip().lower(): s.get("id") for s in subjects if s.get("name")}
-        for doc in inst_docs:
-            subj_name = doc.get("subject_name", "")
-            subj_lower = subj_name.strip().lower()
-            doc["folder_id"] = name_to_folder.get(subj_lower)
-            doc["subject_id"] = name_to_subject_id.get(subj_lower)
+        if inst_docs:
+            name_to_folder = {s["name"].strip().lower(): s.get("folder_id") for s in subjects if s.get("name")}
+            name_to_subject_id = {s["name"].strip().lower(): s.get("id") for s in subjects if s.get("name")}
+            for doc in inst_docs:
+                subj_name = doc.get("subject_name", "")
+                subj_lower = subj_name.strip().lower()
+                doc["folder_id"] = name_to_folder.get(subj_lower)
+                doc["subject_id"] = name_to_subject_id.get(subj_lower)
+                
+            docs.extend(inst_docs)
+            docs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
             
-        docs.extend(inst_docs)
-        docs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        
-        seen = set()
-        unique_docs = []
-        for d in docs:
-            d_id = d.get("document_id")
-            if d_id not in seen:
-                seen.add(d_id)
-                unique_docs.append(d)
-        docs = unique_docs[:100]
+            seen = set()
+            unique_docs = []
+            for d in docs:
+                d_id = d.get("document_id")
+                if d_id not in seen:
+                    seen.add(d_id)
+                    unique_docs.append(d)
+            docs = unique_docs[:100]
     return docs
 
 
@@ -530,13 +544,26 @@ async def list_documents(user: User = Depends(get_current_user)):
 async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0, "file_path": 0})
     if not doc:
-        if user.role == "pelajar" and user.institution_code:
-            doc = await db.documents.find_one({
-                "document_id": doc_id,
-                "institution_code": user.institution_code,
-                "visibility": "institution",
-                "status": "published"
-            }, {"_id": 0, "file_path": 0})
+        if user.role == "pelajar":
+            if user.institution_code:
+                doc = await db.documents.find_one({
+                    "document_id": doc_id,
+                    "institution_code": user.institution_code,
+                    "visibility": "institution",
+                    "status": "published"
+                }, {"_id": 0, "file_path": 0})
+            elif user.class_token_used:
+                token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+                if token_doc:
+                    doc = await db.documents.find_one({
+                        "document_id": doc_id,
+                        "user_id": token_doc["created_by_user_id"],
+                        "$or": [
+                            {"target_class_room": token_doc["target_class_room"]},
+                            {"target_class_rooms": token_doc["target_class_room"]}
+                        ],
+                        "status": "published"
+                    }, {"_id": 0, "file_path": 0})
             if doc:
                 subjects = user.subjects or []
                 subj_name = doc.get("subject_name", "")
@@ -600,19 +627,31 @@ async def delete_document(request: Request, doc_id: str, user: User = Depends(ge
 async def document_tts(document_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": document_id, "user_id": user.user_id}, {"_id": 0})
     if not doc:
-        if user.institution_code:
-            if user.role == "pelajar":
+        if user.role == "pelajar":
+            if user.institution_code:
                 doc = await db.documents.find_one({
                     "document_id": document_id,
                     "institution_code": user.institution_code,
                     "visibility": "institution",
                     "status": "published"
                 }, {"_id": 0})
-            else:
-                doc = await db.documents.find_one({
-                    "document_id": document_id,
-                    "institution_code": user.institution_code
-                }, {"_id": 0})
+            elif user.class_token_used:
+                token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+                if token_doc:
+                    doc = await db.documents.find_one({
+                        "document_id": document_id,
+                        "user_id": token_doc["created_by_user_id"],
+                        "$or": [
+                            {"target_class_room": token_doc["target_class_room"]},
+                            {"target_class_rooms": token_doc["target_class_room"]}
+                        ],
+                        "status": "published"
+                    }, {"_id": 0})
+        elif user.role == "pengajar" and user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": document_id,
+                "institution_code": user.institution_code
+            }, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     text = (doc.get("summary") or "").strip()
@@ -644,19 +683,31 @@ async def document_tts(document_id: str, user: User = Depends(get_current_user))
 async def get_document_pdf(doc_id: str, user: User = Depends(get_current_user)):
     doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
     if not doc:
-        if user.institution_code:
-            if user.role == "pelajar":
+        if user.role == "pelajar":
+            if user.institution_code:
                 doc = await db.documents.find_one({
                     "document_id": doc_id,
                     "institution_code": user.institution_code,
                     "visibility": "institution",
                     "status": "published"
                 }, {"_id": 0})
-            else:
-                doc = await db.documents.find_one({
-                    "document_id": doc_id,
-                    "institution_code": user.institution_code
-                }, {"_id": 0})
+            elif user.class_token_used:
+                token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+                if token_doc:
+                    doc = await db.documents.find_one({
+                        "document_id": doc_id,
+                        "user_id": token_doc["created_by_user_id"],
+                        "$or": [
+                            {"target_class_room": token_doc["target_class_room"]},
+                            {"target_class_rooms": token_doc["target_class_room"]}
+                        ],
+                        "status": "published"
+                    }, {"_id": 0})
+        elif user.role == "pengajar" and user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": doc_id,
+                "institution_code": user.institution_code
+            }, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
 
