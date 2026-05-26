@@ -322,10 +322,12 @@ async def logout(request: Request, response: Response):
 @router.put("/profile")
 async def update_profile(payload: ProfileUpdate, request: Request, user: User = Depends(get_current_user)):
     if user.role == "pelajar" and user.enrolled_class:
-        raise HTTPException(
-            403,
-            "Pelajar yang terdaftar di institusi tidak dapat mengubah profil akademik secara mandiri."
-        )
+        academic_fields = [payload.name, payload.username, payload.education_level, payload.major, payload.institution, payload.current_semester]
+        if any(f is not None for f in academic_fields):
+            raise HTTPException(
+                403,
+                "Pelajar yang terdaftar di institusi tidak dapat mengubah profil akademik secara mandiri."
+            )
     update_data = {}
     if payload.name is not None:
         update_data["name"] = payload.name
@@ -350,7 +352,11 @@ async def update_profile(payload: ProfileUpdate, request: Request, user: User = 
         update_data["clone_voice_enabled"] = payload.clone_voice_enabled
     if payload.clone_voice_url is not None:
         update_data["clone_voice_url"] = payload.clone_voice_url
-        
+    if payload.hobby is not None:
+        update_data["hobby"] = payload.hobby
+    if payload.music_genre is not None:
+        update_data["music_genre"] = payload.music_genre
+
     if update_data:
         await db.users.update_one(
             {"user_id": user.user_id},

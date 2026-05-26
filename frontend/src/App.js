@@ -11,6 +11,7 @@ import SignUp from "@/pages/SignUp";
 import AuthCallback from "@/pages/AuthCallback";
 import ForgotPassword from "@/pages/ForgotPassword";
 import Onboarding from "@/pages/Onboarding";
+import HobiOnboarding from "@/pages/HobiOnboarding";
 import HomeRedirect from "@/components/HomeRedirect";
 import Documents from "@/pages/Documents";
 import Friends from "@/pages/Friends";
@@ -22,6 +23,7 @@ import Recap from "@/pages/Recap";
 import Quiz from "@/pages/Quiz";
 import QuizResult from "@/pages/QuizResult";
 import QuizHistory from "@/pages/QuizHistory";
+import TeacherQuizResults from "@/pages/teacher/TeacherQuizResults";
 import AuditLog from "@/pages/AuditLog";
 import Profile from "@/pages/Profile";
 import TeacherSchedules from "@/pages/teacher/TeacherSchedules";
@@ -48,6 +50,9 @@ function AppRouter() {
       <Route path="/onboarding" element={
         <ProtectedRoute requireOnboarded={false}><Onboarding /></ProtectedRoute>
       } />
+      <Route path="/onboarding-hobi" element={
+        <ProtectedRoute requireOnboarded={false}><HobiOnboarding /></ProtectedRoute>
+      } />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<HomeRedirect />} />
         <Route path="/dokumen" element={<Documents />} />
@@ -73,6 +78,7 @@ function AppRouter() {
         <Route path="/admin/audit-logs" element={<AuditLogViewer />} />
         <Route path="/admin/reports" element={<ReportsPage />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
+        <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
       </Route>
       <Route path="*" element={<Landing />} />
     </Routes>

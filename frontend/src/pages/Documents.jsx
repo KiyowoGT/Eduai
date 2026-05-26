@@ -13,7 +13,8 @@ import {
   publishTeacherQuiz,
   generateRedeemCode,
   updateTeacherMaterial,
-  reviewTeacherMaterial
+  reviewTeacherMaterial,
+  listPendingReviewMaterials,
 } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,11 @@ import {
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -71,7 +77,8 @@ import {
   QrCode,
   CheckCircle2,
   Bot,
-  Edit3
+  Edit3,
+  XCircle
 } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
 import { useAuth } from "@/context/AuthContext";
@@ -98,6 +105,8 @@ export default function Documents() {
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [quizCountMap, setQuizCountMap] = useState({});
   const [quizGeneratingMap, setQuizGeneratingMap] = useState({});
+  const [quizTargetClasses, setQuizTargetClasses] = useState({});
+  const [quizDeadline, setQuizDeadline] = useState({});
   const [publishClassMap, setPublishClassMap] = useState({});
   const [publishingQuizMap, setPublishingQuizMap] = useState({});
   const [redeemExpMap, setRedeemExpMap] = useState({});
@@ -110,15 +119,23 @@ export default function Documents() {
   const [savingClasses, setSavingClasses] = useState(false);
 
   // Kajur (Head of Department) review states & helpers
-  const isKajurOrAdmin = isTeacher && (
-    user?.title === "kajur" || 
-    user?.title === "kurikulum" || 
-    user?.title === "kepala_sekolah" ||
-    (user?.titles || []).some(t => ["kajur", "kurikulum", "kepala_sekolah"].includes(t))
-  );
   const [reviewingDoc, setReviewingDoc] = useState(null);
   const [rejectComment, setRejectComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  const loadPendingReviews = async () => {
+    setLoadingReviews(true);
+    try {
+      const res = await listPendingReviewMaterials();
+      setPendingReviews(res ?? []);
+    } catch {
+      setPendingReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
 
   const handleReviewMaterial = async (docId, decision, comment = "") => {
     setSubmittingReview(true);
@@ -131,7 +148,11 @@ export default function Documents() {
       }
       setReviewingDoc(null);
       setRejectComment("");
-      loadTeacherData();
+      if (["kajur", "kurikulum"].includes(user?.title)) {
+        loadPendingReviews();
+      } else {
+        loadTeacherData();
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       let errMsg = "Gagal memproses review.";
@@ -152,8 +173,11 @@ export default function Documents() {
   useRealtimeSocket((payload) => {
     if (payload?.type === "document_status") {
       if (isTeacher) {
-        // Refresh materials list if there is a processing state change
-        listTeacherMaterials().then(setMaterials).catch(() => []);
+        if (["kajur", "kurikulum"].includes(user?.title)) {
+          loadPendingReviews();
+        } else {
+          listTeacherMaterials().then(setMaterials).catch(() => []);
+        }
       } else {
         // Refresh student docs
         listDocuments().then(setDocs).catch(() => []);
@@ -190,11 +214,19 @@ export default function Documents() {
 
   useEffect(() => {
     if (isTeacher) {
-      loadTeacherData();
+      if (user?.title === "guru_pengajar" || user?.account_type === "pribadi") {
+        loadTeacherData();
+      }
     } else {
       loadStudentData();
     }
-  }, [isTeacher]);
+  }, [isTeacher, user?.title, user?.account_type]);
+
+  useEffect(() => {
+    if (isTeacher && ["kajur", "kurikulum"].includes(user?.title)) {
+      loadPendingReviews();
+    }
+  }, [isTeacher, user?.title]);
 
   // ================= STUDENT ACTIONS =================
   const toggle = (id) => {
@@ -322,9 +354,11 @@ export default function Documents() {
 
   const handleGenerateQuiz = async (docId) => {
     const qCount = quizCountMap[docId] || 5;
+    const targetClasses = quizTargetClasses[docId] || [];
+    const deadline = quizDeadline[docId] || null;
     setQuizGeneratingMap(prev => ({ ...prev, [docId]: true }));
     try {
-      await generateTeacherQuiz(docId, qCount);
+      await generateTeacherQuiz(docId, qCount, targetClasses, deadline);
       toast.success("Kuis AI sedang diproses. Silakan tunggu.");
       loadTeacherData();
     } catch (err) {
@@ -378,7 +412,126 @@ export default function Documents() {
 
   // ================= RENDER INTERFACE =================
 
-  // 1. TEACHER MATERIAL MANAGEMENT VIEW
+  // 1A. REVIEWER VIEW (Kajur / Kurikulum) — strictly pending review queue only
+  if (isTeacher && ["kajur", "kurikulum"].includes(user?.title)) {
+    return (
+      <div className="w-full" data-testid="reviewer-documents-page">
+        <div className="mb-6 fade-up">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Review Portal</div>
+          <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Review Materi</h1>
+          <p className="text-sm text-[#646675] mt-2">
+            {user?.title === "kajur" ? "Kepala Jurusan" : "Kurikulum"} — Tinjau dan validasi modul ajar dari para guru sebelum diterbitkan.
+          </p>
+        </div>
+
+        {loadingReviews ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-[#1D2D50]" /></div>
+        ) : pendingReviews.length === 0 ? (
+          <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-12 text-center">
+            <FileText className="w-12 h-12 text-[#A0A2B1] mx-auto mb-3" />
+            <div className="text-sm text-[#646675]">Belum ada materi yang harus direview.</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6">
+            {pendingReviews.map((m) => (
+              <div key={m.document_id} className="bg-white border border-[#E2E0D8] rounded-xl p-5 shadow-sm transition-all hover:border-[#1D2D50]/30">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-lg bg-[#FFF8E7] border border-[#E5A93C]/30 grid place-items-center shrink-0">
+                      <FileText className="w-5 h-5 text-[#E5A93C]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-heading text-lg font-bold text-[#1A1B26]">{m.title || m.filename}</h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#646675] mt-1">
+                        <span className="font-semibold text-[#1D2D50]">{m.subject_name}</span>
+                        <span>•</span>
+                        <span>Oleh: <strong>{m.teacher_name || "Guru"}</strong></span>
+                        <span>•</span>
+                        <span>Kelas: <strong>{m.target_class_rooms?.join(", ") || m.target_class_room || "Umum"}</strong></span>
+                        <span>•</span>
+                        <span className="font-mono text-[#A0A2B1]">{new Date(m.created_at).toLocaleDateString("id-ID")}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      onClick={() => { handleReviewMaterial(m.document_id, "approve"); setTimeout(loadPendingReviews, 1000); }}
+                      disabled={submittingReview}
+                      size="sm"
+                      className="bg-[#2D6A4F] hover:bg-[#204e39] text-white text-xs"
+                    >
+                      {submittingReview ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
+                      Setujui & Terbitkan
+                    </Button>
+                    <Button
+                      onClick={() => setReviewingDoc(m)}
+                      disabled={submittingReview}
+                      size="sm"
+                      variant="outline"
+                      className="border-[#B83A4B] text-[#B83A4B] hover:bg-[#B83A4B]/5 text-xs"
+                    >
+                      <XCircle className="w-3.5 h-3.5 mr-1" />
+                      Koreksi / Tolak
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Reject Dialog */}
+        <Dialog open={!!reviewingDoc} onOpenChange={(open) => { if (!open) { setReviewingDoc(null); setRejectComment(""); } }}>
+          <DialogContent className="max-w-md bg-white border border-[#E2E0D8] rounded-xl shadow-xl p-6">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-lg text-[#1A1B26]">Koreksi / Tolak Materi</DialogTitle>
+              <DialogDescription className="text-xs text-[#646675] mt-1">
+                Berikan catatan koreksi untuk materi: <strong>{reviewingDoc?.title || reviewingDoc?.filename}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <textarea
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+                placeholder="Jelaskan apa yang perlu diperbaiki..."
+                className="w-full min-h-[100px] p-3 text-xs border border-[#E2E0D8] rounded-lg bg-[#F8F6F0] text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20 resize-none"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setReviewingDoc(null); setRejectComment(""); }} className="text-xs">Batal</Button>
+              <Button
+                onClick={() => { handleReviewMaterial(reviewingDoc?.document_id, "reject", rejectComment); setTimeout(loadPendingReviews, 1000); }}
+                disabled={submittingReview || !rejectComment.trim()}
+                className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white text-xs"
+              >
+                {submittingReview ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                Kirim Koreksi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // 1B. KEPALA SEKOLAH VIEW — simplified, no materials management
+  if (isTeacher && user?.title === "kepala_sekolah") {
+    return (
+      <div className="w-full" data-testid="kepsek-documents-page">
+        <div className="mb-6 fade-up">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Kepala Sekolah</div>
+          <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Materi & Kuis</h1>
+          <p className="text-sm text-[#646675] mt-2">Pantau materi ajar dan kuis yang telah diterbitkan di sekolah.</p>
+        </div>
+        <div className="bg-white border border-[#E2E0D8] rounded-xl p-12 text-center">
+          <FileText className="w-12 h-12 text-[#A0A2B1] mx-auto mb-3" />
+          <div className="text-sm text-[#646675]">Gunakan menu <strong>Analitik</strong> untuk melihat laporan pembelajaran secara makro.</div>
+        </div>
+      </div>
+    );
+  }
+
+  // 1. TEACHER (GURU PENGAJAR / GURU MANDIRI) MATERIAL MANAGEMENT VIEW
   if (isTeacher) {
     return (
       <div className="w-full" data-testid="teacher-documents-page">
@@ -578,34 +731,9 @@ export default function Documents() {
                         </Button>
                       )}
                       {m.status === "pending_review" && (
-                        isKajurOrAdmin ? (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              onClick={() => handleReviewMaterial(m.document_id, "approve")}
-                              disabled={submittingReview}
-                              size="sm"
-                              className="bg-[#2D6A4F] hover:bg-[#204e39] text-white text-xs"
-                            >
-                              Setujui & Terbitkan
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                setReviewingDoc(m);
-                                setRejectComment("");
-                              }}
-                              disabled={submittingReview}
-                              variant="outline"
-                              size="sm"
-                              className="border-[#B83A4B] text-[#B83A4B] hover:bg-[#B83A4B]/5 text-xs"
-                            >
-                              Koreksi / Tolak
-                            </Button>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-[#E5A93C] flex items-center gap-1.5 font-medium animate-pulse">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Menunggu verifikasi Kurikulum/Kajur
-                          </p>
-                        )
+                        <p className="text-xs text-[#E5A93C] flex items-center gap-1.5 font-medium animate-pulse">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Menunggu verifikasi Kurikulum/Kajur
+                        </p>
                       )}
                       {m.status === "published" && (
                         <p className="text-xs text-[#2D6A4F] flex items-center gap-1 font-medium">
@@ -616,36 +744,100 @@ export default function Documents() {
 
                     {/* Right: AI Quiz generator tool */}
                     {user?.permissions?.includes("studio_materi") && (
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs text-[#646675]">Jumlah Soal:</div>
-                        <Select
-                          value={String(quizCountMap[m.document_id] || 5)}
-                          onValueChange={(val) => setQuizCountMap(prev => ({ ...prev, [m.document_id]: parseInt(val) }))}
-                        >
-                          <SelectTrigger className="w-[70px] h-8 text-xs border-[#E2E0D8]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="5">5</SelectItem>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="15">15</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          onClick={() => handleGenerateQuiz(m.document_id)}
-                          disabled={quizGeneratingMap[m.document_id]}
-                          size="sm"
-                          className="bg-[#1D2D50] hover:bg-[#15223E] text-white text-xs"
-                        >
-                          {quizGeneratingMap[m.document_id] ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-[#1D2D50]/30 text-[#1D2D50] hover:bg-[#1D2D50]/5 text-xs"
+                          >
                             <Bot className="w-3.5 h-3.5 mr-1 text-[#E5A93C]" />
-                          )}
-                          Buat Kuis AI
-                        </Button>
-                      </div>
+                            Buat Kuis AI
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 bg-white p-4" align="end">
+                          <div className="space-y-4">
+                            <h4 className="font-heading text-sm text-[#1A1B26] font-semibold">Konfigurasi Kuis AI</h4>
+
+                            {/* Question Count */}
+                            <div>
+                              <label className="text-xs text-[#646675] mb-1.5 block">Jumlah Soal</label>
+                              <Select
+                                value={String(quizCountMap[m.document_id] || 5)}
+                                onValueChange={(val) => setQuizCountMap(prev => ({ ...prev, [m.document_id]: parseInt(val) }))}
+                              >
+                                <SelectTrigger className="w-full h-8 text-xs border-[#E2E0D8]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="5">5</SelectItem>
+                                  <SelectItem value="10">10</SelectItem>
+                                  <SelectItem value="15">15</SelectItem>
+                                  <SelectItem value="20">20</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Target Classes */}
+                            <div>
+                              <label className="text-xs text-[#646675] mb-1.5 block">Sasaran Kelas</label>
+                              {classes.length === 0 ? (
+                                <p className="text-[10px] text-[#A0A2B1]">Belum ada kelas terdaftar.</p>
+                              ) : (
+                                <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
+                                  {classes.map((clsName) => {
+                                    const selected = (quizTargetClasses[m.document_id] || []).includes(clsName);
+                                    return (
+                                      <label key={clsName} className="flex items-center gap-2 text-xs text-[#1A1B26] cursor-pointer p-1 rounded hover:bg-[#F8F6F0] transition-colors">
+                                        <input
+                                          type="checkbox"
+                                          checked={selected}
+                                          onChange={() => {
+                                            const current = quizTargetClasses[m.document_id] || [];
+                                            setQuizTargetClasses(prev => ({
+                                              ...prev,
+                                              [m.document_id]: selected
+                                                ? current.filter(c => c !== clsName)
+                                                : [...current, clsName]
+                                            }));
+                                          }}
+                                          className="rounded border-[#E2E0D8] text-[#1D2D50] focus:ring-0"
+                                        />
+                                        {clsName}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Deadline */}
+                            <div>
+                              <label className="text-xs text-[#646675] mb-1.5 block">Batas Waktu (opsional)</label>
+                              <Input
+                                type="datetime-local"
+                                value={quizDeadline[m.document_id] || ""}
+                                onChange={(e) => setQuizDeadline(prev => ({ ...prev, [m.document_id]: e.target.value }))}
+                                className="w-full h-8 text-xs border-[#E2E0D8]"
+                              />
+                            </div>
+
+                            <Button
+                              onClick={() => handleGenerateQuiz(m.document_id)}
+                              disabled={quizGeneratingMap[m.document_id]}
+                              size="sm"
+                              className="w-full bg-[#1D2D50] hover:bg-[#15223E] text-white text-xs"
+                            >
+                              {quizGeneratingMap[m.document_id] ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Bot className="w-3.5 h-3.5 mr-1 text-[#E5A93C]" />
+                              )}
+                              {quizGeneratingMap[m.document_id] ? "Memproses..." : "Hasilkan & Terbitkan"}
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     )}
 
                   </div>
@@ -680,6 +872,14 @@ export default function Documents() {
                                   Diterbitkan di: {q.class_name}
                                 </div>
                               )}
+                              <Button
+                                onClick={() => navigate(`/teacher/quiz-results/${q.quiz_id}`)}
+                                size="xs"
+                                variant="outline"
+                                className="h-6 text-[10px] px-2 border-[#1D2D50]/20 text-[#1D2D50] hover:bg-[#1D2D50]/5 ml-2"
+                              >
+                                Lihat Hasil
+                              </Button>
                               {q.redeem_code && (
                                 <div className="text-[10px] text-[#E5A93C] bg-[#E5A93C]/10 border border-[#E5A93C]/20 px-2 py-1 rounded flex items-center gap-1 justify-between font-mono font-bold mt-1">
                                   <span>Kode Redeem: {q.redeem_code}</span>

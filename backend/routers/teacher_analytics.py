@@ -1,6 +1,7 @@
 import logging
 import json
 import re
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
@@ -14,6 +15,13 @@ from services.ai_service import _call_gemini
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+ADAPTIF_SUBJECTS = {
+    "bahasa indonesia", "bahasa inggris", "matematika", "ppkn",
+    "pendidikan agama islam", "pai", "pendidikan agama", "penjasorkes",
+    "pjok", "seni budaya", "pkwu", "prakarya", "sejarah indonesia",
+    "bahasa daerah", "mulok", "pendidikan pancasila"
+}
 
 @router.get("/teacher/students")
 async def get_teacher_students(user: User = Depends(require_pengajar)):
@@ -596,3 +604,168 @@ async def get_teacher_quiz_insights(
     await db.quiz_insights.update_one({"quiz_id": quiz_id}, {"$set": insight_doc}, upsert=True)
 
     return {"insight_text": insight_text}
+
+
+def _is_productive_subject(subject_name: str) -> bool:
+    if not subject_name:
+        return False
+    return subject_name.strip().lower() not in ADAPTIF_SUBJECTS
+
+
+async def _check_quiz_access(quiz_id: str, user: User) -> Optional[dict]:
+    if user.account_type == "pribadi":
+        return await db.quizzes.find_one({"quiz_id": quiz_id, "user_id": user.user_id}, {"_id": 0})
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi manapun")
+    quiz = await db.quizzes.find_one({"quiz_id": quiz_id, "institution_code": user.institution_code}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(404, "Kuis tidak ditemukan")
+    is_allowed = (
+        quiz.get("user_id") == user.user_id or
+        TeacherTitle.kepala_sekolah in user.all_titles or
+        TeacherTitle.kurikulum in user.all_titles or
+        (TeacherTitle.guru_kelas in user.all_titles and (
+            quiz.get("class_name") == user.assigned_class or
+            user.assigned_class in quiz.get("target_class_rooms", [])
+        )) or
+        (TeacherTitle.kajur in user.all_titles and (
+            quiz.get("subject_name") and quiz["subject_name"].strip().lower() == (user.assigned_subject or "").strip().lower()
+        )) or
+        (user.assigned_subject and quiz.get("subject_name") and
+         quiz["subject_name"].strip().lower() == user.assigned_subject.strip().lower())
+    )
+    if not is_allowed:
+        raise HTTPException(403, "Anda tidak memiliki akses ke kuis ini")
+    return quiz
+
+
+async def _ensure_missed_results(quiz: dict):
+    if quiz.get("status") != "published":
+        return
+    deadline_str = quiz.get("deadline")
+    if not deadline_str:
+        return
+    deadline = datetime.fromisoformat(deadline_str)
+    if deadline > datetime.now(timezone.utc):
+        return
+
+    target_classes = quiz.get("target_class_rooms") or ([quiz.get("class_name")] if quiz.get("class_name") else [])
+    if not target_classes or not quiz.get("institution_code"):
+        return
+
+    students = await db.users.find({
+        "institution_code": quiz["institution_code"],
+        "enrolled_class": {"$in": target_classes},
+        "role": "pelajar"
+    }, {"user_id": 1}).to_list(2000)
+
+    existing = await db.quiz_results.find(
+        {"quiz_id": quiz["quiz_id"], "status": {"$ne": "deleted"}},
+        {"user_id": 1}
+    ).to_list(2000)
+    submitted_ids = {r["user_id"] for r in existing}
+
+    now = datetime.now(timezone.utc).isoformat()
+    for s in students:
+        uid = s["user_id"]
+        if uid in submitted_ids:
+            continue
+        exists = await db.quiz_results.find_one({"quiz_id": quiz["quiz_id"], "user_id": uid})
+        if exists:
+            continue
+        await db.quiz_results.insert_one({
+            "result_id": uuid.uuid4().hex,
+            "quiz_id": quiz["quiz_id"],
+            "document_id": quiz.get("document_id"),
+            "user_id": uid,
+            "created_by": quiz.get("user_id"),
+            "answers": [],
+            "score": 0,
+            "summary": "Tidak mengerjakan kuis sebelum deadline. Nilai otomatis 0.",
+            "items": [],
+            "status": "ready",
+            "institution_code": quiz.get("institution_code"),
+            "student_class": s.get("enrolled_class"),
+            "subject_name": quiz.get("subject_name"),
+            "source": "institution_class",
+            "created_at": now,
+        })
+
+
+@router.get("/teacher/quizzes/{quiz_id}/results")
+async def get_quiz_student_results(
+    quiz_id: str,
+    user: User = Depends(require_pengajar)
+):
+    quiz = await _check_quiz_access(quiz_id, user)
+
+    if user.account_type != "pribadi" and TeacherTitle.kajur in user.all_titles:
+        if not _is_productive_subject(quiz.get("subject_name")):
+            raise HTTPException(403, "Kajur/Kaprog hanya dapat mengakses nilai mata pelajaran produktif (kejuruan)")
+
+    if quiz.get("institution_code"):
+        await _ensure_missed_results(quiz)
+
+    target_classes = quiz.get("target_class_rooms") or ([quiz.get("class_name")] if quiz.get("class_name") else [])
+
+    results_query = {
+        "quiz_id": quiz_id,
+        "status": "ready"
+    }
+    if quiz.get("institution_code"):
+        results_query["institution_code"] = quiz["institution_code"]
+        results_query["source"] = "institution_class"
+
+    results = await db.quiz_results.find(results_query).to_list(5000)
+    results_by_user = {r["user_id"]: r for r in results}
+
+    student_query = {
+        "institution_code": quiz.get("institution_code"),
+        "enrolled_class": {"$in": target_classes},
+        "role": "pelajar"
+    } if target_classes and quiz.get("institution_code") else {
+        "user_id": {"$in": [r["user_id"] for r in results]},
+        "role": "pelajar"
+    }
+
+    # Scope for guru_kelas
+    if TeacherTitle.guru_kelas in user.all_titles and user.assigned_class and target_classes:
+        student_query["enrolled_class"] = user.assigned_class
+
+    students = await db.users.find(student_query, {
+        "_id": 0, "user_id": 1, "name": 1, "email": 1, "enrolled_class": 1
+    }).to_list(2000)
+
+    student_list = []
+    for s in students:
+        r = results_by_user.get(s["user_id"])
+        student_list.append({
+            "user_id": s["user_id"],
+            "name": s.get("name", "Siswa"),
+            "email": s.get("email"),
+            "class": s.get("enrolled_class"),
+            "score": r.get("score") if r else 0,
+            "status": r.get("status") if r else ("missed" if quiz.get("deadline") and datetime.fromisoformat(quiz["deadline"]) < datetime.now(timezone.utc) else "pending"),
+            "submitted_at": r.get("created_at") if r else None,
+            "result_id": r.get("result_id") if r else None,
+            "summary": (r.get("summary") or "")[:200] if r else None,
+        })
+
+    student_list.sort(key=lambda x: x["name"] or "")
+
+    return {
+        "quiz_id": quiz_id,
+        "title": quiz.get("source_titles", ["Kuis"])[0] if quiz.get("source_titles") else "Kuis",
+        "subject_name": quiz.get("subject_name"),
+        "target_classes": target_classes,
+        "deadline": quiz.get("deadline"),
+        "total_students": len(student_list),
+        "submitted_count": sum(1 for s in student_list if s["status"] == "ready"),
+        "missed_count": sum(1 for s in student_list if s["status"] == "missed"),
+        "pending_count": sum(1 for s in student_list if s["status"] == "pending"),
+        "average_score": round(
+            sum(s["score"] for s in student_list if s["status"] == "ready") /
+            max(sum(1 for s in student_list if s["status"] == "ready"), 1), 1
+        ),
+        "students": student_list,
+    }

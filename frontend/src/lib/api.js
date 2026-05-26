@@ -528,11 +528,28 @@ export async function updateTeacherMaterial(docId, payload) {
   return r.data;
 }
 
-export async function generateTeacherQuiz(docId, questionCount) {
+export async function generateTeacherQuiz(docId, questionCount, targetClasses, deadline) {
   const r = await http.post("/teacher/quizzes/generate", {
     document_id: docId,
     question_count: questionCount,
+    target_classes: targetClasses || [],
+    deadline: deadline || null,
   });
+  return r.data;
+}
+
+export async function getTeacherQuizResults(quizId) {
+  const r = await http.get(`/teacher/quizzes/${quizId}/results`);
+  return r.data;
+}
+
+export async function listAssignedQuizzes() {
+  const r = await http.get("/quiz/assigned");
+  return r.data;
+}
+
+export async function listPendingReviewMaterials() {
+  const r = await http.get("/teacher/materials/pending-review");
   return r.data;
 }
 

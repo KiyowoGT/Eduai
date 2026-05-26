@@ -28,7 +28,9 @@ from services.ai_service import (
     _audience,
     _call_groq,
     run_analysis_queued,
-    _emit_document_status
+    _emit_document_status,
+    aimusic,
+    personalize_document_for_student
 )
 from services.tts_service import _generate_tts
 
@@ -599,6 +601,49 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
             
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
+
+    if user.role == "pelajar" and user.hobby == "musik":
+        genre = (user.music_genre or "pop, romantic").strip()
+        music_summaries = doc.get("music_summaries", {})
+        if genre not in music_summaries:
+            summary_text = doc.get("summary", "")
+            if summary_text:
+                try:
+                    res = await aimusic(summary_text, genre)
+                    music_summaries[genre] = res
+                    await db.documents.update_one(
+                        {"document_id": doc_id},
+                        {"$set": {"music_summaries": music_summaries}}
+                    )
+                    doc["music_summaries"] = music_summaries
+                except Exception as e:
+                    logger.warning(f"Gagal melakukan personalisasi musik untuk genre {genre}: {e}")
+
+    elif user.role == "pelajar" and user.hobby and user.hobby not in ("none", "musik", ""):
+        # Check cache
+        cache = await db.personalized_documents.find_one({
+            "document_id": doc_id,
+            "user_id": user.user_id,
+            "hobby": user.hobby
+        })
+        if cache:
+            doc["summary"] = cache.get("summary", doc.get("summary"))
+            doc["key_concepts"] = cache.get("key_concepts", doc.get("key_concepts"))
+        else:
+            pers = await personalize_document_for_student(doc, user.hobby)
+            if pers:
+                doc["summary"] = pers["summary"]
+                doc["key_concepts"] = pers["key_concepts"]
+                # Save cache
+                await db.personalized_documents.insert_one({
+                    "document_id": doc_id,
+                    "user_id": user.user_id,
+                    "hobby": user.hobby,
+                    "summary": pers["summary"],
+                    "key_concepts": pers["key_concepts"],
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+
     return doc
 
 
@@ -780,107 +825,9 @@ async def list_document_jobs(user: User = Depends(get_current_user)):
 
 
 from pydantic import BaseModel
-import random
 
 class MusicSummaryPayload(BaseModel):
     tags: Optional[str] = "pop, romantic"
-
-async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        query_payload = [
-            {
-                "role": "system",
-                "content": "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics. Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. Use only the tag (e.g., [verse]) without any numbering or extra text (e.g., do not write [verse 1], [chorus x2], etc). Do not add explanations, titles, or any other text outside of the lyrics. Focus on vivid imagery, emotional flow, and strong lyrical rhythm. Refrain from labeling genre or giving commentary. Respond in clean plain text, exactly as if it were a song lyric sheet."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-        
-        r1 = await client.get(
-            "https://8pe3nv3qha.execute-api.us-east-1.amazonaws.com/default/llm_chat",
-            params={
-                "query": json.dumps(query_payload),
-                "link": "writecream.com"
-            }
-        )
-        if r1.status_code != 200:
-            raise Exception(f"Gagal membuat lirik dari API: {r1.status_code}")
-            
-        ai_res = r1.json()
-        lyrics = ai_res.get("response_content", "")
-        if not lyrics:
-            raise Exception("Respons lirik kosong dari AI")
-            
-        session_hash = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
-        
-        r2 = await client.post(
-            "https://ace-step-ace-step.hf.space/gradio_api/queue/join?",
-            json={
-                "data": [
-                    240,
-                    tags,
-                    lyrics,
-                    60,
-                    15,
-                    'euler',
-                    'apg',
-                    10,
-                    '',
-                    0.5,
-                    0,
-                    3,
-                    True,
-                    False,
-                    True,
-                    '',
-                    0,
-                    0,
-                    False,
-                    0.5,
-                    None,
-                    'none'
-                ],
-                "event_data": None,
-                "fn_index": 11,
-                "trigger_id": 45,
-                "session_hash": session_hash
-            }
-        )
-        if r2.status_code != 200:
-            raise Exception(f"Gagal mengirim aransemen ke HF: {r2.status_code}")
-            
-        audio_url = None
-        for _ in range(45):  # Poll up to 90 seconds
-            await asyncio.sleep(2.0)
-            r3 = await client.get(
-                f"https://ace-step-ace-step.hf.space/gradio_api/queue/data?session_hash={session_hash}"
-            )
-            if r3.status_code != 200:
-                continue
-                
-            lines = r3.text.split("\n\n")
-            for line in lines:
-                if line.startswith("data:"):
-                    try:
-                        import json as json_lib
-                        d = json_lib.loads(line[5:])
-                        if d.get("msg") == "process_completed":
-                            audio_url = d["output"]["data"][0]["url"]
-                            break
-                    except Exception:
-                        pass
-            if audio_url:
-                break
-                
-        if not audio_url:
-            raise Exception("Pembuatan audio musik timeout di HF Space")
-            
-        return {
-            "lyrics": lyrics,
-            "audio_url": audio_url
-        }
 
 @router.post("/documents/{doc_id}/music-summary")
 async def get_or_create_music_summary(

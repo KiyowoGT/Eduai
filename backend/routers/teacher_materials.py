@@ -20,7 +20,7 @@ from routers.documents import (
     PIL_AVAILABLE,
     Image
 )
-from services.ai_service import run_analysis_queued, _bg_generate_quiz
+from services.ai_service import run_analysis_queued, _bg_generate_quiz, _bg_generate_music_for_students
 from routers.quizzes import _public_quiz
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,8 @@ class UpdateMaterialPayload(BaseModel):
 class TeacherQuizGeneratePayload(BaseModel):
     document_id: str
     question_count: int = 5
+    target_classes: List[str] = []
+    deadline: Optional[str] = None
 
 class TeacherQuizPublishPayload(BaseModel):
     class_name: str
@@ -91,7 +93,6 @@ async def upload_teacher_material(
     if user.account_type != AccountType.pribadi and not user.institution_code:
         raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
-    # Scope validation
     subject_name = subject_name.strip()
     if not subject_name:
         raise HTTPException(400, "Nama mata pelajaran wajib diisi")
@@ -100,7 +101,6 @@ async def upload_teacher_material(
         if subject_name.lower() != user.assigned_subject.lower():
             raise HTTPException(403, f"Guru pengajar hanya diperbolehkan mengunggah materi untuk mata pelajaran mereka sendiri ({user.assigned_subject})")
 
-    # Parse target_classes if provided
     class_rooms = []
     if target_classes:
         import json
@@ -113,12 +113,10 @@ async def upload_teacher_material(
     elif target_class_room:
         class_rooms = [target_class_room]
 
-    # ... rest of validation logic ...
-
     ext = Path(file.filename).suffix.lower() if file.filename else ""
     is_image = file.content_type in ALLOWED_IMAGE_TYPES or ext in (".jpg", ".jpeg", ".png", ".webp", ".bmp")
     is_pdf = ext == ".pdf" or file.content_type == "application/pdf"
-    
+
     if not is_image and not is_pdf:
         raise HTTPException(400, "Format tidak didukung. Gunakan PDF atau gambar (JPG/PNG/WEBP/BMP).")
 
@@ -152,14 +150,13 @@ async def upload_teacher_material(
         pdf_bytes = await file.read()
         _ensure_within_upload_limit(len(pdf_bytes), file.filename)
 
-    # Check academic content (HITL Filter)
     try:
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(pdf_bytes))
         extracted_text = ""
         for i in range(min(5, len(reader.pages))):
             extracted_text += reader.pages[i].extract_text() or ""
-        
+
         NON_ACADEMIC_KEYWORDS = [
             "bimbingan konseling",
             "inventaris",
@@ -207,18 +204,18 @@ async def upload_teacher_material(
         "diagrams": [],
         "learning_objectives": [],
         "subject_name": subject_name,
-        "target_class_room": class_rooms[0] if class_rooms else None, # Legacy
-        "target_class_rooms": class_rooms, # New multi-class support
+        "target_class_room": class_rooms[0] if class_rooms else None,
+        "target_class_rooms": class_rooms,
         "visibility": "private" if user.account_type == AccountType.pribadi else "institution",
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.documents.insert_one(doc.copy())
-    
+
     ip = request.client.host if request.client else ""
     await write_audit(user.user_id, "TEACHER_MATERIAL_UPLOAD", {
-        "document_id": doc_id, 
-        "filename": file.filename, 
+        "document_id": doc_id,
+        "filename": file.filename,
         "subject_name": subject_name,
         "target_classes": class_rooms
     }, ip)
@@ -228,6 +225,7 @@ async def upload_teacher_material(
     res = doc.copy()
     res.pop("file_path", None)
     return res
+
 
 @router.get("/teacher/materials")
 async def list_teacher_materials(user: User = Depends(require_pengajar)):
@@ -240,9 +238,6 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
-        # Always include teacher's own uploads even if they were created before
-        # the user linked to an institution (i.e. `institution_code` may be None).
-        # Institution materials remain filtered by institution_code+visibility.
         query = {
             "status": {"$ne": "deleted"},
             "$or": [
@@ -251,12 +246,10 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
             ],
         }
 
-        # Apply scopes based on teacher title, but always include the teacher's own uploads.
-        # Only query class/subject parameters if they are actually set (not None/empty) to prevent incorrect matching.
         or_conditions = [{"user_id": user.user_id}]
         has_scope = False
-        
-        is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+
+        is_admin_or_kajur = user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur)
 
         if not is_admin_or_kajur:
             if TeacherTitle.guru_kelas in user.all_titles:
@@ -272,7 +265,6 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
                     or_conditions.append({"subject_name": user.assigned_subject})
 
             if has_scope:
-                # Narrow the institution materials scope, but still allow own uploads.
                 query["$and"] = [
                     {"$or": query["$or"]},
                     {"$or": or_conditions},
@@ -280,12 +272,10 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
                 query.pop("$or", None)
 
     docs = await db.documents.find(query, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(200)
-    
-    # Fetch quizzes for these documents
+
     doc_ids = [d["document_id"] for d in docs]
     quizzes = await db.quizzes.find({"document_id": {"$in": doc_ids}}).to_list(1000)
-    
-    # Map quizzes to documents
+
     quizzes_by_doc = {}
     for q in quizzes:
         q_clean = {
@@ -296,22 +286,70 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
             "subject_name": q.get("subject_name"),
             "source_titles": q.get("source_titles", [])
         }
-        
-        # Check if there is a redeem code generated for this quiz
+
         redeem = await db.redeem_codes.find_one({"quiz_id": q["quiz_id"]})
         if redeem:
             q_clean["redeem_code"] = redeem["code"]
             q_clean["redeem_expires_at"] = redeem.get("expires_at")
             q_clean["redeem_usage_count"] = redeem.get("usage_count", 0)
-            
+
         doc_id = q["document_id"]
         if doc_id not in quizzes_by_doc:
             quizzes_by_doc[doc_id] = []
         quizzes_by_doc[doc_id].append(q_clean)
-        
+
     for d in docs:
         d["quizzes"] = quizzes_by_doc.get(d["document_id"], [])
-        
+
+    return docs
+
+
+def is_general_subject(subject_name: Optional[str]) -> bool:
+    if not subject_name:
+        return False
+    name = subject_name.lower().strip()
+    keywords = [
+        "agama", "pancasila", "ppkn", "bahasa indonesia", "bahasa inggris",
+        "sejarah", "pjok", "penjasorkes", "seni budaya", "seni", "pai", "jasmani"
+    ]
+    return any(kw in name for kw in keywords)
+
+
+@router.get("/teacher/materials/pending-review")
+async def list_pending_review_materials(user: User = Depends(require_pengajar)):
+    if user.title not in (TeacherTitle.kajur, TeacherTitle.kurikulum, TeacherTitle.kepala_sekolah):
+        raise HTTPException(403, "Hanya Kajur, Kurikulum, atau Kepala Sekolah yang dapat melihat antrian review")
+
+    if not user.institution_code:
+        raise HTTPException(400, "User tidak terhubung ke institusi manapun")
+
+    query = {
+        "institution_code": user.institution_code,
+        "status": "pending_review",
+        "user_id": {"$ne": user.user_id},
+    }
+
+    # Kajur: only productive/vocational subjects
+    if user.title == TeacherTitle.kajur:
+        all_subjects = await db.documents.distinct("subject_name", query)
+        productive = [s for s in all_subjects if s and not is_general_subject(s)]
+        if not productive:
+            return []
+        query["subject_name"] = {"$in": productive}
+
+    docs = await db.documents.find(query, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(200)
+
+    # Enrich with teacher name
+    user_ids = [d["user_id"] for d in docs if d.get("user_id")]
+    teachers = {}
+    if user_ids:
+        cursor = db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0, "user_id": 1, "name": 1})
+        async for t in cursor:
+            teachers[t["user_id"]] = t.get("name", "Guru")
+
+    for d in docs:
+        d["teacher_name"] = teachers.get(d.get("user_id"), "Guru")
+
     return docs
 
 @router.put("/teacher/materials/{doc_id}")
@@ -331,13 +369,13 @@ async def update_teacher_material(
     if not doc:
         raise HTTPException(404, "Materi tidak ditemukan")
 
-    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    is_admin_or_kajur = user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur)
     is_allowed = (
         doc.get("user_id") == user.user_id or
         is_admin_or_kajur or
         (user.account_type != AccountType.pribadi and (
             (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
-            (TeacherTitle.guru_kelas in user.all_titles and (
+            (user.title == TeacherTitle.guru_kelas and (
                 doc.get("target_class_room") == user.assigned_class or
                 user.assigned_class in doc.get("target_class_rooms", [])
             ))
@@ -401,9 +439,11 @@ async def publish_teacher_material(
     if doc.get("status") == "processing":
         raise HTTPException(400, "Materi masih dalam proses analisis AI. Mohon tunggu beberapa saat.")
 
-    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    is_admin_or_kajur = user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur)
+    is_sd_or_smp = user.education_level and user.education_level.upper() in ("SD", "SMP")
     
-    new_status = "published" if (user.account_type == AccountType.pribadi or is_admin_or_kajur) else "pending_review"
+    is_general = is_general_subject(doc.get("subject_name"))
+    new_status = "published" if (user.account_type == AccountType.pribadi or is_admin_or_kajur or is_general or is_sd_or_smp) else "pending_review"
     
     update_data = {
         "status": new_status,
@@ -411,6 +451,9 @@ async def publish_teacher_material(
     if new_status == "published":
         update_data["published_at"] = datetime.now(timezone.utc).isoformat()
         update_data["published_by"] = user.user_id
+        target_classes = doc.get("target_class_rooms") or ([doc.get("target_class_room")] if doc.get("target_class_room") else [])
+        if target_classes and user.institution_code and doc.get("summary"):
+            asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
     else:
         update_data["submitted_for_review_at"] = datetime.now(timezone.utc).isoformat()
         update_data["submitted_by"] = user.user_id
@@ -441,7 +484,7 @@ async def review_teacher_material(
     request: Request,
     user: User = Depends(require_pengajar)
 ):
-    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    is_admin_or_kajur = user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur)
     if not is_admin_or_kajur:
         raise HTTPException(403, "Hanya Kepala Jurusan, Kurikulum, atau Kepala Sekolah yang dapat meninjau materi")
 
@@ -463,6 +506,9 @@ async def review_teacher_material(
                 "review_comment": payload.comment
             }}
         )
+        target_classes = doc.get("target_class_rooms") or ([doc.get("target_class_room")] if doc.get("target_class_room") else [])
+        if target_classes and user.institution_code and doc.get("summary"):
+            asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
         audit_type = "TEACHER_MATERIAL_APPROVED"
     else:
         await db.documents.update_one(
@@ -510,13 +556,13 @@ async def generate_teacher_quiz(
     if not doc:
         raise HTTPException(404, "Dokumen/Materi tidak ditemukan")
 
-    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    is_admin_or_kajur = user.title in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur)
     is_allowed = (
         doc.get("user_id") == user.user_id or
         is_admin_or_kajur or
         (user.account_type != AccountType.pribadi and (
             (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
-            (TeacherTitle.guru_kelas in user.all_titles and (
+            (user.title == TeacherTitle.guru_kelas and (
                 doc.get("target_class_room") == user.assigned_class or
                 user.assigned_class in doc.get("target_class_rooms", [])
             ))
@@ -537,6 +583,8 @@ async def generate_teacher_quiz(
         "document_ids": [doc["document_id"]],
         "source_titles": [doc.get("title") or doc.get("filename")],
         "subject_name": doc.get("subject_name"),
+        "target_class_rooms": payload.target_classes or [],
+        "deadline": payload.deadline,
         "questions": [],
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -545,6 +593,9 @@ async def generate_teacher_quiz(
 
     ip = request.client.host if request.client else ""
     asyncio.create_task(_bg_generate_quiz(quiz_id, [doc], user, payload.question_count, ip, ""))
+
+    if payload.target_classes and user.institution_code:
+        asyncio.create_task(_bg_auto_publish_quiz(quiz_id, payload.target_classes, payload.deadline, user.user_id))
 
     return _public_quiz(quiz_doc)
 
@@ -583,6 +634,7 @@ async def publish_teacher_quiz(
         {"$set": {
             "status": "published",
             "class_name": payload.class_name,
+            "target_class_rooms": [payload.class_name],
             "published_at": datetime.now(timezone.utc).isoformat(),
             "published_by": user.user_id
         }}
@@ -605,3 +657,25 @@ async def publish_teacher_quiz(
 
     updated_quiz = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0})
     return _public_quiz(updated_quiz)
+
+
+async def _bg_auto_publish_quiz(quiz_id: str, target_classes: list, deadline: Optional[str], published_by: str):
+    for _ in range(90):
+        quiz = await db.quizzes.find_one({"quiz_id": quiz_id}, {"_id": 0})
+        if not quiz:
+            return
+        if quiz.get("status") != "processing":
+            break
+        await asyncio.sleep(1)
+
+    update = {
+        "class_name": target_classes[0] if target_classes else None,
+        "target_class_rooms": target_classes,
+        "status": "published",
+        "published_at": datetime.now(timezone.utc).isoformat(),
+        "published_by": published_by,
+    }
+    if deadline:
+        update["deadline"] = deadline
+
+    await db.quizzes.update_one({"quiz_id": quiz_id}, {"$set": update})

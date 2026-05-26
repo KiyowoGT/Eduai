@@ -46,8 +46,11 @@ async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:
             quiz = await db.quizzes.find_one({
                 "quiz_id": quiz_id,
                 "institution_code": user.institution_code,
-                "class_name": user.enrolled_class,
-                "status": "published"
+                "status": "published",
+                "$or": [
+                    {"class_name": user.enrolled_class},
+                    {"target_class_rooms": user.enrolled_class}
+                ]
             }, {"_id": 0})
             if quiz:
                 return quiz
@@ -57,8 +60,11 @@ async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:
                 quiz = await db.quizzes.find_one({
                     "quiz_id": quiz_id,
                     "user_id": token_doc["created_by_user_id"],
-                    "class_name": user.enrolled_class,
-                    "status": "published"
+                    "status": "published",
+                    "$or": [
+                        {"class_name": user.enrolled_class},
+                        {"target_class_rooms": user.enrolled_class}
+                    ]
                 }, {"_id": 0})
                 if quiz:
                     return quiz
@@ -215,7 +221,54 @@ async def quiz_results_list(user: User = Depends(get_current_user), limit: int =
         raise HTTPException(500, f"Gagal mengambil riwayat: {str(e)}")
 
 
-@router.get("/quiz/{quiz_id}")
+@router.get("/quiz/assigned")
+async def quiz_assigned_list(user: User = Depends(get_current_user)):
+    if user.role != UserRole.pelajar or not user.enrolled_class:
+        return {"quizzes": []}
+
+    query = {
+        "status": "published",
+        "$or": [
+            {"class_name": user.enrolled_class},
+            {"target_class_rooms": user.enrolled_class}
+        ]
+    }
+    if user.institution_code:
+        query["institution_code"] = user.institution_code
+    elif user.class_token_used:
+        token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+        if token_doc:
+            query["user_id"] = token_doc["created_by_user_id"]
+        else:
+            return {"quizzes": []}
+    else:
+        return {"quizzes": []}
+
+    quizzes = await db.quizzes.find(
+        query,
+        {"_id": 0, "questions": 0}
+    ).sort("created_at", -1).to_list(200)
+
+    completed = await db.quiz_results.find(
+        {"quiz_id": {"$in": [q["quiz_id"] for q in quizzes]}, "user_id": user.user_id, "status": "ready"},
+        {"quiz_id": 1}
+    ).to_list(200)
+    completed_ids = {r["quiz_id"] for r in completed}
+
+    out = []
+    for q in quizzes:
+        out.append({
+            "quiz_id": q["quiz_id"],
+            "title": (q.get("source_titles") or ["Kuis"])[0],
+            "subject_name": q.get("subject_name"),
+            "deadline": q.get("deadline"),
+            "target_classes": q.get("target_class_rooms") or [q.get("class_name")] if q.get("class_name") else [],
+            "question_count": len(q.get("questions", [])),
+            "created_at": q.get("created_at"),
+            "completed": q["quiz_id"] in completed_ids,
+        })
+
+    return {"quizzes": out}
 async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
     quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
@@ -445,9 +498,40 @@ async def get_latest_folder_result(folder_id: str, user: User = Depends(get_curr
 
 @router.get("/quiz/result/{result_id}")
 async def quiz_result_get(result_id: str, user: User = Depends(get_current_user)):
-    r = await db.quiz_results.find_one({"result_id": result_id, "user_id": user.user_id}, {"_id": 0})
+    r = await db.quiz_results.find_one({"result_id": result_id}, {"_id": 0})
     if not r:
         raise HTTPException(404, "Hasil kuis tidak ditemukan")
+
+    is_owner = r.get("user_id") == user.user_id
+    is_teacher_viewer = False
+
+    if not is_owner and user.role == "pengajar":
+        quiz = await db.quizzes.find_one({"quiz_id": r.get("quiz_id")}, {"_id": 0})
+        if quiz:
+            if quiz.get("user_id") == user.user_id:
+                is_teacher_viewer = True
+            elif TeacherTitle.kepala_sekolah in user.all_titles:
+                is_teacher_viewer = True
+            elif TeacherTitle.kurikulum in user.all_titles:
+                is_teacher_viewer = True
+            elif TeacherTitle.guru_kelas in user.all_titles and user.assigned_class:
+                student = await db.users.find_one({"user_id": r.get("user_id")}, {"enrolled_class": 1})
+                if student and student.get("enrolled_class") == user.assigned_class:
+                    is_teacher_viewer = True
+            elif TeacherTitle.kajur in user.all_titles:
+                quiz_subject = (quiz.get("subject_name") or "").strip().lower()
+                user_subject = (user.assigned_subject or "").strip().lower()
+                if user_subject and quiz_subject == user_subject:
+                    is_teacher_viewer = True
+            elif user.assigned_subject:
+                quiz_subject = (quiz.get("subject_name") or "").strip().lower()
+                user_subject = (user.assigned_subject or "").strip().lower()
+                if user_subject and quiz_subject == user_subject:
+                    is_teacher_viewer = True
+
+    if not is_owner and not is_teacher_viewer:
+        raise HTTPException(404, "Hasil kuis tidak ditemukan")
+
     quiz = await db.quizzes.find_one({"quiz_id": r.get("quiz_id")}, {"_id": 0})
     if quiz:
         r["source_titles"] = quiz.get("source_titles", [])

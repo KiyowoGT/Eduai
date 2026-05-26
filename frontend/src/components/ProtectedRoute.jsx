@@ -13,5 +13,9 @@ export default function ProtectedRoute({ children, requireOnboarded = true }) {
   if (requireOnboarded && !isOnboarded && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
+  const needsHobby = user?.role !== "pengajar" && (user?.hobby === null || user?.hobby === undefined);
+  if (requireOnboarded && isOnboarded && needsHobby && location.pathname !== "/onboarding-hobi") {
+    return <Navigate to="/onboarding-hobi" replace />;
+  }
   return children;
 }

@@ -44,7 +44,7 @@ export default function AppLayout() {
   const isTeacher = user?.role === "pengajar";
   const isAdmin = isTeacher && user?.title === "kepala_sekolah";
   const isStudent = user?.role === "pelajar";
-  const perms = user?.permissions || [];
+  const perms = useMemo(() => user?.permissions || [], [user?.permissions]);
 
   const navItems = useMemo(() => {
     if (isAdmin) {
@@ -59,16 +59,16 @@ export default function AppLayout() {
         { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
       ];
     }
-    
+
     if (isTeacher) {
       const items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
       ];
 
-      if (perms.includes("studio_materi")) {
+      if (perms.includes("studio_materi") || perms.includes("review_materi")) {
         items.push({ to: "/dokumen", label: "Materi", icon: FileText, tid: "nav-materials" });
       }
-      
+
       if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) {
         items.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar, tid: "nav-schedules" });
       }
@@ -77,14 +77,14 @@ export default function AppLayout() {
         items.push({ to: "/teacher/students", label: "Kelas", icon: Users, tid: "nav-students" });
       }
 
-      if (perms.includes("analitik_kelas") || perms.includes("analitik_butir_soal") || perms.includes("analitik_makro") || perms.includes("analitik_full")) {
+      if (perms.includes("analitik_kelas") || perms.includes("analitik_butir_soal") || perms.includes("analitik_makro") || perms.includes("analitik_full") || perms.includes("analitik_produktif")) {
         items.push({ to: "/teacher/analytics", label: "Analitik", icon: BarChart3, tid: "nav-analytics" });
       }
 
       items.push({ to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit, tid: "nav-quiz-history" });
       items.push({ to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" });
       items.push({ to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" });
-      
+
       return items;
     }
 
@@ -102,33 +102,50 @@ export default function AppLayout() {
   }, [isAdmin, isTeacher, perms]);
 
   const mobileNavItems = useMemo(() => {
+    let items;
     if (isAdmin) {
-      return [
+      items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { to: "/admin/users", label: "Akun", icon: User2 },
         { to: "/admin/academic-years", label: "Ajaran", icon: Calendar },
-        { to: "/audit-log", label: "Aktivitas", icon: User2 },
         { to: "/admin/reports", label: "Laporan", icon: FileSpreadsheet },
         { to: "/profil", label: "Profil", icon: User2 },
       ];
-    }
-    if (isTeacher) {
-      const items = [
+    } else if (isTeacher) {
+      const candidates = [];
+      if (perms.includes("studio_materi") || perms.includes("review_materi")) {
+        candidates.push({ to: "/dokumen", label: "Materi", icon: FileText });
+      }
+      if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) {
+        candidates.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar });
+      }
+      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view")) {
+        candidates.push({ to: "/teacher/students", label: "Kelas", icon: Users });
+      }
+      if (perms.includes("analitik_kelas") || perms.includes("analitik_makro") || perms.includes("analitik_produktif")) {
+        candidates.push({ to: "/teacher/analytics", label: "Analitik", icon: BarChart3 });
+      }
+
+      // Fallbacks to always fill exactly 5 items
+      candidates.push({ to: "/riwayat-kuis", label: "Riwayat", icon: BrainCircuit });
+      candidates.push({ to: "/audit-log", label: "Audit Log", icon: ScrollText });
+      candidates.push({ to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen });
+
+      items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        ...candidates.slice(0, 3),
+        { to: "/profil", label: "Profil", icon: User2 },
       ];
-      if (perms.includes("studio_materi")) items.push({ to: "/dokumen", label: "Materi", icon: FileText });
-      if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) items.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar });
-      if (perms.includes("analitik_kelas") || perms.includes("analitik_makro")) items.push({ to: "/teacher/analytics", label: "Analitik", icon: BarChart3 });
-      items.push({ to: "/profil", label: "Profil", icon: User2 });
-      return items;
+    } else {
+      items = [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/dokumen", label: "Dokumen", icon: FileText },
+        { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen },
+        { to: "/teman", label: "Teman", icon: Users },
+        { to: "/profil", label: "Profil", icon: User2 },
+      ];
     }
-    return [
-      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/dokumen", label: "Dokumen", icon: FileText },
-      { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen },
-      { to: "/teman", label: "Teman", icon: Users },
-      { to: "/profil", label: "Profil", icon: User2 },
-    ];
+    return items;
   }, [isAdmin, isTeacher, perms]);
 
   const hideMobileNav = /^\/(dokumen|folder|kuis|hasil|recap|admin)\/.+/.test(location.pathname);
@@ -229,8 +246,7 @@ export default function AppLayout() {
                 to={it.to}
                 data-testid={it.tid}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
-                    isActive ? "bg-[#1D2D50] dark:bg-[#E5A93C] text-white dark:text-[#12131A]" : "text-[#646675] hover:bg-[#F8F6F0] dark:hover:bg-white/5 hover:text-[#1A1B26] dark:hover:text-white"
+                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? "bg-[#1D2D50] dark:bg-[#E5A93C] text-white dark:text-[#12131A]" : "text-[#646675] hover:bg-[#F8F6F0] dark:hover:bg-white/5 hover:text-[#1A1B26] dark:hover:text-white"
                   } ${!sidebarOpen ? 'md:justify-center md:px-2' : ''}`
                 }
                 title={!sidebarOpen ? it.label : undefined}
@@ -287,6 +303,10 @@ export default function AppLayout() {
       {/* Mobile Bottom Nav */}
       <nav data-testid="bottom-nav" className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E0D8]/60 rounded-t-[28px] shadow-[0_-10px_30px_-5px_rgba(29,45,80,0.08)] grid grid-cols-5 h-[68px] z-40 px-2 ${hideMobileNavBottom ? 'hidden' : ''}`}>
         {mobileNavItems.map((it, idx) => {
+          if (it.placeholder) {
+            return <div key={`spacer-${idx}`} />;
+          }
+
           const isMiddle = idx === 2;
 
           if (isMiddle) {
@@ -319,6 +339,6 @@ export default function AppLayout() {
           );
         })}
       </nav>
-     </div>
+    </div>
   );
 }

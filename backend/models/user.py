@@ -122,15 +122,15 @@ class User(BaseModel):
         active_title = self.title
         
         if active_title == TeacherTitle.kepala_sekolah:
-            permissions.update(["ruang_kelas_view", "analitik_makro"])
+            permissions.update(["kepsek_dashboard", "analitik_makro"])
         elif active_title == TeacherTitle.kurikulum:
-            permissions.update(["ruang_kelas_view", "jadwal_master", "analitik_makro"])
+            permissions.update(["review_materi", "jadwal_master", "analitik_makro"])
         elif active_title == TeacherTitle.guru_kelas:
             permissions.update(["ruang_kelas_full", "jadwal_view", "analitik_kelas"])
         elif active_title == TeacherTitle.guru_pengajar:
             permissions.update(["studio_materi", "analitik_butir_soal"])
         elif active_title == TeacherTitle.kajur:
-            permissions.update(["ruang_kelas_view", "studio_materi", "analitik_butir_soal", "analitik_kelas", "analitik_makro"])
+            permissions.update(["review_materi", "analitik_produktif"])
         
         return list(permissions)
 

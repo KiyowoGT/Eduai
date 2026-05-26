@@ -1027,3 +1027,182 @@ async def _try_upload_supabase(user_id: str, doc_id: str, file_path: str):
             )
     except Exception as e:
         logger.warning(f"Supabase background upload skipped: {e}")
+
+
+async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        query_payload = [
+            {
+                "role": "system",
+                "content": "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics. Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. Use only the tag (e.g., [verse]) without any numbering or extra text (e.g., do not write [verse 1], [chorus x2], etc). Do not add explanations, titles, or any other text outside of the lyrics. Focus on vivid imagery, emotional flow, and strong lyrical rhythm. Refrain from labeling genre or giving commentary. Respond in clean plain text, exactly as if it were a song lyric sheet."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        r1 = await client.get(
+            "https://8pe3nv3qha.execute-api.us-east-1.amazonaws.com/default/llm_chat",
+            params={
+                "query": json.dumps(query_payload),
+                "link": "writecream.com"
+            }
+        )
+        if r1.status_code != 200:
+            raise Exception(f"Gagal membuat lirik dari API: {r1.status_code}")
+
+        ai_res = r1.json()
+        lyrics = ai_res.get("response_content", "")
+        if not lyrics:
+            raise Exception("Respons lirik kosong dari AI")
+
+        session_hash = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
+
+        r2 = await client.post(
+            "https://ace-step-ace-step.hf.space/gradio_api/queue/join?",
+            json={
+                "data": [
+                    240,
+                    tags,
+                    lyrics,
+                    60,
+                    15,
+                    'euler',
+                    'apg',
+                    10,
+                    '',
+                    0.5,
+                    0,
+                    3,
+                    True,
+                    False,
+                    True,
+                    '',
+                    0,
+                    0,
+                    False,
+                    0.5,
+                    None,
+                    'none'
+                ],
+                "event_data": None,
+                "fn_index": 11,
+                "trigger_id": 45,
+                "session_hash": session_hash
+            }
+        )
+        if r2.status_code != 200:
+            raise Exception(f"Gagal mengirim aransemen ke HF: {r2.status_code}")
+
+        audio_url = None
+        for _ in range(45):
+            await asyncio.sleep(2.0)
+            r3 = await client.get(
+                f"https://ace-step-ace-step.hf.space/gradio_api/queue/data?session_hash={session_hash}"
+            )
+            if r3.status_code != 200:
+                continue
+
+            lines = r3.text.split("\n\n")
+            for line in lines:
+                if line.startswith("data:"):
+                    try:
+                        d = json.loads(line[5:])
+                        if d.get("msg") == "process_completed":
+                            audio_url = d["output"]["data"][0]["url"]
+                            break
+                    except Exception:
+                        pass
+            if audio_url:
+                break
+
+        if not audio_url:
+            raise Exception("Pembuatan audio musik timeout di HF Space")
+
+        return {
+            "lyrics": lyrics,
+            "audio_url": audio_url
+        }
+
+
+async def _bg_generate_music_for_students(doc_id: str, target_class_rooms: list, institution_code: str):
+    try:
+        doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0})
+        if not doc or not doc.get("summary"):
+            return
+
+        cursor = db.users.find({
+            "institution_code": institution_code,
+            "enrolled_class": {"$in": target_class_rooms},
+            "role": "pelajar",
+            "hobby": "musik"
+        })
+
+        genres_needed = set()
+        async for student in cursor:
+            genre = (student.get("music_genre") or "pop, romantic").strip()
+            genres_needed.add(genre)
+
+        if not genres_needed:
+            return
+
+        existing = doc.get("music_summaries", {})
+        to_generate = genres_needed - set(existing.keys())
+
+        if not to_generate:
+            return
+
+        for genre in to_generate:
+            try:
+                res = await aimusic(doc["summary"], genre)
+                existing[genre] = res
+            except Exception as e:
+                logger.warning(f"Music generation gagal utk genre {genre} doc {doc_id}: {e}")
+
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {"$set": {"music_summaries": existing}}
+        )
+    except Exception as e:
+        logger.warning(f"Background music generation for students gagal: {e}")
+
+
+async def personalize_document_for_student(doc: dict, hobby: str) -> dict:
+    original_summary = doc.get("summary", "")
+    original_concepts = doc.get("key_concepts", [])
+    
+    system_message = (
+        f"Kamu adalah AI Mentor EduAI. Tugasmu adalah mengadaptasi materi pembelajaran (ringkasan dan konsep kunci) "
+        f"agar disesuaikan dengan hobi/minat siswa: {hobby}.\n"
+        f"Gunakan bahasa Indonesia yang santai, edukatif, dan menarik bagi siswa.\n"
+        f"Kembalikan data dalam format JSON dengan kunci:\n"
+        f"- summary (string: ringkasan materi yang dihubungkan dengan hobi/minat tersebut melalui analogi atau contoh)\n"
+        f"- key_concepts (array of objects: konsep kunci yang diadaptasikan penjelasannya dengan hobi tersebut, tiap objek memiliki kunci 'concept' dan 'explanation')"
+    )
+    
+    prompt = (
+        f"Berikut adalah materi asli:\n"
+        f"Ringkasan:\n{original_summary}\n\n"
+        f"Konsep Kunci:\n{json.dumps(original_concepts, ensure_ascii=False)}\n\n"
+        f"Tolong ubah materi di atas agar dihubungkan secara kreatif dengan hobi/minat '{hobby}'."
+    )
+    
+    try:
+        resp = await _call_groq(system_message, prompt)
+        import re
+        match = re.search(r'\{.*\}', resp, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return {
+                "summary": data.get("summary", original_summary),
+                "key_concepts": data.get("key_concepts", original_concepts)
+            }
+    except Exception as e:
+        logger.warning(f"Gagal melakukan personalisasi materi untuk hobi {hobby}: {e}")
+    
+    return {
+        "summary": original_summary,
+        "key_concepts": original_concepts
+    }
+
