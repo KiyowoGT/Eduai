@@ -44,6 +44,8 @@ export default function Profile() {
   const [name, setName] = useState(user?.name || "");
   const [username, setUsername] = useState(user?.username || "");
   const [saving, setSaving] = useState(false);
+  const [hobby, setHobby] = useState(user?.hobby || "");
+  const [musicGenre, setMusicGenre] = useState(user?.music_genre || "pop, romantic");
 
   // Friend code (student only)
   const [friendCode, setFriendCode] = useState(user?.friend_code || "");
@@ -74,6 +76,8 @@ export default function Profile() {
       setUsername(user.username || "");
       setFriendCode(user.friend_code || "");
       setInstitutionName(user.institution || "");
+      setHobby(user.hobby || "");
+      setMusicGenre(user.music_genre || "pop, romantic");
     }
   }, [user]);
 
@@ -94,7 +98,7 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const updated = await updateProfile({ name, username });
+      const updated = await updateProfile({ name, username, hobby, music_genre: musicGenre });
       if (updated) setUser((prev) => ({ ...prev, ...updated }));
       toast.success("Profil diperbarui");
     } catch (e) {
@@ -265,22 +269,42 @@ export default function Profile() {
             <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1">Nama Lengkap</label>
             <div className="relative">
               <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`${inputClass} disabled:bg-[#F8F6F0] disabled:text-[#A0A2B1] disabled:cursor-not-allowed`}
+                disabled={!!(user?.role === "pelajar" && user?.institution_code)}
+              />
             </div>
+            {user?.role === "pelajar" && user?.institution_code && (
+              <span className="text-[10px] text-[#A0A2B1] mt-1 block">Identitas ini dikunci oleh institusi sekolah Anda.</span>
+            )}
           </div>
           <div>
             <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-1">Username</label>
             <div className="relative">
               <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} />
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={`${inputClass} disabled:bg-[#F8F6F0] disabled:text-[#A0A2B1] disabled:cursor-not-allowed`}
+                disabled={!!(user?.role === "pelajar" && user?.institution_code)}
+              />
             </div>
+            {user?.role === "pelajar" && user?.institution_code && (
+              <span className="text-[10px] text-[#A0A2B1] mt-1 block">Username dikunci oleh institusi sekolah Anda.</span>
+            )}
           </div>
-          <Button onClick={handleSaveProfile} disabled={saving} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm">
-            {saving ? "Menyimpan..." : "Simpan Profil"}
-          </Button>
+          {!(user?.role === "pelajar" && user?.institution_code) && (
+            <Button onClick={handleSaveProfile} disabled={saving} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm">
+              {saving ? "Menyimpan..." : "Simpan Profil"}
+            </Button>
+          )}
         </div>
       </div>
-
+ 
       {/* Institution Settings — Admin only */}
       {isAdmin && isOwner && (
         <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
@@ -311,16 +335,15 @@ export default function Profile() {
           </div>
         </div>
       )}
-
-      {/* Change Password — Teacher & Admin */}
-      {isTeacher && (
-        <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
-          <h2 className="font-heading text-lg text-[#1A1B26] mb-4 flex items-center gap-2">
-            <Key className="w-5 h-5 text-[#1D2D50]" />
-            Ubah Password
-          </h2>
-          {user?.created_by_admin ? (
-            <div className="p-5 rounded-xl bg-[#F8F6F0] border border-[#E2E0D8]/80 flex gap-4 items-start fade-up">
+ 
+      {/* Change Password */}
+      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
+        <h2 className="font-heading text-lg text-[#1A1B26] mb-4 flex items-center gap-2">
+          <Key className="w-5 h-5 text-[#1D2D50]" />
+          Ubah Password
+        </h2>
+        {user?.created_by_admin && isTeacher ? (
+          <div className="p-5 rounded-xl bg-[#F8F6F0] border border-[#E2E0D8]/80 flex gap-4 items-start fade-up">
               <div className="w-10 h-10 rounded-lg bg-[#E5A93C]/10 flex items-center justify-center text-[#E5A93C] shrink-0 mt-0.5 animate-pulse">
                 <ShieldCheck className="w-5 h-5" />
               </div>
@@ -389,7 +412,6 @@ export default function Profile() {
             </form>
           )}
         </div>
-      )}
 
       {/* 2FA — Admin only */}
       {isAdmin && (
@@ -422,21 +444,68 @@ export default function Profile() {
 
       {/* Friend Code — Student only */}
       {!isTeacher && (
-        <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
-          <h2 className="font-heading text-lg text-[#1A1B26] mb-4">Kode Teman</h2>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-              <Input value={friendCode} onChange={(e) => setFriendCode(e.target.value)} placeholder="Kode teman kamu" className="pl-11" />
+        <>
+          <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
+            <h2 className="font-heading text-lg text-[#1A1B26] mb-4">Kode Teman</h2>
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
+                <Input value={friendCode} onChange={(e) => setFriendCode(e.target.value)} placeholder="Kode teman kamu" className="pl-11" />
+              </div>
+              <Button variant="outline" size="icon" onClick={handleCopyCode} className="shrink-0 border-[#E2E0D8]">
+                {copied ? <Check className="w-4 h-4 text-[#2D6A4F]" /> : <Copy className="w-4 h-4" />}
+              </Button>
+              <Button onClick={handleSaveCode} disabled={savingCode} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-4 rounded-xl text-sm shrink-0">
+                {savingCode ? "..." : "Simpan"}
+              </Button>
             </div>
-            <Button variant="outline" size="icon" onClick={handleCopyCode} className="shrink-0 border-[#E2E0D8]">
-              {copied ? <Check className="w-4 h-4 text-[#2D6A4F]" /> : <Copy className="w-4 h-4" />}
-            </Button>
-            <Button onClick={handleSaveCode} disabled={savingCode} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-4 rounded-xl text-sm shrink-0">
-              {savingCode ? "..." : "Simpan"}
-            </Button>
           </div>
-        </div>
+
+          <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
+            <h2 className="font-heading text-lg text-[#1A1B26] mb-4">Hobi & Personalisasi Belajar</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-2">Hobi Utama</label>
+                <select
+                  value={hobby}
+                  onChange={(e) => setHobby(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                >
+                  <option value="">Tidak ada (Ringkasan Standar)</option>
+                  <option value="musik">Musik (Gubah Ringkasan Menjadi Lagu)</option>
+                </select>
+              </div>
+              
+              {hobby === "musik" && (
+                <div className="fade-up">
+                  <label className="block text-xs uppercase tracking-[0.15em] text-[#A0A2B1] font-medium mb-2">Genre / Style Musik</label>
+                  <select
+                    value={musicGenre}
+                    onChange={(e) => setMusicGenre(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
+                  >
+                    <option value="pop, romantic">Pop Romantic (Default)</option>
+                    <option value="rock, energetic">Rock Energetic</option>
+                    <option value="classical, soothing">Classical Soothing</option>
+                    <option value="hip-hop, rhythmic">Hip-Hop Rhythmic</option>
+                    <option value="electronic, futuristic">Electronic Futuristic</option>
+                  </select>
+                  <p className="text-[10px] text-[#A0A2B1] mt-2">
+                    Rangkuman materi ajar akan diolah kembali oleh AI menjadi lirik lagu berirama dan di-compose menjadi audio lagu sesuai genre pilihan kamu!
+                  </p>
+                </div>
+              )}
+              
+              <Button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm"
+              >
+                {saving ? "Menyimpan..." : "Simpan Hobi & Personalisasi"}
+              </Button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Theme */}

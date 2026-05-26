@@ -135,31 +135,43 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div
-        data-testid="upload-zone"
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}
-        onClick={() => fileRef.current?.click()}
-        className={`dropzone ${drag ? "drag" : ""} cursor-pointer rounded-xl bg-white p-10 mb-6 text-center fade-up`}
-      >
-        <input
-          ref={fileRef}
-          data-testid="upload-pdf-input"
-          type="file"
-          accept="application/pdf,image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
-        />
-        <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-4">
-          <Upload className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
+      {user?.role === "pelajar" && user?.institution_code ? (
+        <div className="rounded-xl border border-dashed border-[#E2E0D8] bg-white p-10 mb-6 text-center fade-up">
+          <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-4">
+            <BookOpen className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
+          </div>
+          <div className="font-heading text-xl text-[#1A1B26]">Materi Terbimbing Sekolah</div>
+          <p className="text-sm text-[#646675] mt-2 max-w-md mx-auto">
+            Materi belajar dan tugas Anda dikelola dan diterbitkan secara langsung oleh guru kelas Anda. Silakan lihat daftar dokumen di bawah.
+          </p>
         </div>
-        <div className="font-heading text-xl text-[#1A1B26]">Upload PDF atau Gambar</div>
-        <p className="text-sm text-[#646675] mt-2">
-          Tarik & lepas atau klik. Format didukung: PDF, JPG, PNG, WEBP, BMP.
-        </p>
-      </div>
+      ) : (
+        <div
+          data-testid="upload-zone"
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}
+          onClick={() => fileRef.current?.click()}
+          className={`dropzone ${drag ? "drag" : ""} cursor-pointer rounded-xl bg-white p-10 mb-6 text-center fade-up`}
+        >
+          <input
+            ref={fileRef}
+            data-testid="upload-pdf-input"
+            type="file"
+            accept="application/pdf,image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+          />
+          <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-4">
+            <Upload className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
+          </div>
+          <div className="font-heading text-xl text-[#1A1B26]">Upload PDF atau Gambar</div>
+          <p className="text-sm text-[#646675] mt-2">
+            Tarik & lepas atau klik. Format didukung: PDF, JPG, PNG, WEBP, BMP.
+          </p>
+        </div>
+      )}
 
       {activeJobs.length > 0 && (
         <div className="mb-10 space-y-2.5 fade-up" data-testid="active-jobs">
@@ -248,6 +260,8 @@ function StatCard({ tid, icon, label, value, accent }) {
 }
 
 export function DocCard({ doc, onOpen, onCancel, onDelete }) {
+  const { user } = useAuth();
+  const isInstitutionalStudent = user?.role === "pelajar" && user?.institution_code;
   const isProc = doc.status === "processing";
   return (
     <div data-testid={`doc-card-${doc.document_id}`} className="card-lift bg-white border border-[#E2E0D8] rounded-xl p-5 relative group">
@@ -270,36 +284,38 @@ export function DocCard({ doc, onOpen, onCancel, onDelete }) {
           {doc.status === "ready" ? "Siap" : doc.status === "failed" ? "Gagal" : doc.status === "cancelled" ? "Dibatal" : "Proses"}
         </span>
       </div>
-      <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
-        {isProc && (
-          <Button data-testid={`doc-cancel-${doc.document_id}`} size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onCancel(); }} className="h-7 w-7 p-0 bg-white border border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B]" title="Batalkan">
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        )}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button data-testid={`doc-delete-${doc.document_id}`} size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-7 w-7 p-0 bg-white border border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B]" title="Hapus">
-              <Trash2 className="w-3.5 h-3.5" />
+      {!isInstitutionalStudent && (
+        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+          {isProc && (
+            <Button data-testid={`doc-cancel-${doc.document_id}`} size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onCancel(); }} className="h-7 w-7 p-0 bg-white border border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B]" title="Batalkan">
+              <X className="w-3.5 h-3.5" />
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-heading flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus dokumen?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                <span className="font-medium text-[#1A1B26]">{doc.title || doc.filename}</span> akan dihapus permanen, termasuk semua kuis dan hasil terkait.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Batal</AlertDialogCancel>
-              <AlertDialogAction data-testid={`doc-delete-confirm-${doc.document_id}`} onClick={onDelete} className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white">
-                Hapus permanen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button data-testid={`doc-delete-${doc.document_id}`} size="sm" variant="ghost" onClick={(e) => e.stopPropagation()} className="h-7 w-7 p-0 bg-white border border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B]" title="Hapus">
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-heading flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus dokumen?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  <span className="font-medium text-[#1A1B26]">{doc.title || doc.filename}</span> akan dihapus permanen, termasuk semua kuis dan hasil terkait.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction data-testid={`doc-delete-confirm-${doc.document_id}`} onClick={onDelete} className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white">
+                  Hapus permanen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }

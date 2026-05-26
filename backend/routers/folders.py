@@ -38,6 +38,16 @@ async def folder_create(request: Request, payload: FolderCreate, user: User = De
 
 @router.get("/folders")
 async def folder_list(user: User = Depends(get_current_user)):
+    if user.role == "pelajar" and user.institution_code and user.enrolled_class:
+        from services.sync_service import provision_student_by_class
+        try:
+            await provision_student_by_class(user.user_id, user.institution_code, user.enrolled_class)
+            fresh_user = await db.users.find_one({"user_id": user.user_id})
+            if fresh_user:
+                user.subjects = fresh_user.get("subjects") or []
+        except Exception as e:
+            logger.warning(f"Gagal melakukan auto-provision pelajar di folder_list: {e}")
+
     folders = await db.folders.find({"user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0}).sort("created_at", -1).to_list(200)
     for f in folders:
         private_count = await db.documents.count_documents({"user_id": user.user_id, "folder_id": f["folder_id"]})
@@ -134,6 +144,9 @@ async def folder_get(folder_id: str, user: User = Depends(get_current_user)):
 
 @router.put("/folders/{folder_id}")
 async def folder_update(request: Request, folder_id: str, payload: FolderUpdate, user: User = Depends(get_current_user)):
+    if user.role == "pelajar" and user.account_type == "perusahaan":
+        raise HTTPException(403, "Pelajar institusi tidak dapat mengubah folder secara mandiri.")
+
     folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0})
     if not folder:
         raise HTTPException(404, "Folder tidak ditemukan")
@@ -150,16 +163,60 @@ async def folder_update(request: Request, folder_id: str, payload: FolderUpdate,
 
 @router.delete("/folders/{folder_id}")
 async def folder_delete(request: Request, folder_id: str, user: User = Depends(get_current_user)):
-    """Soft-delete folder and move documents out of the folder."""
+    """Cascade delete folder, its documents, quizzes, and quiz results."""
+    if user.role == "pelajar" and user.account_type == "perusahaan":
+        raise HTTPException(403, "Pelajar institusi tidak dapat menghapus folder secara mandiri.")
+
     folder = await db.folders.find_one({"folder_id": folder_id, "user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0})
     if not folder:
         raise HTTPException(404, "Folder tidak ditemukan")
 
-    result = await db.documents.update_many(
-        {"user_id": user.user_id, "folder_id": folder_id},
-        {"$unset": {"folder_id": ""}},
-    )
+    # 1. Find all documents in the folder
+    docs = await db.documents.find({"user_id": user.user_id, "folder_id": folder_id}).to_list(1000)
+    doc_ids = [d["document_id"] for d in docs]
+    num_docs_deleted = len(doc_ids)
 
+    # 2. Delete physical files from disk
+    from pathlib import Path
+    for doc in docs:
+        fp = doc.get("file_path")
+        if fp:
+            try:
+                Path(fp).unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Gagal hapus file {fp}: {e}")
+        try:
+            from routers.documents import _delete_from_supabase_storage
+            await _delete_from_supabase_storage(user.user_id, doc["document_id"])
+        except Exception:
+            pass
+
+    # 3. Delete documents and pdf files from MongoDB
+    if doc_ids:
+        await db.documents.delete_many({"document_id": {"$in": doc_ids}, "user_id": user.user_id})
+        await db.pdf_files.delete_many({"document_id": {"$in": doc_ids}, "user_id": user.user_id})
+
+    # 4. Find and delete quizzes referencing folder_id OR these document_ids
+    quizzes = await db.quizzes.find({
+        "user_id": user.user_id,
+        "$or": [
+            {"folder_id": folder_id},
+            {"document_id": {"$in": doc_ids}},
+            {"document_ids": {"$in": doc_ids}}
+        ]
+    }).to_list(1000)
+    quiz_ids = [q["quiz_id"] for q in quizzes]
+
+    if quiz_ids:
+        await db.quizzes.delete_many({"quiz_id": {"$in": quiz_ids}})
+        await db.quiz_results.delete_many({"quiz_id": {"$in": quiz_ids}})
+        # Also clean up quiz progress if any
+        try:
+            await db.quiz_progress.delete_many({"quiz_id": {"$in": quiz_ids}})
+        except Exception:
+            pass
+
+    # 5. Clean up subjects in user model if they referenced this folder
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subjects": 1})
     subjects = user_doc.get("subjects") if user_doc else []
     if subjects:
@@ -174,9 +231,9 @@ async def folder_delete(request: Request, folder_id: str, user: User = Depends(g
         if changed:
             await db.users.update_one({"user_id": user.user_id}, {"$set": {"subjects": patched_subjects}})
 
-    await db.folders.update_one(
-        {"folder_id": folder_id, "user_id": user.user_id},
-        {"$set": {"status": "deleted", "deleted_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    await write_audit(user.user_id, "FOLDER_DELETED", {"folder_id": folder_id, "name": folder.get("name"), "documents_moved_out": result.modified_count}, request.client.host if request.client else "")
-    return {"folder_id": folder_id, "deleted": True, "documents_moved_out": result.modified_count, "soft_deleted": True}
+    # 6. Hard-delete the folder itself
+    await db.folders.delete_one({"folder_id": folder_id, "user_id": user.user_id})
+
+    await write_audit(user.user_id, "FOLDER_DELETED_CASCADE", {"folder_id": folder_id, "name": folder.get("name"), "documents_deleted": num_docs_deleted}, request.client.host if request.client else "")
+    return {"folder_id": folder_id, "deleted": True, "documents_deleted": num_docs_deleted}
+

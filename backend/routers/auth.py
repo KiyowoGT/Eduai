@@ -250,7 +250,16 @@ async def onboarding_complete(payload: OnboardingCompletePayload, request: Reque
             update_data["education_level"] = token_doc["level"]
             update_data["current_semester"] = token_doc["target_semester_or_grade"]
             update_data["institution"] = institution_doc.get("name") if institution_doc else ""
-            update_data["major"] = token_doc.get("major") or (institution_doc.get("major") if institution_doc else None)
+            level = token_doc.get("level")
+            major = token_doc.get("major") or (institution_doc.get("major") if institution_doc else None)
+            sma_equiv = {"SMA", "SMK", "MA"}
+            if level in sma_equiv and not major:
+                raise HTTPException(
+                    400,
+                    "Jurusan wajib diisi untuk jenjang SMA/SMK/MA. "
+                    "Silakan minta admin/kepsek membuat ulang token kelas dengan jurusan, atau lengkapi jurusan institusi."
+                )
+            update_data["major"] = major
             update_data["account_type"] = "perusahaan"
             update_data["nis"] = payload.nis
             update_data["nisn"] = payload.nisn
@@ -423,16 +432,10 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
     if not is_valid_role:
         raise HTTPException(status_code=403, detail="Peran tidak terdaftar atau tidak aktif")
 
-    # Update database user model
-    update_fields = {
-        "role": target_role
-    }
+    # Persist active context. Do not wipe the other persona's scope fields.
+    update_fields = {"role": target_role, "title": None, "active_role": payload.role_type, "active_scope_id": scope_id}
 
-    if target_role == UserRole.pelajar:
-        update_fields["title"] = None
-        update_fields["assigned_class"] = None
-        update_fields["assigned_subject"] = None
-    else:
+    if target_role != UserRole.pelajar:
         update_fields["title"] = payload.role_type
         # If a scope_id was resolved (e.g. from role_assignments), update the active assignment.
         # Otherwise, keep existing assignments intact to avoid destructive clearing of profile settings.
@@ -559,7 +562,8 @@ async def check_existence(email: Optional[str] = None, username: Optional[str] =
     """
     if email:
         email = email.strip().lower()
-        user_doc = await db.users.find_one({"email": email}, {"_id": 1})
+        import re
+        user_doc = await db.users.find_one({"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}, {"_id": 1})
         if user_doc:
             return {"exists": True, "type": "email"}
     
@@ -599,3 +603,55 @@ async def update_institution(payload: InstitutionUpdate, request: Request, user:
         )
     await write_audit(user.user_id, "INSTITUTION_UPDATE", update, request.client.host if request.client else "")
     return {"ok": True, **update}
+
+
+@router.get("/diag/me-data")
+async def diag_me_data(user: User = Depends(get_current_user)):
+    """
+    Debug helper: verify what the backend sees for the current authenticated user.
+    Returns non-sensitive counts only (no passwords/hashes).
+    """
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "password": 0, "hash": 0})
+    inst = (user_doc or {}).get("institution_code") or user.institution_code
+
+    docs_own = await db.documents.count_documents({"user_id": user.user_id, "status": {"$ne": "deleted"}})
+    docs_institution = 0
+    if inst:
+        docs_institution = await db.documents.count_documents({
+            "institution_code": inst,
+            "visibility": "institution",
+            "status": {"$ne": "deleted"},
+        })
+
+    teacher_materials_base = {
+        "status": {"$ne": "deleted"},
+        "$or": [{"user_id": user.user_id}],
+    }
+    if inst:
+        teacher_materials_base["$or"].append({"institution_code": inst, "visibility": "institution"})
+    docs_teacher_materials_base = await db.documents.count_documents(teacher_materials_base)
+
+    schedules = 0
+    if inst:
+        schedules = await db.shared_schedules.count_documents({"institution_code": inst})
+
+    return {
+        "user": {
+            "user_id": user.user_id,
+            "email": user.email,
+            "role": user.role,
+            "title": user.title,
+            "titles": user.titles,
+            "institution_code": user.institution_code,
+            "assigned_class": user.assigned_class,
+            "assigned_subject": user.assigned_subject,
+            "teaching_classes": getattr(user, "teaching_classes", None),
+        },
+        "db_user_doc_found": bool(user_doc),
+        "counts": {
+            "documents_own": docs_own,
+            "documents_institution": docs_institution,
+            "documents_teacher_materials_base": docs_teacher_materials_base,
+            "shared_schedules_institution": schedules,
+        },
+    }

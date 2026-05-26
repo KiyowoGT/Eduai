@@ -37,12 +37,11 @@ def sanitize_institution_code(code):
     return "".join(c for c in code if c.isalnum()).upper()[:10]
 
 def build_email(nisn, inst_code):
-    return f"{nisn}@s.{sanitize_institution_code(inst_code)}.sch.id"
+    return f"{nisn}@s.{sanitize_institution_code(inst_code)}.sch.id".lower()
 
 def build_password(inst_name, tahun_masuk):
     name_clean = "".join(c for c in inst_name if c.isalnum() or c in "._-").upper()[:8]
     return f"{name_clean}{tahun_masuk}"
-
 
 class CreateStudentPayload(BaseModel):
     name: str
@@ -50,6 +49,7 @@ class CreateStudentPayload(BaseModel):
     nis: Optional[str] = None
     enrolled_class: str
     tahun_masuk: int
+    major: Optional[str] = None
 
 
 @router.post("/teacher/students")
@@ -64,13 +64,19 @@ async def create_student(
     nisn = payload.nisn.strip()
     email = build_email(nisn, user.institution_code)
 
-    existing = await db.users.find_one({"email": email})
+    import re
+    existing = await db.users.find_one({"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}})
     if existing:
         raise HTTPException(400, f"Siswa dengan NISN {nisn} sudah terdaftar")
 
     inst = await db.institutions.find_one({"institution_code": user.institution_code})
     inst_name = inst.get("name", "") if inst else ""
     password = build_password(inst_name, str(payload.tahun_masuk))
+
+    no_major_levels = {"SD", "SMP"}
+    major = (payload.major or "").strip() or (inst.get("major") if inst else None) or None
+    if user.education_level not in no_major_levels and not major:
+        raise HTTPException(400, "Jurusan belum tersedia di data institusi. Isi jurusan di institusi/token kelas dulu.")
 
     active_year = await db.academic_years.find_one(
         {"institution_code": user.institution_code, "is_active": True}
@@ -121,6 +127,7 @@ async def create_student(
         "institution_code": user.institution_code,
         "institution": inst_name,
         "education_level": user.education_level,
+        "major": major,
         "enrolled_class": payload.enrolled_class.strip(),
         "nis": payload.nis.strip() if payload.nis else nisn,
         "nisn": nisn,
@@ -142,7 +149,7 @@ async def create_student(
         request.client.host if request.client else ""
     )
 
-    return {"status": "success", "user_id": student_id, "email": email}
+    return {"status": "success", "user_id": student_id, "email": email, "password": password}
 
 
 @router.put("/teacher/students/{student_id}")
@@ -169,6 +176,12 @@ async def update_student(
         "nis": payload.nis.strip() if payload.nis else payload.nisn.strip(),
         "tahun_masuk": payload.tahun_masuk,
     }
+
+    # Keep major sourced from form data or existing institution data.
+    inst = await db.institutions.find_one({"institution_code": user.institution_code})
+    inst_major = (payload.major or "").strip() or (inst.get("major") if inst else None) or None
+    if inst_major:
+        updates["major"] = inst_major
 
     await db.users.update_one({"user_id": student_id}, {"$set": updates})
     await write_audit(
@@ -264,7 +277,7 @@ async def upload_students_csv(
                 continue
 
             email = build_email(nisn, user.institution_code)
-            existing = await db.users.find_one({"email": email})
+            existing = await db.users.find_one({"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}})
             if existing:
                 results["failed"].append({"row": row_num, "reason": f"NISN {nisn} sudah terdaftar", "nisn": nisn})
                 continue
@@ -306,6 +319,11 @@ async def upload_students_csv(
                     continue
 
             student_id = supa_user_id or f"STU-{uuid.uuid4().hex[:8].upper()}"
+
+            no_major_levels = {"SD", "SMP"}
+            major = (inst.get("major") if inst else None) or None
+            if user.education_level not in no_major_levels and not major:
+                raise HTTPException(400, f"Jurusan belum tersedia di institusi (baris {row_num}). Isi jurusan institusi dulu.")
             doc = {
                 "user_id": student_id,
                 "email": email,
@@ -316,6 +334,7 @@ async def upload_students_csv(
                 "institution_code": user.institution_code,
                 "institution": inst_name,
                 "education_level": user.education_level,
+                "major": major,
                 "enrolled_class": kelas,
                 "nis": nisn,
                 "nisn": nisn,

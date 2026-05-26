@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { getDocument, generateQuiz, getQuiz, deleteDocument, cancelQuiz, getLatestDocResult, generateDocumentAudio, updateProfile, waitForStatus } from "@/lib/api";
+import { getDocument, generateQuiz, getQuiz, deleteDocument, cancelQuiz, getLatestDocResult, generateDocumentAudio, updateProfile, waitForStatus, generateMusicSummary } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ export default function DocumentDetail() {
   const audioRef = useRef(null);
   const { user, setUser } = useAuth();
   const isTeacher = user?.role === "pengajar";
+  const isInstitutionalStudent = user?.role === "pelajar" && user?.institution_code;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "ringkasan";
   const [tab, setTab] = useState(initialTab);
@@ -44,6 +45,43 @@ export default function DocumentDetail() {
   const [cloneEnabled, setCloneEnabled] = useState(user?.clone_voice_enabled || false);
   const [cloneUrl, setCloneUrl] = useState(user?.clone_voice_url || "");
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Personalized learning music states
+  const [musicSummary, setMusicSummary] = useState(null);
+  const [musicLoading, setMusicLoading] = useState(false);
+  const [musicError, setMusicError] = useState(null);
+  const [summaryMode, setSummaryMode] = useState("music");
+
+  const fetchMusicSummary = async () => {
+    if (isTeacher || user?.hobby !== "musik") return;
+    setMusicLoading(true);
+    setMusicError(null);
+    try {
+      const genre = user?.music_genre || "pop, romantic";
+      const res = await generateMusicSummary(id, genre);
+      setMusicSummary(res);
+    } catch (err) {
+      console.error("Gagal memuat musik rangkuman", err);
+      const detail = err?.response?.data?.detail;
+      let errMsg = "Gagal memproses musik";
+      if (detail) {
+        if (typeof detail === "string") errMsg = detail;
+        else if (Array.isArray(detail)) errMsg = detail.map(e => e.msg || JSON.stringify(e)).join(", ");
+        else if (typeof detail === "object") errMsg = detail.detail || detail.msg || JSON.stringify(detail);
+      } else if (err?.message) {
+        errMsg = err.message;
+      }
+      setMusicError(errMsg);
+    } finally {
+      setMusicLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (doc && doc.status === "ready" && doc.summary && !isTeacher && user?.hobby === "musik") {
+      fetchMusicSummary();
+    }
+  }, [doc, user, id]);
 
   useEffect(() => {
     if (user) {
@@ -137,6 +175,36 @@ export default function DocumentDetail() {
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Gagal menghapus");
     }
+  };
+
+  const formatLyrics = (text) => {
+    if (!text) return null;
+    return text.split("\n").map((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        const tag = trimmed.slice(1, -1).toUpperCase();
+        let badgeColor = "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300";
+        if (tag.includes("CHORUS")) {
+          badgeColor = "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300";
+        } else if (tag.includes("BRIDGE")) {
+          badgeColor = "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300";
+        } else if (tag.includes("INST") || tag.includes("SOLO") || tag.includes("INSTRUMENTAL")) {
+          badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300";
+        }
+        return (
+          <div key={idx} className="mt-6 mb-3 first:mt-0">
+            <span className={`inline-flex items-center px-3 py-1 text-xs font-bold tracking-wider rounded-full border shadow-sm uppercase ${badgeColor}`}>
+              🎵 {tag}
+            </span>
+          </div>
+        );
+      }
+      return (
+        <p key={idx} className="text-sm text-[#1A1B26] leading-relaxed my-1.5 min-h-[1.25rem]">
+          {line}
+        </p>
+      );
+    });
   };
 
   if (loading) return <DualLoader type="document-detail" text="Mengunduh materi akademik..." />;
@@ -302,29 +370,31 @@ export default function DocumentDetail() {
             )}
           </>
         )}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button data-testid="delete-doc-btn" variant="outline" className="border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B] h-11 px-4">
-              <Trash2 className="w-4 h-4 mr-1.5" /> Hapus
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-heading flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus dokumen ini?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Termasuk semua kuis & hasil yang sudah dibuat dari dokumen ini.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Batal</AlertDialogCancel>
-              <AlertDialogAction onClick={onDeleteDoc} data-testid="confirm-delete-doc" className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white">
-                Hapus permanen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {!isInstitutionalStudent && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button data-testid="delete-doc-btn" variant="outline" className="border-[#E2E0D8] text-[#646675] hover:text-[#B83A4B] h-11 px-4">
+                <Trash2 className="w-4 h-4 mr-1.5" /> Hapus
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-heading flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-[#B83A4B]" /> Hapus dokumen ini?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Termasuk semua kuis & hasil yang sudah dibuat dari dokumen ini.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={onDeleteDoc} data-testid="confirm-delete-doc" className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white">
+                  Hapus permanen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         </div>
       </div>
 
@@ -372,38 +442,166 @@ export default function DocumentDetail() {
 
         <TabsContent value="ringkasan" className="mt-6">
           <div className="bg-white border border-[#E2E0D8] rounded-xl p-7 md:p-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-heading text-xl text-[#1A1B26]">Abstraksi & Ringkasan</h3>
-              {doc.status === "ready" && doc.summary && (
-                <div className="flex items-center gap-2">
+            {/* HOBI MUSIK PERSONALIZATION TOGGLE */}
+            {!isTeacher && user?.hobby === "musik" && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-6 border-b border-[#E2E0D8]">
+                <div>
+                  <h4 className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Personalisasi Belajar</h4>
+                  <p className="text-[11px] text-[#646675] mt-0.5">Rangkuman diadaptasikan dengan hobi Musik kamu</p>
+                </div>
+                <div className="flex items-center gap-1 bg-[#F8F6F0] p-1 rounded-lg border border-[#E2E0D8] self-start sm:self-center">
                   <button
-                    onClick={handleDocPlayAudio}
-                    disabled={docAudioLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1D2D50]/10 hover:bg-[#1D2D50]/20 text-[#1D2D50] text-xs transition-colors shrink-0"
+                    onClick={() => setSummaryMode("music")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      summaryMode === "music"
+                        ? "bg-[#1D2D50] text-white shadow-sm"
+                        : "text-[#646675] hover:text-[#1A1B26]"
+                    }`}
                   >
-                    {docAudioLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Volume2 className="w-3.5 h-3.5" />
-                    )}
-                    {docAudioLoading ? "Memproses..." : "Dengarkan"}
+                    <span>🎵</span> Lagu Rangkuman
+                  </button>
+                  <button
+                    onClick={() => setSummaryMode("standard")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      summaryMode === "standard"
+                        ? "bg-[#1D2D50] text-white shadow-sm"
+                        : "text-[#646675] hover:text-[#1A1B26]"
+                    }`}
+                  >
+                    <span>📄</span> Ringkasan Standar
                   </button>
                 </div>
-              )}
-            </div>
-            <div className="prose prose-sm max-w-none text-[#1A1B26] leading-relaxed whitespace-pre-line">
-              {doc.summary || "Belum ada ringkasan."}
-            </div>
-            {docAudioUrl && (
-              <audio
-                ref={audioRef}
-                src={docAudioUrl}
-                controls
-                className="mt-4 w-full"
-              >
-                Browser tidak mendukung audio.
-              </audio>
+              </div>
             )}
+
+            {(!isTeacher && user?.hobby === "musik" && summaryMode === "music") ? (
+              /* PERSONALIZED MUSIC MODE */
+              <div className="space-y-6">
+                {musicLoading && (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-[#E2E0D8] rounded-xl bg-[#FBFAF7] text-center space-y-4 animate-pulse">
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-full bg-[#1D2D50]/5 flex items-center justify-center text-[#1D2D50]">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      </div>
+                      <span className="absolute -top-1 -right-1 text-lg animate-bounce">🎶</span>
+                    </div>
+                    <div className="max-w-md space-y-2">
+                      <h4 className="font-heading text-lg text-[#1A1B26]">AI sedang menggubah lagu untukmu...</h4>
+                      <p className="text-xs text-[#646675] leading-relaxed">
+                        Mengubah ringkasan materi menjadi lirik lagu berirama dan mengomposisikannya dalam genre{" "}
+                        <strong className="text-[#1D2D50] capitalize">"{user?.music_genre || "pop, romantic"}"</strong>.
+                      </p>
+                      <p className="text-[10px] text-[#A0A2B1] italic">
+                        * Proses asinkronus ini memakan waktu sekitar 1-2 menit. Kamu bebas membaca Ringkasan Standar atau berpindah ke menu lain selagi musik diproses.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {musicError && (
+                  <div className="p-6 border border-[#B83A4B]/20 rounded-xl bg-[#B83A4B]/5 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-[#B83A4B]/10 flex items-center justify-center text-[#B83A4B] mx-auto">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="max-w-md mx-auto space-y-1">
+                      <h4 className="font-heading text-md font-bold text-[#B83A4B]">Komposisi Musik Tertunda</h4>
+                      <p className="text-xs text-[#646675]">{musicError}</p>
+                    </div>
+                    <Button
+                      onClick={fetchMusicSummary}
+                      size="sm"
+                      className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white text-xs px-4"
+                    >
+                      Coba Lagi
+                    </Button>
+                  </div>
+                )}
+
+                {musicSummary && (
+                  <div className="space-y-8 animate-in fade-in duration-500">
+                    {/* Premium Audio Player Widget */}
+                    <div className="relative overflow-hidden rounded-xl border border-[#E2E0D8] bg-gradient-to-r from-[#1D2D50] to-[#15223E] p-6 text-white shadow-lg">
+                      <div className="absolute right-0 bottom-0 opacity-10 translate-x-6 translate-y-6 pointer-events-none">
+                        <Volume2 className="w-48 h-48" />
+                      </div>
+                      <div className="flex flex-col md:flex-row items-center gap-5 relative z-10">
+                        {/* CD/Vinyl Art */}
+                        <div className="relative w-20 h-20 rounded-full bg-[#1A1B26] border-4 border-[#3F4E75] flex items-center justify-center shadow-md shrink-0 group animate-spin [animation-duration:15s] play-state-running">
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+                            <div className="w-2 h-2 rounded-full bg-[#1A1B26]" />
+                          </div>
+                          <span className="absolute text-xs select-none">🎵</span>
+                        </div>
+                        
+                        <div className="flex-1 text-center md:text-left space-y-1 min-w-0 w-full">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E5A93C] text-[#1A1B26] uppercase tracking-wider">
+                            {user?.music_genre || "Pop Romantic"}
+                          </span>
+                          <h4 className="font-heading text-lg font-bold truncate">Melodi Rangkuman Akademik</h4>
+                          <p className="text-xs text-[#A0A2B1]">Diaransemen khusus oleh AI Eduai berdasarkan materi ajar</p>
+                          <audio
+                            src={musicSummary.audio_url}
+                            controls
+                            className="w-full mt-3 accent-[#E5A93C] h-9"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lyric Sheet */}
+                    <div className="bg-[#FCFBF8] border border-[#E2E0D8] rounded-xl p-6 md:p-8 shadow-inner relative font-serif">
+                      <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[10px] text-[#A0A2B1] font-mono select-none">
+                        <span>LEMBAR LIRIK</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      </div>
+                      <h3 className="font-heading text-center text-xl text-[#1D2D50] border-b border-[#E2E0D8] pb-3 mb-6">
+                        🎼 Lirik Lagu Rangkuman
+                      </h3>
+                      <div className="max-w-xl mx-auto text-center tracking-wide whitespace-pre-line">
+                        {formatLyrics(musicSummary.lyrics)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* STANDARD MODE (OR IF HOBBY IS NOT MUSIC) */
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-heading text-xl text-[#1A1B26]">Abstraksi & Ringkasan</h3>
+                  {doc.status === "ready" && doc.summary && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleDocPlayAudio}
+                        disabled={docAudioLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1D2D50]/10 hover:bg-[#1D2D50]/20 text-[#1D2D50] text-xs transition-colors shrink-0"
+                      >
+                        {docAudioLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                        {docAudioLoading ? "Memproses..." : "Dengarkan"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="prose prose-sm max-w-none text-[#1A1B26] leading-relaxed whitespace-pre-line">
+                  {doc.summary || "Belum ada ringkasan."}
+                </div>
+                {docAudioUrl && (
+                  <audio
+                    ref={audioRef}
+                    src={docAudioUrl}
+                    controls
+                    className="mt-4 w-full"
+                  >
+                    Browser tidak mendukung audio.
+                  </audio>
+                )}
+              </>
+            )}
+
             {doc.learning_objectives?.length > 0 && (
               <div className="mt-8 pt-6 border-t border-[#E2E0D8]">
                 <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1] mb-3">Tujuan Pembelajaran</div>

@@ -36,6 +36,11 @@ async def create_class_token(
     request: Request,
     user: User = Depends(require_can_create_token)
 ):
+    # For SMA-equivalent levels, major is required so institutional student profiles are complete.
+    sma_equiv = {"SMA", "SMK", "MA"}
+    if user.education_level in sma_equiv and not (payload.major or "").strip():
+        raise HTTPException(400, "Jurusan wajib diisi untuk token kelas jenjang SMA/SMK/MA")
+
     if user.account_type != AccountType.pribadi:
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
@@ -73,7 +78,7 @@ async def create_class_token(
                 "level": user.education_level,
                 "target_class_room": payload.target_class_room,
                 "target_semester_or_grade": payload.target_semester_or_grade,
-                "major": payload.major,
+                "major": payload.major.strip() if payload.major else None,
                 "created_by_user_id": user.user_id,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }

@@ -1,5 +1,6 @@
 import io
 import os
+import json
 import uuid
 import logging
 import asyncio
@@ -134,6 +135,13 @@ async def save_education_settings(payload: EducationSettingsPayload, request: Re
 
 @router.get("/user/education")
 async def get_education_settings(user: User = Depends(get_current_user)):
+    if user.role == "pelajar" and user.institution_code and user.enrolled_class:
+        from services.sync_service import provision_student_by_class
+        try:
+            await provision_student_by_class(user.user_id, user.institution_code, user.enrolled_class)
+        except Exception as e:
+            logger.warning(f"Gagal melakukan auto-provision pelajar institusi: {e}")
+
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subjects": 1, "schedule": 1, "education_level": 1, "major": 1, "current_semester": 1, "institution": 1})
     if not doc:
         raise HTTPException(404, "User tidak ditemukan")
@@ -493,6 +501,16 @@ async def list_documents(user: User = Depends(get_current_user)):
     docs = await db.documents.find({"user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(100)
     
     if user.role == UserRole.pelajar:
+        if user.institution_code and user.enrolled_class:
+            from services.sync_service import provision_student_by_class
+            try:
+                await provision_student_by_class(user.user_id, user.institution_code, user.enrolled_class)
+                fresh_user = await db.users.find_one({"user_id": user.user_id})
+                if fresh_user:
+                    user.subjects = fresh_user.get("subjects") or []
+            except Exception as e:
+                logger.warning(f"Gagal melakukan auto-provision pelajar di list_documents: {e}")
+
         subjects = user.subjects or []
         subject_names = [s.get("name") for s in subjects if s.get("name")]
         
@@ -739,13 +757,13 @@ async def move_documents(payload: DocumentMove, request: Request, user: User = D
         if not folder:
             raise HTTPException(404, "Folder tidak ditemukan")
     
-    await db.documents.update_many(
+    result = await db.documents.update_many(
         {"document_id": {"$in": payload.document_ids}, "user_id": user.user_id},
         {"$set": {"folder_id": payload.folder_id}}
     )
     
     await write_audit(user.user_id, "DOCUMENTS_MOVED", {"document_ids": payload.document_ids, "folder_id": payload.folder_id}, request.client.host if request.client else "")
-    return {"ok": True}
+    return {"moved": result.matched_count, "folder_id": payload.folder_id}
 
 
 @router.get("/documents/jobs")
@@ -759,3 +777,166 @@ async def list_document_jobs(user: User = Depends(get_current_user)):
     ).to_list(50)
     
     return {"jobs": jobs}
+
+
+from pydantic import BaseModel
+import random
+
+class MusicSummaryPayload(BaseModel):
+    tags: Optional[str] = "pop, romantic"
+
+async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        query_payload = [
+            {
+                "role": "system",
+                "content": "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics. Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. Use only the tag (e.g., [verse]) without any numbering or extra text (e.g., do not write [verse 1], [chorus x2], etc). Do not add explanations, titles, or any other text outside of the lyrics. Focus on vivid imagery, emotional flow, and strong lyrical rhythm. Refrain from labeling genre or giving commentary. Respond in clean plain text, exactly as if it were a song lyric sheet."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        r1 = await client.get(
+            "https://8pe3nv3qha.execute-api.us-east-1.amazonaws.com/default/llm_chat",
+            params={
+                "query": json.dumps(query_payload),
+                "link": "writecream.com"
+            }
+        )
+        if r1.status_code != 200:
+            raise Exception(f"Gagal membuat lirik dari API: {r1.status_code}")
+            
+        ai_res = r1.json()
+        lyrics = ai_res.get("response_content", "")
+        if not lyrics:
+            raise Exception("Respons lirik kosong dari AI")
+            
+        session_hash = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
+        
+        r2 = await client.post(
+            "https://ace-step-ace-step.hf.space/gradio_api/queue/join?",
+            json={
+                "data": [
+                    240,
+                    tags,
+                    lyrics,
+                    60,
+                    15,
+                    'euler',
+                    'apg',
+                    10,
+                    '',
+                    0.5,
+                    0,
+                    3,
+                    True,
+                    False,
+                    True,
+                    '',
+                    0,
+                    0,
+                    False,
+                    0.5,
+                    None,
+                    'none'
+                ],
+                "event_data": None,
+                "fn_index": 11,
+                "trigger_id": 45,
+                "session_hash": session_hash
+            }
+        )
+        if r2.status_code != 200:
+            raise Exception(f"Gagal mengirim aransemen ke HF: {r2.status_code}")
+            
+        audio_url = None
+        for _ in range(45):  # Poll up to 90 seconds
+            await asyncio.sleep(2.0)
+            r3 = await client.get(
+                f"https://ace-step-ace-step.hf.space/gradio_api/queue/data?session_hash={session_hash}"
+            )
+            if r3.status_code != 200:
+                continue
+                
+            lines = r3.text.split("\n\n")
+            for line in lines:
+                if line.startswith("data:"):
+                    try:
+                        import json as json_lib
+                        d = json_lib.loads(line[5:])
+                        if d.get("msg") == "process_completed":
+                            audio_url = d["output"]["data"][0]["url"]
+                            break
+                    except Exception:
+                        pass
+            if audio_url:
+                break
+                
+        if not audio_url:
+            raise Exception("Pembuatan audio musik timeout di HF Space")
+            
+        return {
+            "lyrics": lyrics,
+            "audio_url": audio_url
+        }
+
+@router.post("/documents/{doc_id}/music-summary")
+async def get_or_create_music_summary(
+    doc_id: str,
+    payload: MusicSummaryPayload,
+    user: User = Depends(get_current_user)
+):
+    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if not doc:
+        if user.role == "pelajar":
+            if user.institution_code:
+                doc = await db.documents.find_one({
+                    "document_id": doc_id,
+                    "institution_code": user.institution_code,
+                    "visibility": "institution",
+                    "status": "published"
+                }, {"_id": 0})
+            elif user.class_token_used:
+                token_doc = await db.class_tokens.find_one({"class_token": user.class_token_used})
+                if token_doc:
+                    doc = await db.documents.find_one({
+                        "document_id": doc_id,
+                        "user_id": token_doc["created_by_user_id"],
+                        "$or": [
+                            {"target_class_room": token_doc["target_class_room"]},
+                            {"target_class_rooms": token_doc["target_class_room"]}
+                        ],
+                        "status": "published"
+                    }, {"_id": 0})
+        elif user.role == "pengajar" and user.institution_code:
+            doc = await db.documents.find_one({
+                "document_id": doc_id,
+                "institution_code": user.institution_code
+            }, {"_id": 0})
+            
+    if not doc:
+        raise HTTPException(404, "Dokumen tidak ditemukan")
+        
+    tags = (payload.tags or "pop, romantic").strip()
+    
+    music_summaries = doc.get("music_summaries", {})
+    if tags in music_summaries:
+        return music_summaries[tags]
+        
+    summary_text = doc.get("summary", "")
+    if not summary_text:
+        raise HTTPException(400, "Dokumen ini belum memiliki ringkasan untuk diubah menjadi musik")
+        
+    try:
+        res = await aimusic(summary_text, tags)
+        music_summaries[tags] = res
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {"$set": {"music_summaries": music_summaries}}
+        )
+        return res
+    except Exception as e:
+        logger.exception("Gagal generate music summary")
+        raise HTTPException(500, f"Gagal membuat aransemen musik: {str(e)}")

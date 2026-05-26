@@ -17,15 +17,25 @@ export default function Onboarding() {
   const { user, setUser } = useAuth();
 
   useEffect(() => {
-    if (user?.onboarded) {
+    if (user?.onboarded || user?.institution_code || user?.enrolled_class || user?.education_level) {
       navigate("/dashboard", { replace: true });
     }
   }, [user, navigate]);
+
   const [level, setLevel] = useState("");
   const [major, setMajor] = useState("");
   const [institution, setInstitution] = useState("");
   const [grade, setGrade] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      if (user.education_level) setLevel(user.education_level);
+      if (user.major) setMajor(user.major);
+      if (user.institution) setInstitution(user.institution);
+      if (user.current_semester) setGrade(String(user.current_semester));
+    }
+  }, [user]);
 
   const showMajor = useMemo(() => hasMajor(level), [level]);
   const majors = MAJORS[level] || [];

@@ -29,6 +29,23 @@ http.interceptors.request.use(async (config) => {
   return config;
 });
 
+let signingOutOnAuthError = false;
+http.interceptors.response.use(
+  (resp) => resp,
+  async (err) => {
+    const status = err?.response?.status;
+    if ((status === 401 || status === 403) && !signingOutOnAuthError) {
+      signingOutOnAuthError = true;
+      try { await supabase.auth.signOut(); } catch {}
+      // Force a clean unauthenticated state to avoid runtime crashes.
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
 export async function fetchMe() {
   const r = await http.get("/auth/me");
   return r.data;
@@ -501,6 +518,11 @@ export async function publishTeacherMaterial(docId) {
   return r.data;
 }
 
+export async function reviewTeacherMaterial(docId, payload) {
+  const r = await http.post(`/teacher/materials/${docId}/review`, payload);
+  return r.data;
+}
+
 export async function updateTeacherMaterial(docId, payload) {
   const r = await http.put(`/teacher/materials/${docId}`, payload);
   return r.data;
@@ -526,6 +548,11 @@ export async function generateRedeemCode(quizId, expiresAt) {
   const r = await http.post(`/redeem/teacher/quizzes/${quizId}/redeem-code`, {
     expires_at: expiresAt,
   });
+  return r.data;
+}
+
+export async function generateMusicSummary(docId, tags) {
+  const r = await http.post(`/documents/${docId}/music-summary`, { tags });
   return r.data;
 }
 
@@ -581,6 +608,21 @@ export async function getAdminAcademicYears() {
 
 export async function getAdminAcademicSummary() {
   const r = await http.get("/admin/academic-summary");
+  return r.data;
+}
+
+export async function redeemShadowWorkspace(code) {
+  const r = await http.post("/shadow-workspace/redeem", { redeem_code: code });
+  return r.data;
+}
+
+export async function listShadowActivities() {
+  const r = await http.get("/shadow-workspace/activities");
+  return r.data;
+}
+
+export async function joinClassByToken(token) {
+  const r = await http.post("/student/join-class", { class_token: token });
   return r.data;
 }
 

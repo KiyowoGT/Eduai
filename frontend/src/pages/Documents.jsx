@@ -12,7 +12,8 @@ import {
   generateTeacherQuiz,
   publishTeacherQuiz,
   generateRedeemCode,
-  updateTeacherMaterial
+  updateTeacherMaterial,
+  reviewTeacherMaterial
 } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ import useRealtimeSocket from "@/hooks/useRealtimeSocket";
 export default function Documents() {
   const { user } = useAuth();
   const isTeacher = user?.role === "pengajar";
+  const isInstitutionalStudent = user?.role === "pelajar" && user?.institution_code;
   const navigate = useNavigate();
 
   // Common states
@@ -106,6 +108,45 @@ export default function Documents() {
   const [editingDocClasses, setEditingDocClasses] = useState(null);
   const [editSelectedClasses, setEditSelectedClasses] = useState([]);
   const [savingClasses, setSavingClasses] = useState(false);
+
+  // Kajur (Head of Department) review states & helpers
+  const isKajurOrAdmin = isTeacher && (
+    user?.title === "kajur" || 
+    user?.title === "kurikulum" || 
+    user?.title === "kepala_sekolah" ||
+    (user?.titles || []).some(t => ["kajur", "kurikulum", "kepala_sekolah"].includes(t))
+  );
+  const [reviewingDoc, setReviewingDoc] = useState(null);
+  const [rejectComment, setRejectComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  const handleReviewMaterial = async (docId, decision, comment = "") => {
+    setSubmittingReview(true);
+    try {
+      await reviewTeacherMaterial(docId, { decision, comment });
+      if (decision === "approve") {
+        toast.success("Materi berhasil disetujui dan diterbitkan!");
+      } else {
+        toast.success("Materi ditolak dan dikembalikan ke draf guru.");
+      }
+      setReviewingDoc(null);
+      setRejectComment("");
+      loadTeacherData();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      let errMsg = "Gagal memproses review.";
+      if (detail) {
+        if (typeof detail === "string") errMsg = detail;
+        else if (Array.isArray(detail)) errMsg = detail.map(e => e.msg || JSON.stringify(e)).join(", ");
+        else if (typeof detail === "object") errMsg = detail.detail || detail.msg || JSON.stringify(detail);
+      } else if (err?.message) {
+        errMsg = err.message;
+      }
+      toast.error(errMsg);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   // Realtime updates for teacher/student documents
   useRealtimeSocket((payload) => {
@@ -267,8 +308,12 @@ export default function Documents() {
 
   const handlePublishMaterial = async (docId) => {
     try {
-      await publishTeacherMaterial(docId);
-      toast.success("Materi berhasil dipublikasikan ke siswa sekolah!");
+      const res = await publishTeacherMaterial(docId);
+      if (res && res.status === "pending_review") {
+        toast.success("Materi berhasil diajukan untuk ditinjau oleh Kepala Jurusan (Kajur)!");
+      } else {
+        toast.success("Materi berhasil dipublikasikan ke siswa sekolah!");
+      }
       loadTeacherData();
     } catch (err) {
       toast.error("Gagal mempublikasikan materi.");
@@ -470,6 +515,14 @@ export default function Documents() {
                         <span>•</span>
                         <span className="font-mono text-[#A0A2B1]">{new Date(m.created_at).toLocaleDateString("id-ID")}</span>
                       </div>
+                      {m.status === "ready" && m.review_comment && (
+                        <div className="mt-2.5 text-xs text-[#B83A4B] bg-[#B83A4B]/5 border border-[#B83A4B]/10 p-2.5 rounded-lg flex items-start gap-1.5 animate-in fade-in duration-300">
+                          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#B83A4B]" />
+                          <div>
+                            <strong>Catatan Koreksi Kajur:</strong> "{m.review_comment}"
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -477,11 +530,12 @@ export default function Documents() {
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                       m.status === "published" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" :
+                      m.status === "pending_review" ? "bg-blue-100 text-blue-700 border border-blue-200" :
                       m.status === "ready" ? "bg-[#E5A93C]/10 text-[#E5A93C]" :
                       m.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" :
                       "bg-[#646675]/10 text-[#646675]"
                     }`}>
-                      {m.status === "published" ? "Terbit" : m.status === "ready" ? "Draf" : m.status === "failed" ? "Gagal" : "Proses"}
+                      {m.status === "published" ? "Terbit" : m.status === "pending_review" ? "Review" : m.status === "ready" ? "Draf" : m.status === "failed" ? "Gagal" : "Proses"}
                     </span>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -522,6 +576,36 @@ export default function Documents() {
                         >
                           <Send className="w-3.5 h-3.5 mr-1" /> Terbitkan Modul Ke Siswa
                         </Button>
+                      )}
+                      {m.status === "pending_review" && (
+                        isKajurOrAdmin ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => handleReviewMaterial(m.document_id, "approve")}
+                              disabled={submittingReview}
+                              size="sm"
+                              className="bg-[#2D6A4F] hover:bg-[#204e39] text-white text-xs"
+                            >
+                              Setujui & Terbitkan
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setReviewingDoc(m);
+                                setRejectComment("");
+                              }}
+                              disabled={submittingReview}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#B83A4B] text-[#B83A4B] hover:bg-[#B83A4B]/5 text-xs"
+                            >
+                              Koreksi / Tolak
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-[#E5A93C] flex items-center gap-1.5 font-medium animate-pulse">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Menunggu verifikasi Kurikulum/Kajur
+                          </p>
+                        )
                       )}
                       {m.status === "published" && (
                         <p className="text-xs text-[#2D6A4F] flex items-center gap-1 font-medium">
@@ -733,6 +817,51 @@ export default function Documents() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog untuk Koreksi/Penolakan Modul (Kajur) */}
+        <Dialog open={!!reviewingDoc} onOpenChange={(open) => !open && setReviewingDoc(null)}>
+          <DialogContent className="max-w-md bg-white border border-[#E2E0D8] rounded-xl shadow-xl p-6">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-xl text-[#B83A4B] flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" /> Minta Koreksi Modul
+              </DialogTitle>
+              <DialogDescription className="text-xs text-[#646675] mt-1">
+                Berikan catatan revisi atau umpan balik untuk modul: <strong>{reviewingDoc?.title || reviewingDoc?.filename}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-2">
+              <label className="text-xs font-bold text-[#1D2D50] uppercase tracking-wider">Catatan Umpan Balik</label>
+              <textarea
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+                placeholder="Contoh: Koreksi rima lirik lagu agar rumusnya tetap akurat, atau kuis HOTS nomor 3 keliru kunci jawabannya."
+                className="w-full min-h-[100px] p-3 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#B83A4B]/20"
+              />
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setReviewingDoc(null)}
+                className="border-[#E2E0D8] text-[#646675] hover:bg-slate-50"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={() => handleReviewMaterial(reviewingDoc.document_id, "reject", rejectComment)}
+                disabled={submittingReview || !rejectComment.trim()}
+                className="bg-[#B83A4B] hover:bg-[#9c2f3d] text-white"
+              >
+                {submittingReview ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Kirim Koreksi"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
           </>
         )}
       </div>
@@ -745,11 +874,15 @@ export default function Documents() {
       <div className="mb-6">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Semua Dokumen</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Perpustakaan Akademik</h1>
-        <p className="text-sm text-[#646675] mt-2">Centang untuk bulk action. Drag kartu ke folder untuk memindahkan.</p>
+        <p className="text-sm text-[#646675] mt-2">
+          {isInstitutionalStudent
+            ? "Materi Anda dikelola oleh pihak sekolah sesuai kurikulum."
+            : "Centang untuk bulk action. Drag kartu ke folder untuk memindahkan."}
+        </p>
       </div>
 
       {/* Folder strip (drop targets) */}
-      {folders.length > 0 && (
+      {!isInstitutionalStudent && folders.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2" data-testid="folder-strip">
           <div
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("ring-2","ring-[#1D2D50]"); }}
@@ -847,12 +980,14 @@ export default function Documents() {
                 className={`card-lift relative bg-white border rounded-xl p-5 group transition-all ${isSel ? "border-[#1D2D50] ring-2 ring-[#1D2D50]/20" : "border-[#E2E0D8]"}`}
               >
                 <div className="flex items-start justify-between">
-                  <Checkbox
-                    checked={isSel}
-                    onCheckedChange={() => toggle(d.document_id)}
-                    disabled={d.status !== "ready"}
-                    data-testid={`doc-check-${d.document_id}`}
-                  />
+                  {!isInstitutionalStudent && (
+                    <Checkbox
+                      checked={isSel}
+                      onCheckedChange={() => toggle(d.document_id)}
+                      disabled={d.status !== "ready"}
+                      data-testid={`doc-check-${d.document_id}`}
+                    />
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-[#A0A2B1] hover:text-[#1A1B26]" data-testid={`doc-menu-${d.document_id}`}>
@@ -863,25 +998,29 @@ export default function Documents() {
                       <DropdownMenuItem onClick={() => navigate(`/dokumen/${d.document_id}`)} data-testid={`doc-open-${d.document_id}`}>
                         <ArrowUpRight className="w-3.5 h-3.5 mr-2" /> Buka detail
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Pindahkan ke</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => moveDocuments([d.document_id], null).then(loadStudentData)} data-testid={`doc-move-none-${d.document_id}`}>
-                        Tanpa folder
-                      </DropdownMenuItem>
-                      {folders.map((f) => (
-                        <DropdownMenuItem key={f.folder_id} onClick={() => moveDocuments([d.document_id], f.folder_id).then(loadStudentData)} data-testid={`doc-move-${f.folder_id}-${d.document_id}`}>
-                          <FolderOpen className="w-3.5 h-3.5 mr-2 text-[#E5A93C]" /> {f.name}
-                        </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      {isProc && (
-                        <DropdownMenuItem onClick={() => onCancel(d.document_id)} className="text-[#B83A4B]" data-testid={`doc-cancel-${d.document_id}`}>
-                          <X className="w-3.5 h-3.5 mr-2" /> Batalkan proses
-                        </DropdownMenuItem>
+                      {!isInstitutionalStudent && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Pindahkan ke</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => moveDocuments([d.document_id], null).then(loadStudentData)} data-testid={`doc-move-none-${d.document_id}`}>
+                            Tanpa folder
+                          </DropdownMenuItem>
+                          {folders.map((f) => (
+                            <DropdownMenuItem key={f.folder_id} onClick={() => moveDocuments([d.document_id], f.folder_id).then(loadStudentData)} data-testid={`doc-move-${f.folder_id}-${d.document_id}`}>
+                              <FolderOpen className="w-3.5 h-3.5 mr-2 text-[#E5A93C]" /> {f.name}
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          {isProc && (
+                            <DropdownMenuItem onClick={() => onCancel(d.document_id)} className="text-[#B83A4B]" data-testid={`doc-cancel-${d.document_id}`}>
+                              <X className="w-3.5 h-3.5 mr-2" /> Batalkan proses
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => onDelete(d.document_id, d.title || d.filename)} className="text-[#B83A4B]" data-testid={`doc-delete-${d.document_id}`}>
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Hapus
+                          </DropdownMenuItem>
+                        </>
                       )}
-                      <DropdownMenuItem onClick={() => onDelete(d.document_id, d.title || d.filename)} className="text-[#B83A4B]" data-testid={`doc-delete-${d.document_id}`}>
-                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Hapus
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

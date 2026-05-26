@@ -62,6 +62,23 @@ async def get_teacher_students(user: User = Depends(require_pengajar)):
         "schedule": 0
     }).sort("name", 1).to_list(1000)
 
+    # Best-effort backfill for institutional SMA-equivalent student majors
+    # using existing institution data only (do not infer from class naming).
+    try:
+        sma_equiv = {"SMA", "SMK", "MA"}
+        inst_major = None
+        if user.institution_code:
+            inst = await db.institutions.find_one({"institution_code": user.institution_code}, {"major": 1, "_id": 0})
+            inst_major = (inst or {}).get("major")
+
+        for s in students:
+            if s.get("education_level") in sma_equiv and not s.get("major"):
+                if inst_major:
+                    s["major"] = inst_major
+                    await db.users.update_one({"user_id": s.get("user_id")}, {"$set": {"major": inst_major}})
+    except Exception as e:
+        logger.warning(f"Gagal backfill jurusan siswa: {e}")
+
     return students
 
 @router.get("/teacher/analytics/quiz/{quiz_id}")
@@ -356,7 +373,13 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
         student_count = 0
 
     # 2. Count materials (documents)
-    mat_query = {"institution_code": user.institution_code, "visibility": "institution", "status": {"$ne": "deleted"}}
+    mat_query = {
+        "status": {"$ne": "deleted"},
+        "$or": [
+            {"user_id": user.user_id},
+            {"institution_code": user.institution_code, "visibility": "institution"},
+        ],
+    }
     if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
         conditions = []
         if TeacherTitle.guru_kelas in user.all_titles:
@@ -364,19 +387,29 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
         if TeacherTitle.guru_pengajar in user.all_titles:
             conditions.append({"subject_name": user.assigned_subject})
         if conditions:
-            if len(conditions) == 1:
-                mat_query.update(conditions[0])
-            else:
-                mat_query["$or"] = conditions
+            # Narrow institution scope, but always include the teacher's own uploads.
+            mat_query["$and"] = [
+                {"$or": mat_query["$or"]},
+                {"$or": [{"user_id": user.user_id}] + conditions},
+            ]
+            mat_query.pop("$or", None)
     materials_count = await db.documents.count_documents(mat_query)
 
     # 3. Count quizzes
     active_year = await db.academic_years.find_one({"institution_code": user.institution_code, "is_active": True})
     active_year_id = active_year.get("academic_year_id") if active_year else None
 
-    quiz_query = {"institution_code": user.institution_code, "status": {"$ne": "deleted"}}
+    inst_quiz_filter = {"institution_code": user.institution_code}
     if active_year_id:
-        quiz_query["academic_year_id"] = active_year_id
+        inst_quiz_filter["academic_year_id"] = active_year_id
+
+    quiz_query = {
+        "status": {"$ne": "deleted"},
+        "$or": [
+            {"user_id": user.user_id},
+            inst_quiz_filter,
+        ],
+    }
     if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum)):
         conditions = []
         if TeacherTitle.guru_kelas in user.all_titles:
@@ -384,10 +417,11 @@ async def get_teacher_dashboard(user: User = Depends(require_pengajar)):
         if TeacherTitle.guru_pengajar in user.all_titles:
             conditions.append({"subject_name": user.assigned_subject})
         if conditions:
-            if len(conditions) == 1:
-                quiz_query.update(conditions[0])
-            else:
-                quiz_query["$or"] = conditions
+            quiz_query["$and"] = [
+                {"$or": quiz_query["$or"]},
+                {"$or": [{"user_id": user.user_id}] + conditions},
+            ]
+            quiz_query.pop("$or", None)
     quizzes_count = await db.quizzes.count_documents(quiz_query)
 
     # 4. Average score
@@ -562,4 +596,3 @@ async def get_teacher_quiz_insights(
     await db.quiz_insights.update_one({"quiz_id": quiz_id}, {"$set": insight_doc}, upsert=True)
 
     return {"insight_text": insight_text}
-

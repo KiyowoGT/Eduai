@@ -32,6 +32,7 @@ const labelMap = {
   kurikulum: "Kurikulum",
   guru_kelas: "Guru Kelas",
   guru_pengajar: "Guru Pengajar",
+  kajur: "Kepala Jurusan (Kajur)",
 };
 
 export default function AppLayout() {

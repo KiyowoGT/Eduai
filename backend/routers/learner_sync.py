@@ -2,6 +2,7 @@ import logging
 import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from core.database import db
 from models.user import User
@@ -168,3 +169,69 @@ async def list_subject_materials(folder_id: str, user: User = Depends(require_pe
             unique_materials.append(m)
 
     return {"materials": unique_materials}
+
+
+class JoinClassPayload(BaseModel):
+    class_token: str
+
+
+@router.post("/student/join-class")
+async def join_class(payload: JoinClassPayload, request: Request, user: User = Depends(require_pelajar)):
+    token = payload.class_token.strip()
+    if not token:
+        raise HTTPException(400, "Token kelas wajib diisi")
+
+    token_doc = await db.class_tokens.find_one({"class_token": token})
+    if not token_doc:
+        raise HTTPException(404, "Token kelas tidak ditemukan")
+
+    inst_code = token_doc.get("institution_code")
+    target_class = token_doc["target_class_room"]
+    level = token_doc["level"]
+    semester = token_doc["target_semester_or_grade"]
+    major = token_doc.get("major")
+
+    institution_doc = None
+    if inst_code:
+        institution_doc = await db.institutions.find_one({"institution_code": inst_code})
+    
+    inst_name = institution_doc.get("name") if institution_doc else ""
+
+    # Ensure institutional students have a major for SMA-equivalent levels.
+    # Prefer token.major, then institution.major. If still missing, block join to avoid incomplete academic profile.
+    sma_equiv = {"SMA", "SMK", "MA"}
+    if level in sma_equiv and not major:
+        major = institution_doc.get("major") if institution_doc else None
+        if not major:
+            raise HTTPException(
+                400,
+                "Jurusan wajib diisi untuk jenjang SMA/SMK/MA. "
+                "Silakan minta admin/kepsek membuat ulang token kelas dengan jurusan, atau lengkapi jurusan institusi."
+            )
+
+    active_year = None
+    if inst_code:
+        active_year = await db.academic_years.find_one({"institution_code": inst_code, "is_active": True})
+
+    updates = {
+        "institution_code": inst_code,
+        "class_token_used": token,
+        "enrolled_class": target_class,
+        "education_level": level,
+        "current_semester": semester,
+        "institution": inst_name,
+        "major": major,
+        "account_type": "perusahaan" if inst_code else "pribadi"
+    }
+    if active_year:
+        updates["academic_year_id"] = active_year.get("academic_year_id")
+
+    await db.users.update_one({"user_id": user.user_id}, {"$set": updates})
+
+    # Run class provisioning to auto sync subjects & folders
+    await provision_for_class(user.user_id, token_doc)
+
+    from deps.auth import write_audit
+    await write_audit(user.user_id, "CLASS_JOINED", {"class_token": token, "class_name": target_class}, request.client.host if request.client else "")
+
+    return {"status": "success", "message": f"Berhasil bergabung ke kelas {target_class}"}

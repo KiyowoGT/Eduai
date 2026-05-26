@@ -69,6 +69,11 @@ class User(BaseModel):
     created_by_admin: Optional[bool] = None
     permissions: Optional[List[str]] = Field(default_factory=list)
     teaching_classes: Optional[List[str]] = Field(default_factory=list)
+    # Active context (portal/role switch) persisted for refresh/restart stability
+    active_role: Optional[str] = None
+    active_scope_id: Optional[str] = None
+    hobby: Optional[str] = None
+    music_genre: Optional[str] = None
     created_at: datetime
 
     @property
@@ -125,7 +130,7 @@ class User(BaseModel):
         elif active_title == TeacherTitle.guru_pengajar:
             permissions.update(["studio_materi", "analitik_butir_soal"])
         elif active_title == TeacherTitle.kajur:
-            permissions.update(["ruang_kelas_view", "studio_materi", "analitik_butir_soal"])
+            permissions.update(["ruang_kelas_view", "studio_materi", "analitik_butir_soal", "analitik_kelas", "analitik_makro"])
         
         return list(permissions)
 
@@ -139,6 +144,8 @@ class ProfileUpdate(BaseModel):
     teaching_methods: Optional[List[str]] = None
     clone_voice_enabled: Optional[bool] = None
     clone_voice_url: Optional[str] = None
+    hobby: Optional[str] = None
+    music_genre: Optional[str] = None
 
 class TeachingMethodsUpdate(BaseModel):
     teaching_methods: List[str]
@@ -180,4 +187,3 @@ class OnboardingCompletePayload(BaseModel):
     current_semester: Optional[int] = None
     major: Optional[str] = None
     teaching_methods: Optional[List[str]] = None
-

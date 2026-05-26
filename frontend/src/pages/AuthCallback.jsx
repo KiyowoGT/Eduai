@@ -42,7 +42,8 @@ export default function AuthCallback() {
         setStatusText("Mempersiapkan dashboard...");
         await new Promise(r => setTimeout(r, 800)); // smooth transition feel
 
-        const dest = user?.onboarded ? "/dashboard" : "/onboarding";
+        const isOnboarded = user?.onboarded || user?.institution_code || user?.enrolled_class || user?.education_level;
+        const dest = isOnboarded ? "/dashboard" : "/onboarding";
         navigate(dest, { replace: true });
       } catch (e) {
         setErr(`Gagal: ${e.message || "Unknown error"}`);

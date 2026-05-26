@@ -9,7 +9,8 @@ export default function ProtectedRoute({ children, requireOnboarded = true }) {
     return <DualLoader variant="full" type="default" text="Memeriksa sesi akademik..." />;
   }
   if (!user) return <Navigate to="/" replace />;
-  if (requireOnboarded && !user.onboarded && location.pathname !== "/onboarding") {
+  const isOnboarded = user.onboarded || user.institution_code || user.enrolled_class || user.education_level;
+  if (requireOnboarded && !isOnboarded && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
   return children;

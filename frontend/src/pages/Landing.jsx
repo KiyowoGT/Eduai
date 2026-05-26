@@ -16,7 +16,8 @@ export default function Landing() {
   }
   
   if (user) {
-    return <Navigate to={user.onboarded ? "/dashboard" : "/onboarding"} replace />;
+    const isOnboarded = user.onboarded || user.institution_code || user.enrolled_class || user.education_level;
+    return <Navigate to={isOnboarded ? "/dashboard" : "/onboarding"} replace />;
   }
 
   return (

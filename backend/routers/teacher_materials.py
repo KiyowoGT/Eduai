@@ -3,7 +3,7 @@ import uuid
 import logging
 import asyncio
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pathlib import Path
 from bson import Binary
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Form
@@ -41,12 +41,12 @@ class TeacherQuizPublishPayload(BaseModel):
     schedule_id: Optional[str] = None
 
 async def require_can_manage_materials(user: User = Depends(require_pengajar)) -> User:
-    is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
+    is_authorized = any(t in user.all_titles for t in (TeacherTitle.guru_pengajar, TeacherTitle.kajur, TeacherTitle.kurikulum, TeacherTitle.kepala_sekolah))
     is_mandiri = user.account_type == AccountType.pribadi
-    if not (is_guru_pengajar or is_mandiri):
+    if not (is_authorized or is_mandiri):
         raise HTTPException(
             status_code=403,
-            detail="Akses ditolak: Hanya Guru Pengajar atau Guru Mandiri yang bisa mengelola materi."
+            detail="Akses ditolak: Hanya Guru Pengajar, Kajur, Kurikulum, Kepala Sekolah, atau Guru Mandiri yang bisa mengelola materi."
         )
     return user
 
@@ -209,7 +209,7 @@ async def upload_teacher_material(
         "subject_name": subject_name,
         "target_class_room": class_rooms[0] if class_rooms else None, # Legacy
         "target_class_rooms": class_rooms, # New multi-class support
-        "visibility": "institution",
+        "visibility": "private" if user.account_type == AccountType.pribadi else "institution",
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -240,31 +240,44 @@ async def list_teacher_materials(user: User = Depends(require_pengajar)):
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
+        # Always include teacher's own uploads even if they were created before
+        # the user linked to an institution (i.e. `institution_code` may be None).
+        # Institution materials remain filtered by institution_code+visibility.
         query = {
-            "institution_code": user.institution_code,
-            "visibility": "institution",
-            "status": {"$ne": "deleted"}
+            "status": {"$ne": "deleted"},
+            "$or": [
+                {"user_id": user.user_id},
+                {"institution_code": user.institution_code, "visibility": "institution"},
+            ],
         }
 
         # Apply scopes based on teacher title, but always include the teacher's own uploads.
         # Only query class/subject parameters if they are actually set (not None/empty) to prevent incorrect matching.
         or_conditions = [{"user_id": user.user_id}]
         has_scope = False
+        
+        is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
 
-        if TeacherTitle.guru_kelas in user.all_titles:
-            has_scope = True
-            if user.assigned_class:
-                or_conditions.extend([
-                    {"target_class_room": user.assigned_class},
-                    {"target_class_rooms": user.assigned_class}
-                ])
-        if TeacherTitle.guru_pengajar in user.all_titles:
-            has_scope = True
-            if user.assigned_subject:
-                or_conditions.append({"subject_name": user.assigned_subject})
+        if not is_admin_or_kajur:
+            if TeacherTitle.guru_kelas in user.all_titles:
+                has_scope = True
+                if user.assigned_class:
+                    or_conditions.extend([
+                        {"target_class_room": user.assigned_class},
+                        {"target_class_rooms": user.assigned_class}
+                    ])
+            if TeacherTitle.guru_pengajar in user.all_titles:
+                has_scope = True
+                if user.assigned_subject:
+                    or_conditions.append({"subject_name": user.assigned_subject})
 
-        if has_scope:
-            query["$or"] = or_conditions
+            if has_scope:
+                # Narrow the institution materials scope, but still allow own uploads.
+                query["$and"] = [
+                    {"$or": query["$or"]},
+                    {"$or": or_conditions},
+                ]
+                query.pop("$or", None)
 
     docs = await db.documents.find(query, {"_id": 0, "file_path": 0}).sort("created_at", -1).to_list(200)
     
@@ -318,8 +331,10 @@ async def update_teacher_material(
     if not doc:
         raise HTTPException(404, "Materi tidak ditemukan")
 
+    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
     is_allowed = (
         doc.get("user_id") == user.user_id or
+        is_admin_or_kajur or
         (user.account_type != AccountType.pribadi and (
             (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
             (TeacherTitle.guru_kelas in user.all_titles and (
@@ -386,19 +401,85 @@ async def publish_teacher_material(
     if doc.get("status") == "processing":
         raise HTTPException(400, "Materi masih dalam proses analisis AI. Mohon tunggu beberapa saat.")
 
+    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    
+    new_status = "published" if (user.account_type == AccountType.pribadi or is_admin_or_kajur) else "pending_review"
+    
+    update_data = {
+        "status": new_status,
+    }
+    if new_status == "published":
+        update_data["published_at"] = datetime.now(timezone.utc).isoformat()
+        update_data["published_by"] = user.user_id
+    else:
+        update_data["submitted_for_review_at"] = datetime.now(timezone.utc).isoformat()
+        update_data["submitted_by"] = user.user_id
+
     await db.documents.update_one(
         {"document_id": doc_id},
-        {"$set": {
-            "status": "published",
-            "published_at": datetime.now(timezone.utc).isoformat(),
-            "published_by": user.user_id
-        }}
+        {"$set": update_data}
     )
 
     await write_audit(
         user.user_id,
-        "TEACHER_MATERIAL_PUBLISHED",
+        "TEACHER_MATERIAL_PUBLISH_REQUEST" if new_status == "pending_review" else "TEACHER_MATERIAL_PUBLISHED",
         {"document_id": doc_id, "subject_name": doc.get("subject_name")},
+        request.client.host if request.client else ""
+    )
+
+    updated_doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "file_path": 0})
+    return updated_doc
+
+class ReviewMaterialPayload(BaseModel):
+    decision: Literal["approve", "reject"]
+    comment: Optional[str] = None
+
+@router.post("/teacher/materials/{doc_id}/review")
+async def review_teacher_material(
+    doc_id: str,
+    payload: ReviewMaterialPayload,
+    request: Request,
+    user: User = Depends(require_pengajar)
+):
+    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
+    if not is_admin_or_kajur:
+        raise HTTPException(403, "Hanya Kepala Jurusan, Kurikulum, atau Kepala Sekolah yang dapat meninjau materi")
+
+    doc = await db.documents.find_one({"document_id": doc_id, "institution_code": user.institution_code, "status": {"$ne": "deleted"}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Materi tidak ditemukan")
+
+    if doc.get("status") != "pending_review":
+        raise HTTPException(400, "Materi tidak dalam status menunggu persetujuan (pending_review)")
+
+    if payload.decision == "approve":
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {"$set": {
+                "status": "published",
+                "published_at": datetime.now(timezone.utc).isoformat(),
+                "published_by": doc.get("submitted_by") or user.user_id,
+                "approved_by": user.user_id,
+                "review_comment": payload.comment
+            }}
+        )
+        audit_type = "TEACHER_MATERIAL_APPROVED"
+    else:
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {"$set": {
+                "status": "ready",
+                "review_comment": payload.comment,
+                "rejected_by": user.user_id,
+                "rejected_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        audit_type = "TEACHER_MATERIAL_REJECTED"
+
+    await write_audit(
+        user.user_id,
+        audit_type,
+        {"document_id": doc_id, "comment": payload.comment},
         request.client.host if request.client else ""
     )
 
@@ -429,8 +510,10 @@ async def generate_teacher_quiz(
     if not doc:
         raise HTTPException(404, "Dokumen/Materi tidak ditemukan")
 
+    is_admin_or_kajur = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.kajur))
     is_allowed = (
         doc.get("user_id") == user.user_id or
+        is_admin_or_kajur or
         (user.account_type != AccountType.pribadi and (
             (user.assigned_subject and doc.get("subject_name") == user.assigned_subject) or
             (TeacherTitle.guru_kelas in user.all_titles and (

@@ -1,6 +1,7 @@
 import uuid
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 from core.database import db
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,14 @@ async def provision_for_class(student_id: str, class_token_doc: dict):
     """
     inst_code = class_token_doc.get("institution_code")
     target_class = class_token_doc["target_class_room"]
+    teacher_id = class_token_doc.get("created_by_user_id")
+    await provision_student_by_class(student_id, inst_code, target_class, teacher_id)
 
+
+async def provision_student_by_class(student_id: str, inst_code: Optional[str], target_class: str, teacher_id: Optional[str] = None):
+    """
+    Core logic to provision folders, subjects, and schedules for a student based on institution and class.
+    """
     if inst_code:
         # 1. Fetch all shared schedules for this class
         shared_schedules = await db.shared_schedules.find({
@@ -19,12 +27,36 @@ async def provision_for_class(student_id: str, class_token_doc: dict):
             "class_name": target_class
         }).to_list(1000)
 
-        # 2. Get unique subject names
-        unique_subjects = sorted(list(set(s["subject_name"] for s in shared_schedules if s.get("subject_name"))))
+        # 2. Get unique subject names from schedules, documents, and quizzes
+        subjects_set = set(s["subject_name"] for s in shared_schedules if s.get("subject_name"))
+
+        docs = await db.documents.find({
+            "institution_code": inst_code,
+            "status": "published",
+            "$or": [
+                {"target_class_room": target_class},
+                {"target_class_rooms": target_class}
+            ]
+        }).to_list(1000)
+
+        for d in docs:
+            if d.get("subject_name"):
+                subjects_set.add(d["subject_name"].strip())
+
+        quizzes = await db.quizzes.find({
+            "institution_code": inst_code,
+            "status": "published",
+            "class_name": target_class
+        }).to_list(1000)
+
+        for q in quizzes:
+            if q.get("subject_name"):
+                subjects_set.add(q["subject_name"].strip())
+
+        unique_subjects = sorted(list(subjects_set))
     else:
         # Guru Mandiri (Pribadi): no schedules. Gather subjects from published docs/quizzes.
         shared_schedules = []
-        teacher_id = class_token_doc.get("created_by_user_id")
         
         docs = await db.documents.find({
             "user_id": teacher_id,
@@ -53,7 +85,7 @@ async def provision_for_class(student_id: str, class_token_doc: dict):
     
     # Fetch existing subjects from user's current doc to preserve subject_id if they already exist
     student_doc = await db.users.find_one({"user_id": student_id}, {"subjects": 1})
-    existing_subjects = student_doc.get("subjects") or []
+    existing_subjects = (student_doc.get("subjects") if student_doc else None) or []
     existing_subj_map = {s["name"].strip().lower(): s for s in existing_subjects if s.get("name")}
 
     for name in unique_subjects:
