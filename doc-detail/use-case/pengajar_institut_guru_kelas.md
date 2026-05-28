@@ -13,6 +13,27 @@
 3. Bimbingan: buka profil siswa, gunakan AI Insights (generate_deep_feedback / analysis endpoints) untuk membuat bahan konseling.
 4. Monitoring: gunakan dashboard untuk memfilter siswa yang "missed" atau memiliki skor rendah.
 
+## Preconditions
+- Pengajar sudah terdaftar dan memiliki peran 'wali kelas'.
+- Kelas sudah dibuat dan siswa sudah terdaftar di kelas (token/roster sync).
+- Sistem sudah mengumpulkan hasil kuis atau dokumen yang relevan untuk analisis.
+
+## Postconditions
+- Wali kelas dapat melihat ringkasan performa terkini per siswa.
+- Notifikasi dikirim bila ada perubahan status dokumen/kuis (useRealtimeSocket event).
+- Laporan AI (deep feedback) tersedia untuk sesi konseling.
+
+## Main Flow
+1. Guru membuka Class Dashboard.
+2. Sistem memanggil GET /api/classes/{classId}/students dan GET /api/results/latest untuk menampilkan ringkasan.
+3. Guru memilih siswa untuk melihat StudentProfile (panggil getStudentProfile).
+4. Guru meminta AI Insights untuk hasil tertentu → POST /api/feedback/deep → backend menjalankan generate_deep_feedback dan menyimpan result.
+5. Hasil tersedia di UI; guru dapat mengekspor atau menandai tindakan remidi.
+
+## Alternative Flows
+- Jika tidak ada data hasil kuis: tampilkan pesan "Belum ada data" dan tawarkan opsi untuk memicu analisis dokumen (upload manual).
+- Jika generate_deep_feedback gagal: tampilkan error, izinkan retry, dan kirim alert ke admin jika berulang.
+
 ## Mapping ke kode
 - Frontend pages/components:
   - pages/Teacher/ClassDashboard.jsx (overview kelas)

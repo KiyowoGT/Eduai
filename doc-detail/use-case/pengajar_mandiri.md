@@ -13,6 +13,27 @@
 3. Buat Redeem Code dan bagikan ke siswa; siswa mengerjakan via Portal Mandiri.
 4. Pantau hasil dan gunakan AI feedback untuk menentukan materi remidi.
 
+## Preconditions
+- Pengajar memiliki akun dan akses ke Studio Materi.
+- Dokumen yang diunggah memenuhi ukuran/format yang didukung (PDF).
+- API keys untuk model AI dikonfigurasi pada backend.
+
+## Postconditions
+- Materi dianalisis dan metadata (konsep, ringkasan) tersimpan.
+- Kuis yang dihasilkan tersedia via kode redeem dan tercatat di sistem.
+- Statistik pengerjaan peserta tersedia untuk monitoring.
+
+## Main Flow
+1. Tutor membuka Quiz Lab dan mengunggah dokumen atau memilih dari library.
+2. Tutor mengkonfigurasi jumlah soal dan memulai generateQuiz (POST /api/quiz/generate).
+3. Backend mengeksekusi pembuatan kuis asinkron, client menggunakan waitForStatus / useRealtimeSocket untuk notifikasi.
+4. Setelah selesai, GET /api/quiz/{quizId} menampilkan kuis siap pakai; tutor membuat redeem code (POST /api/portal/redeem).
+5. Tutor membagikan kode dan memonitor hasil melalui API / dashboard.
+
+## Alternative Flows
+- Jika PDF terlalu besar atau gagal di-parse: sistem memberikan opsi chunking ulang atau menampilkan pesan error.
+- Jika proses generateQuiz dibatalkan: tutor dapat melihat status pembatalan dan mencoba lagi.
+
 ## Mapping ke kode
 - Frontend pages/components:
   - pages/PortalMandiri.jsx (hosting kuis via redeem code)

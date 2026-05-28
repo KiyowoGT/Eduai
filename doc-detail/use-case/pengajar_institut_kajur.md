@@ -11,6 +11,24 @@
 2. Lihat analytics agregat: ambil data performa kuis/assigned quizzes per kelas.
 3. Koordinasi: minta guru membuat kuis remedial atau update materi berdasarkan rekomendasi AI.
 
+## Preconditions
+- Kepala jurusan memiliki akses ke dashboard department-level.
+- Data kuis dan hasil siswa sudah tersedia dan teragregasi di sistem.
+
+## Postconditions
+- Laporan departemen diperbarui dan tersedia untuk pimpinan dan guru terkait.
+- Tindakan koordinasi (permintaan remedial atau update materi) tercatat.
+
+## Main Flow
+1. Kajur membuka Department Dashboard (GET /api/departments/{deptId}/analytics).
+2. Sistem menampilkan metrik agregat dan daftar kelas yang butuh perhatian.
+3. Kajur memilih kelas/mapel untuk menjadwalkan tindak lanjut atau meminta guru membuat kuis remedial.
+4. Sistem menyimpan permintaan koordinasi dan memonitor hasil setelah tindakan diambil.
+
+## Alternative Flows
+- Jika data kuis tidak lengkap untuk beberapa kelas: tunjukkan coverage report dan rekomendasikan pengumpulan data tambahan.
+- Jika analisis material menandai kualitas rendah: otomatis kirim notifikasi ke pengunggah untuk review.
+
 ## Mapping ke kode
 - Frontend pages/components:
   - pages/department/DepartmentDashboard.jsx

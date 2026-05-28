@@ -13,6 +13,24 @@
 2. Validasi kebijakan pembelajaran (mis. approval flow untuk kuis institutional).
 3. Atur kebijakan tahun ajaran dan kelola SDM.
 
+## Preconditions
+- Kepala sekolah memiliki hak admin pada tenant sekolah.
+- Data akademik dan audit log tersedia untuk periode yang diminta.
+
+## Postconditions
+- Kebijakan yang diaktifkan (mis. tahun ajaran) tercatat dan memicu proses promosi/pembaruan akses.
+- Laporan audit dan ringkasan akademik tersedia untuk stakeholders.
+
+## Main Flow
+1. Kepala sekolah membuka School Dashboard (GET /api/schools/{schoolId}/summary).
+2. Meninjau academic summary dan audit-log untuk periode tertentu.
+3. Mengaktifkan tahun ajaran baru jika diperlukan (POST /api/schools/{schoolId}/activate-academic-year).
+4. Sistem menjalankan promosi dan memperbarui akses sesuai kebijakan.
+
+## Alternative Flows
+- Jika sebagian besar data belum lengkap: jadwalkan snapshot data ulang dan informasikan ke admin data.
+- Jika approval flow kuis diaktifkan: kuis yang dibuat guru harus melewati proses persetujuan sebelum publikasi.
+
 ## Mapping ke kode
 - Frontend pages/components:
   - pages/admin/SchoolDashboard.jsx
