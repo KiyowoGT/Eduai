@@ -14,6 +14,19 @@
 4. Pantau hasil dan gunakan AI feedback untuk menentukan materi remidi.
 
 ## Mapping ke kode
-- Frontend: pages/PortalMandiri.jsx, pages/QuizLab, components/PdfViewer
-- API: generateQuiz(), getQuiz(), waitForStatus(), createRedeemCode (API route)
-- AI: backend/server.py (analyze_pdf, generate_quiz handlers), LLM wrappers (_call_gemini, _call_groq)
+- Frontend pages/components:
+  - pages/PortalMandiri.jsx (hosting kuis via redeem code)
+  - pages/QuizLab.jsx (UI untuk konfig kuis dan generate)
+  - components/PdfViewer.jsx (preview dokumen sebelum generate)
+  - components/RedeemCodeCreate.jsx
+- API / hooks:
+  - POST /api/quiz/generate (generateQuiz(documentId, questionCount))
+  - GET /api/quiz/{quizId} (getQuiz)
+  - POST /api/quiz/{quizId}/cancel (cancelQuiz)
+  - POST /api/portal/redeem (createRedeemCode)
+  - waitForStatus(type, id) — helper untuk menunggu status objek via WebSocket
+- Backend:
+  - backend/server.py: analyze_pdf(), _analyze_batch(), generate_quiz() endpoints
+  - AI wrappers: _call_gemini() for document analysis; _call_groq() for quiz generation
+- Events:
+  - WebSocket events: quiz_status, document_status — client listens via useRealtimeSocket(callback)

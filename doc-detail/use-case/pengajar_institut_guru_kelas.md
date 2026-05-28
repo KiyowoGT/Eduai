@@ -14,7 +14,21 @@
 4. Monitoring: gunakan dashboard untuk memfilter siswa yang "missed" atau memiliki skor rendah.
 
 ## Mapping ke kode
-- Frontend: pages/ (Class/Teacher dashboard), components yang relevan seperti DocumentResult, StudentProfile.
-- Hooks/API: getLatestDocResult(), getDocument(), endpoints kuis (generateQuiz/getQuiz), useRealtimeSocket untuk notifikasi status.
+- Frontend pages/components:
+  - pages/Teacher/ClassDashboard.jsx (overview kelas)
+  - components/StudentProfile.jsx (profil + performa)
+  - components/DocumentResult.jsx (hasil kuis & deep feedback)
+  - components/AssignedQuizzesList.jsx
+- Hooks/API functions:
+  - getLatestDocResult(documentId) — mengambil ringkasan hasil terakhir untuk dokumen/kuis
+  - getAssignedQuizzes(classId) — daftar kuis yang ditugaskan (frontend wrapper)
+  - getStudentProfile(studentId)
+  - generate_deep_feedback(resultId) — backend menghasilkan feedback mendalam (AI)
+  - useRealtimeSocket(callback) — mendengarkan event: document_status, quiz_status, discussion_message
+- Backend endpoints (path contoh):
+  - GET /api/classes/{classId}/students
+  - GET /api/quizzes/assigned?classId={classId}
+  - GET /api/results/latest?documentId={documentId}
+  - POST /api/feedback/deep (body: {result_id})
 
 > Catatan: istilah yang dipakai di UI: "Assigned Quizzes", "Learner Today", dan "AI Insights" — sesuaikan terminologi materi komunikasi dengan UI.

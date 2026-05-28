@@ -13,6 +13,14 @@
 3. Remedial: guru/section head melihat analytics dan memicu materi tambahan atau kuis remedial.
 
 ## Mapping ke kode
-- Frontend: PortalMandiri, Class Dashboard pages, components/DocumentDetail.jsx (PdfViewer, DocumentAiChat)
-- API: endpoints untuk assigned quizzes, analyze_pdf, getLatestDocResult
-- Real-time: useRealtimeSocket untuk notifikasi status kuis/dokumen.
+- Frontend pages/components:
+  - pages/ClassDashboard.jsx
+  - pages/DocumentDetail.jsx (PdfViewer, DocumentAiChat)
+  - pages/PortalMandiri.jsx
+- API endpoints:
+  - GET /api/classes/{classId}/assignments
+  - GET /api/results/latest?documentId={documentId}
+  - POST /api/documents/{documentId}/analyze
+- Hooks:
+  - useRealtimeSocket to receive assigned quiz and result updates
+- Notes: Assigned quizzes are surfaced in the student dashboard and teacher-assigned flows.

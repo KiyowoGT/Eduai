@@ -12,6 +12,12 @@
 3. Koordinasi: minta guru membuat kuis remedial atau update materi berdasarkan rekomendasi AI.
 
 ## Mapping ke kode
-- Frontend: admin/department pages, Class Dashboard
-- API: endpoints untuk aggregated quiz results, analyze_pdf for material quality checks
-- AI: reports generated from Gemini-based analysis and aggregated quiz stats
+- Frontend pages/components:
+  - pages/department/DepartmentDashboard.jsx
+  - components/AcademicSummary.jsx (aggregated metrics)
+- API endpoints:
+  - GET /api/departments/{deptId}/analytics
+  - GET /api/quizzes/aggregate?deptId={deptId}
+  - POST /api/documents/{documentId}/analyze (for material QC)
+- AI:
+  - Aggregation uses stored quiz results and Gemini analysis outputs to compute departmental insights.

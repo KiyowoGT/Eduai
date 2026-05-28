@@ -12,6 +12,17 @@
 2. Atau: unggah PDF pribadi → sistem menjalankan analyze_pdf (adaptive chunking) → generate quiz → diskusi lanjutan via DocumentAiChat.
 
 ## Mapping ke kode
-- Frontend: pages/PortalMandiri.jsx, components/DocumentAiChat.jsx, components/PdfViewer.jsx
-- API: generateQuiz(), getQuiz(), generateDocumentAudio(), getLatestDocResult()
-- Hook: useRealtimeSocket untuk menerima notifikasi status kuis/dokumen.
+- Frontend pages/components:
+  - pages/PortalMandiri.jsx (entry redeem code)
+  - components/DocumentAiChat.jsx (chat with document context)
+  - components/PdfViewer.jsx (document preview)
+- API/helpers:
+  - generateQuiz(documentId, questionCount)
+  - getQuiz(quizId)
+  - generateDocumentAudio(documentId)
+  - getLatestDocResult(documentId)
+  - waitForStatus(type, id)
+- Hook:
+  - useRealtimeSocket(callback) — receives events: quiz_status, document_status, discussion_message
+
+> Note: For offline/local testing, generateQuiz may be mocked; check backend/test_chunked_analysis.py for PDF analysis tests.

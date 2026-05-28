@@ -13,6 +13,18 @@
 3. Setelah kuis dilaksanakan, buka Quiz Analytics (frontend) untuk melihat success rate per soal.
 
 ## Mapping ke kode
-- Frontend: pages/QuizLab, components/PdfViewer, components/Quiz.jsx
-- API: analyze_pdf, generateQuiz, getQuiz, getQuizResults
-- AI: _call_groq (Llama) untuk quiz generation; Gemini untuk document analysis.
+- Frontend pages/components:
+  - pages/QuizLab.jsx
+  - components/PdfViewer.jsx
+  - components/Quiz.jsx / components/QuizAnalytics.jsx
+- API:
+  - POST /api/quiz/generate (generateQuiz)
+  - GET /api/quiz/{quizId}
+  - GET /api/quiz/{quizId}/results
+  - POST /api/documents/{documentId}/analyze (analyze_pdf)
+- AI internals:
+  - _call_groq() — Llama/Groq used for quiz generation
+  - _call_gemini() — Gemini used for document analysis and recap
+- Hooks:
+  - useRealtimeSocket for quiz_status updates
+  - waitForStatus helper pattern for asynchronous workflows

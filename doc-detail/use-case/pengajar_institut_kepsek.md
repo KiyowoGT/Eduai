@@ -14,6 +14,11 @@
 3. Atur kebijakan tahun ajaran dan kelola SDM.
 
 ## Mapping ke kode
-- Frontend: admin dashboard pages
-- API: endpoints untuk school-wide stats, audit logs, academic summary
+- Frontend pages/components:
+  - pages/admin/SchoolDashboard.jsx
+  - components/AcademicSummary.jsx
+- API endpoints:
+  - GET /api/schools/{schoolId}/summary
+  - GET /api/schools/{schoolId}/audit-log
+  - POST /api/schools/{schoolId}/activate-academic-year
 - Notes: beberapa fitur (approval flow) bersifat opsional dan dapat diaktifkan pada konfigurasi institusi.
