@@ -40,6 +40,52 @@ router = APIRouter()
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
 SUPABASE_STORAGE_URL = f"{SUPABASE_URL}/storage/v1" if SUPABASE_URL else ""
 
+
+def _normalize_hobby(value: Optional[str]) -> str:
+    return (value or "").strip().lower()
+
+
+def _apply_document_pipeline_defaults(doc: dict, user: User, personalized_ready_ids: Optional[set] = None) -> dict:
+    if not doc:
+        return doc
+
+    status = doc.get("status")
+    if "processing_stage" not in doc:
+        if status == "processing":
+            doc["processing_stage"] = "hobby" if doc.get("summary") else "analysis"
+        else:
+            doc["processing_stage"] = None
+
+    hobby = _normalize_hobby(getattr(user, "hobby", None))
+    if hobby and hobby != "none":
+        ready = False
+        if doc.get("skip_hobby_personalization"):
+            doc["hobby_status"] = "cancelled"
+        else:
+            if hobby == "musik":
+                genre = (getattr(user, "music_genre", None) or "pop, romantic").strip()
+                ready = bool((doc.get("music_summaries") or {}).get(genre))
+            elif personalized_ready_ids is not None:
+                ready = doc.get("document_id") in personalized_ready_ids
+            elif doc.get("hobby_output_ready") is True:
+                ready = True
+
+            if "hobby_status" not in doc:
+                if ready:
+                    doc["hobby_status"] = "ready"
+                elif status == "processing" and doc.get("processing_stage") == "hobby":
+                    doc["hobby_status"] = "processing"
+                else:
+                    doc["hobby_status"] = "idle"
+
+        if "hobby_output_ready" not in doc:
+            doc["hobby_output_ready"] = ready
+    else:
+        doc.setdefault("hobby_status", "idle")
+        doc.setdefault("hobby_output_ready", False)
+
+    return doc
+
 def _ensure_within_upload_limit(size_bytes: int, filename: str):
     if size_bytes > MAX_UPLOAD_BYTES:
         max_mb = round(MAX_UPLOAD_BYTES / (1024 * 1024), 1)
@@ -366,12 +412,16 @@ async def upload_document(request: Request, file: UploadFile = File(...), user: 
         "diagrams": [],
         "learning_objectives": [],
         "status": "processing",
+        "processing_stage": "analysis",
+        "hobby_status": "idle",
+        "hobby_output_ready": False,
+        "skip_hobby_personalization": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.documents.insert_one(base.copy())
     ip = request.client.host if request.client else ""
     await write_audit(user.user_id, "DOCUMENT_UPLOAD", {"document_id": doc_id, "filename": file.filename}, ip)
-    await _emit_document_status(user.user_id, doc_id, "processing", filename=file.filename)
+    await _emit_document_status(user.user_id, doc_id, "processing", filename=file.filename, stage="analysis")
 
     asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
 
@@ -478,6 +528,10 @@ async def upload_subject_material(
             "subject_id": subject_id,
             "subject_name": subj.get("name", ""),
             "status": "processing",
+            "processing_stage": "analysis",
+            "hobby_status": "idle",
+            "hobby_output_ready": False,
+            "skip_hobby_personalization": False,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.documents.insert_one(base.copy())
@@ -487,7 +541,7 @@ async def upload_subject_material(
             "subject_id": subject_id,
             "subject_name": subj.get("name", ""),
         }, ip)
-        await _emit_document_status(user.user_id, doc_id, "processing", filename=source_label)
+        await _emit_document_status(user.user_id, doc_id, "processing", filename=source_label, stage="analysis")
 
         asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
 
@@ -557,6 +611,19 @@ async def list_documents(user: User = Depends(get_current_user)):
                     seen.add(d_id)
                     unique_docs.append(d)
             docs = unique_docs[:100]
+
+    personalized_ready_ids = None
+    hobby = _normalize_hobby(user.hobby)
+    if user.role == UserRole.pelajar and hobby and hobby not in ("none", "musik"):
+        own_doc_ids = [d["document_id"] for d in docs if d.get("user_id") == user.user_id]
+        if own_doc_ids:
+            cached = await db.personalized_documents.find(
+                {"user_id": user.user_id, "hobby": hobby, "document_id": {"$in": own_doc_ids}},
+                {"_id": 0, "document_id": 1},
+            ).to_list(len(own_doc_ids))
+            personalized_ready_ids = {row["document_id"] for row in cached}
+
+    docs = [_apply_document_pipeline_defaults(d, user, personalized_ready_ids) for d in docs]
     return docs
 
 
@@ -602,7 +669,7 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
 
-    if user.role == "pelajar" and user.hobby == "musik":
+    if user.role == "pelajar" and user.hobby == "musik" and not doc.get("skip_hobby_personalization"):
         genre = (user.music_genre or "pop, romantic").strip()
         music_summaries = doc.get("music_summaries", {})
         if genre not in music_summaries:
@@ -613,14 +680,13 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
                     music_summaries[genre] = res
                     await db.documents.update_one(
                         {"document_id": doc_id},
-                        {"$set": {"music_summaries": music_summaries}}
+                        {"$set": {"music_summaries": music_summaries, "hobby_status": "ready", "hobby_output_ready": True}}
                     )
                     doc["music_summaries"] = music_summaries
                 except Exception as e:
                     logger.warning(f"Gagal melakukan personalisasi musik untuk genre {genre}: {e}")
 
-    elif user.role == "pelajar" and user.hobby and user.hobby not in ("none", "musik", ""):
-        # Check cache
+    elif user.role == "pelajar" and user.hobby and user.hobby not in ("none", "musik", "") and not doc.get("skip_hobby_personalization"):
         cache = await db.personalized_documents.find_one({
             "document_id": doc_id,
             "user_id": user.user_id,
@@ -629,22 +695,32 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
         if cache:
             doc["summary"] = cache.get("summary", doc.get("summary"))
             doc["key_concepts"] = cache.get("key_concepts", doc.get("key_concepts"))
+            doc["hobby_status"] = "ready"
+            doc["hobby_output_ready"] = True
         else:
-            pers = await personalize_document_for_student(doc, user.hobby)
-            if pers:
-                doc["summary"] = pers["summary"]
-                doc["key_concepts"] = pers["key_concepts"]
-                # Save cache
-                await db.personalized_documents.insert_one({
-                    "document_id": doc_id,
-                    "user_id": user.user_id,
-                    "hobby": user.hobby,
-                    "summary": pers["summary"],
-                    "key_concepts": pers["key_concepts"],
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                })
+            try:
+                pers = await personalize_document_for_student(doc, user.hobby)
+                if pers:
+                    doc["summary"] = pers["summary"]
+                    doc["key_concepts"] = pers["key_concepts"]
+                    doc["hobby_status"] = "ready"
+                    doc["hobby_output_ready"] = True
+                    await db.personalized_documents.insert_one({
+                        "document_id": doc_id,
+                        "user_id": user.user_id,
+                        "hobby": user.hobby,
+                        "summary": pers["summary"],
+                        "key_concepts": pers["key_concepts"],
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    })
+                    await db.documents.update_one(
+                        {"document_id": doc_id},
+                        {"$set": {"hobby_status": "ready", "hobby_output_ready": True}},
+                    )
+            except Exception as e:
+                logger.warning(f"Gagal personalisasi untuk hobi {user.hobby}: {e}")
 
-    return doc
+    return _apply_document_pipeline_defaults(doc, user)
 
 
 @router.post("/documents/{doc_id}/cancel")
@@ -654,9 +730,28 @@ async def cancel_document(request: Request, doc_id: str, user: User = Depends(ge
         raise HTTPException(404, "Dokumen tidak ditemukan")
     if doc.get("status") != "processing":
         raise HTTPException(400, "Dokumen tidak sedang diproses")
-    await db.documents.update_one({"document_id": doc_id}, {"$set": {"status": "cancelled"}})
+    if doc.get("summary"):
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {
+                "$set": {
+                    "status": "ready",
+                    "processing_stage": None,
+                    "hobby_status": "cancelled",
+                    "hobby_output_ready": False,
+                    "skip_hobby_personalization": True,
+                }
+            },
+        )
+        await _emit_document_status(user.user_id, doc_id, "ready", stage="summary_only")
+        await write_audit(user.user_id, "DOCUMENT_CANCELLED", {"document_id": doc_id}, request.client.host if request.client else "")
+        return {"document_id": doc_id, "status": "ready", "message": "Personalisasi hobi dibatalkan, ringkasan tetap tersedia"}
+    await db.documents.update_one(
+        {"document_id": doc_id},
+        {"$set": {"status": "cancelled", "processing_stage": None}},
+    )
     await write_audit(user.user_id, "DOCUMENT_CANCELLED", {"document_id": doc_id}, request.client.host if request.client else "")
-    await _emit_document_status(user.user_id, doc_id, "cancelled")
+    await _emit_document_status(user.user_id, doc_id, "cancelled", stage="analysis")
     return {"document_id": doc_id, "status": "cancelled"}
 
 
@@ -876,14 +971,46 @@ async def get_or_create_music_summary(
     if not summary_text:
         raise HTTPException(400, "Dokumen ini belum memiliki ringkasan untuk diubah menjadi musik")
         
+    is_own = doc.get("user_id") == user.user_id
+    if is_own:
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {
+                "$set": {
+                    "status": "processing",
+                    "processing_stage": "hobby",
+                    "hobby_status": "processing",
+                    "hobby_output_ready": False,
+                    "skip_hobby_personalization": False,
+                }
+            }
+        )
+        await _emit_document_status(user.user_id, doc_id, "processing", stage="hobby")
+
     try:
         res = await aimusic(summary_text, tags)
         music_summaries[tags] = res
-        await db.documents.update_one(
-            {"document_id": doc_id},
-            {"$set": {"music_summaries": music_summaries}}
-        )
+        update = {
+            "music_summaries": music_summaries,
+            "hobby_status": "ready",
+            "hobby_output_ready": True,
+        }
+        if is_own:
+            update.update({
+                "status": "ready",
+                "processing_stage": None,
+                "skip_hobby_personalization": False,
+            })
+        await db.documents.update_one({"document_id": doc_id}, {"$set": update})
+        if is_own:
+            await _emit_document_status(user.user_id, doc_id, "ready", stage="completed")
         return res
     except Exception as e:
+        if is_own:
+            await db.documents.update_one(
+                {"document_id": doc_id},
+                {"$set": {"status": "ready", "processing_stage": None}}
+            )
+            await _emit_document_status(user.user_id, doc_id, "ready", stage="summary_only")
         logger.exception("Gagal generate music summary")
         raise HTTPException(500, f"Gagal membuat aransemen musik: {str(e)}")

@@ -40,7 +40,7 @@ export default function HobiOnboarding() {
   const { user, setUser } = useAuth();
 
   useEffect(() => {
-    if (user?.hobby) {
+    if (user?.role === "pengajar" || user?.hobby) {
       navigate("/dashboard", { replace: true });
     }
   }, [user, navigate]);

@@ -661,3 +661,43 @@ async def diag_me_data(user: User = Depends(get_current_user)):
             "shared_schedules_institution": schedules,
         },
     }
+
+
+class VerifyPasswordPayload(BaseModel):
+    password: str
+
+@router.post("/auth/verify-password")
+async def verify_password(payload: VerifyPasswordPayload, user: User = Depends(get_current_user)):
+    """Verify the current user's password against Supabase."""
+    from core.config import SUPABASE_URL, SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(503, "Auth service tidak tersedia")
+    async with httpx.AsyncClient(timeout=10.0) as hc:
+        r = await hc.post(
+            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+            json={"email": user.email, "password": payload.password},
+        )
+    if r.status_code != 200:
+        raise HTTPException(403, "Password salah")
+    return {"ok": True}
+
+
+class VerifyPasswordPayload(BaseModel):
+    password: str
+
+@router.post("/auth/verify-password")
+async def verify_password(payload: VerifyPasswordPayload, user: User = Depends(get_current_user)):
+    """Verify the current user's password against Supabase."""
+    from core.config import SUPABASE_URL, SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(503, "Auth service tidak tersedia")
+    async with httpx.AsyncClient(timeout=10.0) as hc:
+        r = await hc.post(
+            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+            json={"email": user.email, "password": payload.password},
+        )
+    if r.status_code != 200:
+        raise HTTPException(403, "Password salah")
+    return {"ok": True}

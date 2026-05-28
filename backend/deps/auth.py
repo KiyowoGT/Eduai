@@ -1,5 +1,6 @@
 import re
 import uuid
+import asyncio
 import logging
 import httpx
 from datetime import datetime, timezone
@@ -153,14 +154,16 @@ async def fetch_supabase_user(access_token: str) -> Optional[dict]:
         return None
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as hc:
-            r = await hc.get(
-                f"{SUPABASE_URL}/auth/v1/user",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "apikey": SUPABASE_ANON_KEY,
-                },
-            )
+        def _sync():
+            with httpx.Client(timeout=15.0) as hc:
+                return hc.get(
+                    f"{SUPABASE_URL}/auth/v1/user",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "apikey": SUPABASE_ANON_KEY,
+                    },
+                )
+        r = await asyncio.to_thread(_sync)
         if r.status_code != 200:
             logger.warning(f"Supabase /auth/v1/user responded {r.status_code}: {r.text[:200]}")
             return None

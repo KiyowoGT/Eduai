@@ -594,7 +594,7 @@ async def generate_teacher_quiz(
     ip = request.client.host if request.client else ""
     asyncio.create_task(_bg_generate_quiz(quiz_id, [doc], user, payload.question_count, ip, ""))
 
-    if payload.target_classes and user.institution_code:
+    if payload.target_classes:
         asyncio.create_task(_bg_auto_publish_quiz(quiz_id, payload.target_classes, payload.deadline, user.user_id))
 
     return _public_quiz(quiz_doc)

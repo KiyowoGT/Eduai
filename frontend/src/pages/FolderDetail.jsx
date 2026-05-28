@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { getFolder, generateQuiz, getQuiz, createRecap, getRecap, cancelQuiz, cancelRecap, getLatestFolderResult, waitForStatus } from "@/lib/api";
 import { toast } from "sonner";
 import { FolderOpen, BrainCircuit, BookOpen, FileText, ArrowLeft, ArrowUpRight, X, Sparkles, TrendingUp, History } from "lucide-react";
-import DualLoader from "@/components/DualLoader";
+import PageSkeleton from "@/components/PageSkeleton";
+import { getDocumentStatusClasses, getDocumentStatusMeta } from "@/lib/documentStatus";
 
 export default function FolderDetail() {
   const { id } = useParams();
@@ -125,7 +126,7 @@ export default function FolderDetail() {
     } catch {}
   };
 
-  if (loading) return <DualLoader type="folders" text="Memuat berkas folder..." />;
+  if (loading) return <PageSkeleton variant="grid" />;
   if (!folder) return <div className="text-sm text-[#646675]">Folder tidak ditemukan.</div>;
 
   return (
@@ -249,20 +250,22 @@ export default function FolderDetail() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {docs.map((d) => (
-            <label key={d.document_id} className="relative" data-testid={`folder-doc-${d.document_id}`}>
-              <div className={`card-lift bg-white border rounded-xl p-5 cursor-pointer transition-all ${selected.has(d.document_id) ? "border-[#1D2D50] ring-2 ring-[#1D2D50]/20" : "border-[#E2E0D8]"}`}>
-                <div className="flex items-start justify-between">
-                  <Checkbox
-                    checked={selected.has(d.document_id)}
-                    onCheckedChange={() => toggle(d.document_id)}
-                    disabled={d.status !== "ready"}
-                    data-testid={`folder-doc-check-${d.document_id}`}
-                  />
-                  <button onClick={(e) => { e.preventDefault(); navigate(`/dokumen/${d.document_id}`); }} title="Buka detail" className="text-[#A0A2B1] hover:text-[#1D2D50]" data-testid={`folder-doc-open-${d.document_id}`}>
-                    <ArrowUpRight className="w-4 h-4" />
-                  </button>
-                </div>
+          {docs.map((d) => {
+            const statusMeta = getDocumentStatusMeta(d);
+            return (
+              <label key={d.document_id} className="relative" data-testid={`folder-doc-${d.document_id}`}>
+                <div className={`card-lift bg-white border rounded-xl p-5 cursor-pointer transition-all ${selected.has(d.document_id) ? "border-[#1D2D50] ring-2 ring-[#1D2D50]/20" : "border-[#E2E0D8]"}`}>
+                  <div className="flex items-start justify-between">
+                    <Checkbox
+                      checked={selected.has(d.document_id)}
+                      onCheckedChange={() => toggle(d.document_id)}
+                      disabled={d.status !== "ready"}
+                      data-testid={`folder-doc-check-${d.document_id}`}
+                    />
+                    <button onClick={(e) => { e.preventDefault(); navigate(`/dokumen/${d.document_id}`); }} title="Buka detail" className="text-[#A0A2B1] hover:text-[#1D2D50]" data-testid={`folder-doc-open-${d.document_id}`}>
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2 mt-3">
                     <FileText className="w-4 h-4 text-[#1D2D50]" />
                     <div className="font-heading text-base text-[#1A1B26] line-clamp-2">{d.title || d.filename}</div>
@@ -271,17 +274,14 @@ export default function FolderDetail() {
                     <p className="text-[11px] text-[#646675] mt-2 leading-relaxed line-clamp-3">{d.summary}</p>
                   )}
                   <div className="mt-2 flex items-center justify-between text-[11px]">
-                  <span className="font-mono text-[#A0A2B1]">{new Date(d.created_at).toLocaleDateString("id-ID")}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
-                    d.status === "ready" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" :
-                    d.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" :
-                    d.status === "cancelled" ? "bg-[#A0A2B1]/10 text-[#646675]" :
-                    "bg-[#E5A93C]/10 text-[#E5A93C]"
-                  }`}>{d.status === "ready" ? "Siap" : d.status === "failed" ? "Gagal" : d.status === "cancelled" ? "Dibatal" : "Proses"}</span>
+                    <span className="font-mono text-[#A0A2B1]">{new Date(d.created_at).toLocaleDateString("id-ID")}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${getDocumentStatusClasses(statusMeta.tone)}`}>{statusMeta.chip}</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#646675] leading-relaxed line-clamp-2">{statusMeta.detail}</p>
                 </div>
-              </div>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
       )}
 

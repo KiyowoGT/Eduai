@@ -18,7 +18,7 @@ export default function QuizResult() {
     })();
   }, [id, result]);
 
-  if (loading) return <div className="text-sm text-[#646675]">Memuat hasil…</div>;
+  if (loading) return <div className="flex items-center justify-center py-20 text-sm text-[#646675]">Memuat hasil…</div>;
   if (!result) return <div className="text-sm text-[#646675]">Hasil tidak ditemukan.</div>;
 
   const score = result.score || 0;

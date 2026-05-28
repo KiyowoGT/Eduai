@@ -60,8 +60,9 @@
     "zod": "^3.24.4"
   },
   "scripts": {
-    "start": "set PORT=3010&&set BROWSER=none&&craco start",
-    "dev": "set PORT=3010&&set BROWSER=none&&craco start",
+    "postinstall": "cd ../backend && pip install --break-system-packages -r requirements.txt",
+    "start": "PORT=3010 BROWSER=none craco start",
+    "dev": "PORT=3010 BROWSER=none craco start",
     "build": "craco build",
     "test": "craco test"
   },

@@ -558,11 +558,10 @@ async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str)
             "key_concepts": analysis.get("key_concepts", []),
             "diagrams": analysis.get("diagrams", []),
             "learning_objectives": analysis.get("learning_objectives", []),
-            "status": "ready",
+            "summary_ready_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.documents.update_one({"document_id": doc_id}, {"$set": update})
         await write_audit(user.user_id, "DOCUMENT_ANALYZED", {"document_id": doc_id}, ip)
-        await _emit_document_status(user.user_id, doc_id, "ready")
     except Exception as e:
         logger.exception("Background analyze gagal")
         current = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "status": 1})
@@ -579,6 +578,125 @@ async def _bg_analyze_document(doc_id: str, file_path: str, user: User, ip: str)
 async def run_analysis_queued(doc_id: str, file_path: str, user: User, ip: str):
     async with get_hf_semaphore():
         await _bg_analyze_document(doc_id, file_path, user, ip)
+
+    current = await db.documents.find_one(
+        {"document_id": doc_id},
+        {
+            "_id": 0,
+            "status": 1,
+            "summary": 1,
+            "skip_hobby_personalization": 1,
+        },
+    )
+    if not current or current.get("status") in ("cancelled", "deleted"):
+        return
+
+    hobby = (user.hobby or "").strip().lower()
+    if not hobby or hobby == "none":
+        await db.documents.update_one(
+            {"document_id": doc_id},
+            {
+                "$set": {
+                    "status": "ready",
+                    "processing_stage": None,
+                    "hobby_status": "idle",
+                    "hobby_output_ready": False,
+                }
+            },
+        )
+        await _emit_document_status(user.user_id, doc_id, "ready", stage="completed")
+        return
+
+    await db.documents.update_one(
+        {"document_id": doc_id},
+        {
+            "$set": {
+                "status": "processing",
+                "processing_stage": "hobby",
+                "hobby_status": "processing",
+                "hobby_output_ready": False,
+            }
+        },
+    )
+    await _emit_document_status(user.user_id, doc_id, "processing", stage="hobby")
+
+    current = await db.documents.find_one(
+        {"document_id": doc_id},
+        {"_id": 0, "summary": 1, "status": 1, "skip_hobby_personalization": 1},
+    )
+    if not current or current.get("status") in ("cancelled", "deleted") or current.get("skip_hobby_personalization"):
+        return
+
+    if hobby == "musik":
+        genre = (user.music_genre or "pop, romantic").strip()
+        summary_text = current.get("summary", "")
+        if summary_text:
+            try:
+                res = await aimusic(summary_text, genre)
+                latest = await db.documents.find_one(
+                    {"document_id": doc_id},
+                    {"_id": 0, "status": 1, "skip_hobby_personalization": 1, "music_summaries": 1},
+                )
+                if not latest or latest.get("status") in ("cancelled", "deleted") or latest.get("skip_hobby_personalization"):
+                    return
+                music_summaries = latest.get("music_summaries", {})
+                music_summaries[genre] = res
+                await db.documents.update_one(
+                    {"document_id": doc_id},
+                    {
+                        "$set": {
+                            "music_summaries": music_summaries,
+                            "hobby_status": "ready",
+                            "hobby_output_ready": True,
+                        }
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Gagal personalisasi musik untuk genre {genre}: {e}")
+    else:
+        try:
+            doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0})
+            if doc:
+                pers = await personalize_document_for_student(doc, hobby)
+                if pers:
+                    latest = await db.documents.find_one(
+                        {"document_id": doc_id},
+                        {"_id": 0, "status": 1, "skip_hobby_personalization": 1},
+                    )
+                    if not latest or latest.get("status") in ("cancelled", "deleted") or latest.get("skip_hobby_personalization"):
+                        return
+                    await db.personalized_documents.insert_one({
+                        "document_id": doc_id,
+                        "user_id": user.user_id,
+                        "hobby": hobby,
+                        "summary": pers["summary"],
+                        "key_concepts": pers["key_concepts"],
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    })
+                    await db.documents.update_one(
+                        {"document_id": doc_id},
+                        {
+                            "$set": {
+                                "hobby_status": "ready",
+                                "hobby_output_ready": True,
+                            }
+                        },
+                    )
+        except Exception as e:
+            logger.warning(f"Gagal personalisasi untuk hobi {hobby}: {e}")
+
+    latest = await db.documents.find_one(
+        {"document_id": doc_id},
+        {"_id": 0, "status": 1, "skip_hobby_personalization": 1},
+    )
+    if not latest or latest.get("status") in ("cancelled", "deleted") or latest.get("skip_hobby_personalization"):
+        return
+
+    await db.documents.update_one(
+        {"document_id": doc_id},
+        {"$set": {"status": "ready", "processing_stage": None}},
+    )
+    await _emit_document_status(user.user_id, doc_id, "ready", stage="completed")
 
 
 # ============== Quiz & Recap Generators ==============
@@ -1126,6 +1244,69 @@ async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
         }
 
 
+async def aimusic_suno(prompt: str, style: str = "pop, romantic", title: str = "", instrumental: bool = False) -> dict:
+    """Generate music using Suno via nekorinn API."""
+    import hashlib
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        # Step 1: Get Cloudflare Turnstile token
+        cf_r = await client.get(
+            "https://api.nekorinn.my.id/tools/rynn-stuff",
+            params={
+                "mode": "turnstile-min",
+                "siteKey": "0x4AAAAAAAgeJUEUvYlF2CzO",
+                "url": "https://songgenerator.io/features/s-45",
+                "accessKey": "2c9247ce8044d5f87af608a244e10c94c5563b665e5f32a4bb2b2ad17613c1fc"
+            }
+        )
+        if cf_r.status_code != 200:
+            raise Exception(f"Gagal mendapatkan CF token: {cf_r.status_code}")
+        cf_token = cf_r.json()["result"]["token"]
+
+        uid = hashlib.md5(str(time.time()).encode()).hexdigest()
+
+        # Step 2: Create task
+        task_r = await client.post(
+            "https://aiarticle.erweima.ai/api/v1/secondary-page/api/create",
+            json={
+                "prompt": prompt,
+                "channel": "MUSIC",
+                "id": 1631,
+                "type": "features",
+                "source": "songgenerator.io",
+                "style": style,
+                "title": title,
+                "customMode": False,
+                "instrumental": instrumental
+            },
+            headers={"uniqueid": uid, "verify": cf_token}
+        )
+        if task_r.status_code != 200:
+            raise Exception(f"Gagal membuat task Suno: {task_r.status_code}")
+        record_id = task_r.json()["data"]["recordId"]
+
+        # Step 3: Poll for result
+        for _ in range(120):
+            await asyncio.sleep(2.0)
+            poll_r = await client.get(
+                f"https://aiarticle.erweima.ai/api/v1/secondary-page/api/{record_id}",
+                headers={"uniqueid": uid, "verify": cf_token}
+            )
+            if poll_r.status_code != 200:
+                continue
+            data = poll_r.json().get("data", {})
+            if data.get("state") == "success":
+                result = json.loads(data["completeData"])
+                songs = result if isinstance(result, list) else [result]
+                return {
+                    "lyrics": songs[0].get("lyric", ""),
+                    "audio_url": songs[0].get("audioUrl", ""),
+                    "songs": songs
+                }
+
+        raise Exception("Suno music generation timeout")
+
+
 async def _bg_generate_music_for_students(doc_id: str, target_class_rooms: list, institution_code: str):
     try:
         doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0})
@@ -1205,4 +1386,3 @@ async def personalize_document_for_student(doc: dict, hobby: str) -> dict:
         "summary": original_summary,
         "key_concepts": original_concepts
     }
-

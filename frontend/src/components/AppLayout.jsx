@@ -23,6 +23,7 @@ import {
   FileSpreadsheet,
   UserPlus,
   ClipboardList,
+  Ticket,
 } from "lucide-react";
 import NotificationsDropdown from "@/components/NotificationsDropdown";
 import ContextSwitcher from "@/components/ContextSwitcher";
@@ -70,10 +71,10 @@ export default function AppLayout() {
       }
 
       if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) {
-        items.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar, tid: "nav-schedules" });
+        items.push({ to: "/teacher/schedules", label: "Jadwal", icon: user?.account_type === "pribadi" ? BarChart3 : Calendar, tid: "nav-schedules" });
       }
 
-      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view")) {
+      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view") || perms.includes("ruang_kelas")) {
         items.push({ to: "/teacher/students", label: "Kelas", icon: Users, tid: "nav-students" });
       }
 
@@ -89,17 +90,23 @@ export default function AppLayout() {
     }
 
     // Student / Default
-    return [
+    const studentItems = [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
       { to: "/dokumen", label: "Dokumen", icon: FileText, tid: "nav-documents" },
       { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen, tid: "nav-education" },
       { to: "/folder", label: "Folder", icon: FolderOpen, tid: "nav-folders" },
       { to: "/riwayat-kuis", label: "Riwayat", icon: BrainCircuit, tid: "nav-quiz-history" },
+    ];
+    if (isStudent && !user?.institution_code) {
+      studentItems.push({ to: "/portal", label: "Portal Mandiri", icon: Ticket, tid: "nav-portal" });
+    }
+    studentItems.push(
       { to: "/teman", label: "Teman", icon: Users, tid: "nav-friends" },
       { to: "/audit-log", label: "Audit Log", icon: ScrollText, tid: "nav-audit" },
       { to: "/profil", label: "Profil", icon: User2, tid: "nav-profile" },
-    ];
-  }, [isAdmin, isTeacher, perms]);
+    );
+    return studentItems;
+  }, [isAdmin, isTeacher, perms, user]);
 
   const mobileNavItems = useMemo(() => {
     let items;
@@ -117,9 +124,9 @@ export default function AppLayout() {
         candidates.push({ to: "/dokumen", label: "Materi", icon: FileText });
       }
       if (perms.includes("jadwal_view") || perms.includes("jadwal_master")) {
-        candidates.push({ to: "/teacher/schedules", label: "Jadwal", icon: Calendar });
+        candidates.push({ to: "/teacher/schedules", label: "Jadwal", icon: user?.account_type === "pribadi" ? BarChart3 : Calendar });
       }
-      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view")) {
+      if (perms.includes("ruang_kelas_full") || perms.includes("ruang_kelas_view") || perms.includes("ruang_kelas")) {
         candidates.push({ to: "/teacher/students", label: "Kelas", icon: Users });
       }
       if (perms.includes("analitik_kelas") || perms.includes("analitik_makro") || perms.includes("analitik_produktif")) {
@@ -141,12 +148,18 @@ export default function AppLayout() {
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { to: "/dokumen", label: "Dokumen", icon: FileText },
         { to: "/pengaturan-belajar", label: "Belajar", icon: BookOpen },
-        { to: "/teman", label: "Teman", icon: Users },
-        { to: "/profil", label: "Profil", icon: User2 },
       ];
+      items.push(
+        { to: "/profil", label: "Profil", icon: User2 },
+      );
+      if (isStudent && !user?.institution_code) {
+        items.splice(3, 0, { to: "/portal", label: "Portal Mandiri", icon: Ticket });
+      } else {
+        items.splice(3, 0, { to: "/teman", label: "Teman", icon: Users });
+      }
     }
     return items;
-  }, [isAdmin, isTeacher, perms]);
+  }, [isAdmin, isTeacher, perms, user]);
 
   const hideMobileNav = /^\/(dokumen|folder|kuis|hasil|recap|admin)\/.+/.test(location.pathname);
   const hideMobileNavBottom = /^\/(dokumen|folder|kuis|hasil|recap)\/.+/.test(location.pathname);

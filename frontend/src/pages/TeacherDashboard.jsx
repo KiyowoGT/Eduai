@@ -3,6 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getTeacherDashboard, listTeacherMaterials } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, Trophy, Users, FileText, ArrowUpRight } from "lucide-react";
+import PageSkeleton from "@/components/PageSkeleton";
 
 export default function TeacherDashboard() {
   const { user } = useAuth();
@@ -31,13 +32,7 @@ export default function TeacherDashboard() {
   const metrics = dashboard?.metrics || {};
   const recentQuizzes = dashboard?.recent_quizzes || [];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-[#646675]">Memuat dashboard...</div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton variant="teacher-dashboard" />;
 
   return (
     <div className="w-full">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { getTeacherDashboard, getClassSummary } from "@/lib/api";
 import { BarChart3, TrendingUp, Users } from "lucide-react";
+import PageSkeleton from "@/components/PageSkeleton";
 
 export default function TeacherAnalytics() {
   const { user } = useAuth();
@@ -19,13 +20,7 @@ export default function TeacherAnalytics() {
     }).finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-[#646675]">Memuat...</div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton variant="teacher-dashboard" />;
 
   const metrics = dashboard?.metrics || {};
   const recentQuizzes = dashboard?.recent_quizzes || [];

@@ -548,6 +548,16 @@ export async function listAssignedQuizzes() {
   return r.data;
 }
 
+export async function getPribadiStudentsAnalysis() {
+  const r = await http.get("/teacher/analytics/pribadi/students");
+  return r.data;
+}
+
+export async function analyzeStudentCharacter(studentId) {
+  const r = await http.post(`/teacher/analytics/student/${studentId}/analyze`);
+  return r.data;
+}
+
 export async function listPendingReviewMaterials() {
   const r = await http.get("/teacher/materials/pending-review");
   return r.data;
@@ -565,6 +575,40 @@ export async function generateRedeemCode(quizId, expiresAt) {
   const r = await http.post(`/redeem/teacher/quizzes/${quizId}/redeem-code`, {
     expires_at: expiresAt,
   });
+  return r.data;
+}
+
+export async function getRedeemQuiz(code) {
+  const r = await http.get(`/redeem/${encodeURIComponent(code)}`);
+  return r.data;
+}
+
+export async function startRedeemQuiz(code) {
+  const r = await http.post(`/redeem/${encodeURIComponent(code)}/start`);
+  return r.data;
+}
+
+export async function submitRedeemQuiz(code, sessionToken, answers, studentIdentifier) {
+  const r = await http.post(`/redeem/${encodeURIComponent(code)}/submit`, {
+    session_token: sessionToken,
+    answers,
+    student_identifier: studentIdentifier,
+  });
+  return r.data;
+}
+
+export async function getRedeemSession(sessionId) {
+  const r = await http.get(`/redeem/session/${sessionId}`);
+  return r.data;
+}
+
+export async function listMyRedeemSessions() {
+  const r = await http.get("/redeem/my-sessions");
+  return r.data;
+}
+
+export async function listMyRedeemMaterials() {
+  const r = await http.get("/redeem/my-materials");
   return r.data;
 }
 

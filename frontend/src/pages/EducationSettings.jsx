@@ -376,6 +376,44 @@ export default function EducationSettings() {
         </div>
       ) : (
         <>
+          {/* Gabung Kelas dengan Token (untuk siswa non-institusi) */}
+          {user?.role === "pelajar" && !user?.institution_code && (
+            <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
+              <h2 className="font-heading text-lg text-[#1A1B26] flex items-center gap-2 mb-4">
+                <School className="w-4 h-4 text-[#1D2D50]" /> Gabung Kelas
+              </h2>
+              {user?.class_token_used ? (
+                <div className="text-sm text-[#646675]">
+                  <p className="text-[#2D6A4F] font-medium flex items-center gap-1.5 mb-1">
+                    <CheckCircle2 className="w-4 h-4" /> Terhubung dengan kelas via token
+                  </p>
+                  <code className="text-xs font-mono bg-[#F8F6F0] px-2 py-0.5 rounded border border-[#E2E0D8]">
+                    {user.class_token_used}
+                  </code>
+                  {user?.enrolled_class && (
+                    <span className="text-xs text-[#A0A2B1] ml-2">· Kelas: {user.enrolled_class}</span>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={handleJoinClass} className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs text-[#646675] mb-1">Masukkan Token dari Guru</label>
+                    <Input
+                      value={classToken}
+                      onChange={(e) => setClassToken(e.target.value)}
+                      placeholder="Contoh: MANDIRI-MATEMATIKA-A-3K8F"
+                      required
+                      className="text-sm"
+                    />
+                  </div>
+                  <Button type="submit" disabled={joiningClass} className="bg-[#1D2D50] hover:bg-[#15223E] text-white shrink-0 h-9 text-sm">
+                    {joiningClass ? <Loader2 className="w-4 h-4 animate-spin" /> : "Gabung"}
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
           {/* Mata Pelajaran */}
           <section className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
             <h2 className="font-heading text-lg text-[#1A1B26] flex items-center gap-2 mb-5">

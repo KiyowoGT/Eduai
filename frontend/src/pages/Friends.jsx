@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { searchUsers, sendFriendRequest, listFriendRequests, acceptFriendRequest, rejectFriendRequest, listFriends, unfriend, blockUser } from "@/lib/api";
+import PageSkeleton from "@/components/PageSkeleton";
 
 export default function Friends() {
   const [query, setQuery] = useState("");
@@ -154,7 +155,7 @@ export default function Friends() {
 
         <TabsContent value="teman">
           {loading ? (
-            <div className="text-sm text-[#646675]">Memuat...</div>
+            <PageSkeleton variant="friends" />
           ) : friends.length === 0 ? (
             <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675]">
               Belum punya teman. Cari dan tambah teman di atas.

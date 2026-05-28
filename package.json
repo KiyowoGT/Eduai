@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "cd frontend && npm install && cd ../backend && pip install --break-system-packages -r requirements.txt",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt",
     "kill:ports": "npx kill-port 3010 8000",
     "dev:frontend": "cd frontend && npm start",

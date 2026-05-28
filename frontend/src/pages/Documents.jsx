@@ -80,9 +80,10 @@ import {
   Edit3,
   XCircle
 } from "lucide-react";
-import DualLoader from "@/components/DualLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 import { useAuth } from "@/context/AuthContext";
 import useRealtimeSocket from "@/hooks/useRealtimeSocket";
+import { getDocumentStatusClasses, getDocumentStatusMeta } from "@/lib/documentStatus";
 
 export default function Documents() {
   const { user } = useAuth();
@@ -407,6 +408,10 @@ export default function Documents() {
       setSelectedClasses(selectedClasses.filter((c) => c !== clsName));
     } else {
       setSelectedClasses([...selectedClasses, clsName]);
+      // Guru mandiri: auto-fill subject input from selected class name
+      if (user?.account_type === "pribadi" && !subjectInput && clsName) {
+        setSubjectInput(clsName);
+      }
     }
   };
 
@@ -564,6 +569,8 @@ export default function Documents() {
                 <div className="w-12 h-12 rounded-full bg-[#F8F6F0] border border-[#E2E0D8] grid place-items-center mx-auto mb-3">
                   {uploading ? (
                     <Loader2 className="w-5 h-5 text-[#1D2D50] animate-spin" />
+                  ) : user?.account_type === "pribadi" ? (
+                    <BookOpen className="w-5 h-5 text-[#1D2D50]" />
                   ) : (
                     <Upload className="w-5 h-5 text-[#1D2D50]" />
                   )}
@@ -1160,7 +1167,7 @@ export default function Documents() {
       </div>
 
       {loading ? (
-        <DualLoader type="documents" text="Memuat pustaka berkas..." />
+        <PageSkeleton variant="grid" />
       ) : docs.length === 0 ? (
         <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675]">
           Belum ada dokumen. Upload PDF dari Dashboard.
@@ -1171,6 +1178,7 @@ export default function Documents() {
             const isSel = selected.has(d.document_id);
             const isProc = d.status === "processing";
             const folder = d.folder_id ? folderById(d.folder_id) : null;
+            const statusMeta = getDocumentStatusMeta(d);
             return (
               <div
                 key={d.document_id}
@@ -1239,13 +1247,9 @@ export default function Documents() {
                       )}
                       <span className="font-mono text-[#A0A2B1]">{new Date(d.created_at).toLocaleDateString("id-ID")}</span>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
-                      d.status === "ready" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" :
-                      d.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" :
-                      d.status === "cancelled" ? "bg-[#A0A2B1]/10 text-[#646675]" :
-                      "bg-[#E5A93C]/10 text-[#E5A93C]"
-                    }`}>{d.status === "ready" ? "Siap" : d.status === "failed" ? "Gagal" : d.status === "cancelled" ? "Dibatal" : "Proses"}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${getDocumentStatusClasses(statusMeta.tone)}`}>{statusMeta.chip}</span>
                   </div>
+                  <p className="mt-2 text-[11px] text-[#646675] leading-relaxed line-clamp-2">{statusMeta.detail}</p>
                 </button>
               </div>
             );

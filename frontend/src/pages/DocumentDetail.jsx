@@ -13,7 +13,8 @@ import { BookOpen, BrainCircuit, FileText, GitBranch, ArrowLeft, Code2, Trash2, 
 import PdfViewer from "@/components/PdfViewer";
 import DocumentDiscussion from "@/components/DocumentDiscussion";
 import DocumentAiChat from "@/components/DocumentAiChat";
-import DualLoader from "@/components/DualLoader";
+import PageSkeleton from "@/components/PageSkeleton";
+import useRealtimeSocket from "@/hooks/useRealtimeSocket";
 
 export default function DocumentDetail() {
   const { id } = useParams();
@@ -92,18 +93,41 @@ export default function DocumentDetail() {
     } finally { setDocAudioLoading(false); }
   };
 
+  const loadData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const [d, res] = await Promise.all([
+        getDocument(id),
+        getLatestDocResult(id)
+      ]);
+      setDoc(d);
+      setLatestResult(res);
+    } catch {
+      toast.error("Gagal memuat dokumen");
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try { 
-        const [d, res] = await Promise.all([
-          getDocument(id),
-          getLatestDocResult(id)
-        ]);
-        setDoc(d); 
-        setLatestResult(res);
-      } finally { setLoading(false); }
-    })();
+    loadData();
   }, [id]);
+
+  useRealtimeSocket((payload) => {
+    if (payload?.type === "document_status" && payload.document_id === id) {
+      loadData(false);
+    }
+  });
+
+  const onCancelDoc = async () => {
+    try {
+      await cancelDocument(id);
+      toast.success("Proses dibatalkan");
+      loadData(false);
+    } catch (e) {
+      toast.error("Gagal membatalkan: " + (e.response?.data?.detail || e.message));
+    }
+  };
 
   const startQuiz = async (questionCount = 5) => {
     setGenerating(true);
@@ -175,7 +199,7 @@ export default function DocumentDetail() {
     });
   };
 
-  if (loading) return <DualLoader type="document-detail" text="Mengunduh materi akademik..." />;
+  if (loading) return <PageSkeleton variant="list" />;
   if (!doc) return <div className="text-sm text-[#646675]">Dokumen tidak ditemukan.</div>;
 
   return (
@@ -495,15 +519,15 @@ export default function DocumentDetail() {
                   </div>
 
                   {/* Lyric Sheet */}
-                  <div className="bg-[#FCFBF8] border border-[#E2E0D8] rounded-xl p-6 md:p-8 shadow-inner relative font-serif">
-                    <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[10px] text-[#A0A2B1] font-mono select-none">
+                  <div className="bg-[#FCFBF8] dark:bg-[#1A1B26] border border-[#E2E0D8] dark:border-white/10 rounded-xl p-6 md:p-8 shadow-inner relative font-serif">
+                    <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[10px] text-[#A0A2B1] dark:text-white/40 font-mono select-none">
                       <span>LEMBAR LIRIK</span>
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     </div>
-                    <h3 className="font-heading text-center text-xl text-[#1D2D50] border-b border-[#E2E0D8] pb-3 mb-6">
+                    <h3 className="font-heading text-center text-xl text-[#1D2D50] dark:text-[#E5A93C] border-b border-[#E2E0D8] dark:border-white/10 pb-3 mb-6">
                       🎼 Lirik Lagu Rangkuman
                     </h3>
-                    <div className="max-w-xl mx-auto text-center tracking-wide whitespace-pre-line">
+                    <div className="max-w-xl mx-auto text-center tracking-wide whitespace-pre-line text-[#1A1B26] dark:text-white/80">
                       {formatLyrics(musicData.lyrics)}
                     </div>
                   </div>

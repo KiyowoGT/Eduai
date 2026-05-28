@@ -37,6 +37,8 @@ import AcademicYearManager from "@/pages/admin/AcademicYearManager";
 import ReportsPage from "@/pages/admin/ReportsPage";
 import SettingsPage from "@/pages/admin/SettingsPage";
 import AuditLogViewer from "@/pages/admin/AuditLogViewer";
+import MusicTest from "@/pages/MusicTest";
+import PortalMandiri from "@/pages/PortalMandiri";
 
 
 function AppRouter() {
@@ -64,6 +66,7 @@ function AppRouter() {
         <Route path="/kuis/:id" element={<Quiz />} />
         <Route path="/hasil/:id" element={<QuizResult />} />
         <Route path="/riwayat-kuis" element={<QuizHistory />} />
+        <Route path="/portal" element={<PortalMandiri />} />
         <Route path="/pengaturan-belajar" element={<EducationSettings />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/profil" element={<Profile />} />

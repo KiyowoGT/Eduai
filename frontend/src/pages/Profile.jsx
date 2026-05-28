@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
   Copy, Check, Hash, LogOut, User, Mail, School, AtSign, Key, Shield, ShieldCheck, Building2, Eye, EyeOff,
-  ScrollText, Settings, Users, FolderOpen, BrainCircuit
+  ScrollText, Settings, Users, FolderOpen, BrainCircuit, Ticket
 } from "lucide-react";
 
 export default function Profile() {
@@ -33,7 +33,11 @@ export default function Profile() {
       { to: "/audit-log", label: "Audit Log", icon: ScrollText }
     );
   } else {
+    if (user?.role === "pelajar" && !user?.institution_code) {
+      otherMenus.push({ to: "/portal", label: "Portal Mandiri", icon: Ticket });
+    }
     otherMenus.push(
+      { to: "/teman", label: "Teman", icon: Users },
       { to: "/folder", label: "Folder Materi", icon: FolderOpen },
       { to: "/riwayat-kuis", label: "Riwayat Kuis", icon: BrainCircuit },
       { to: "/audit-log", label: "Audit Log", icon: ScrollText }

@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { listDocuments, getProgress, uploadDocument, cancelDocument, deleteDocument } from "@/lib/api";
+import { getDocumentStatusClasses, getDocumentStatusMeta } from "@/lib/documentStatus";
 import { useAuth } from "@/context/AuthContext";
 import useRealtimeSocket from "@/hooks/useRealtimeSocket";
 import { toast } from "sonner";
 import { Upload, FileText, Trophy, BookOpen, ArrowUpRight, X, Trash2, Loader2, AlertTriangle } from "lucide-react";
-import DualLoader from "@/components/DualLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp"];
 
@@ -48,7 +49,7 @@ export default function Dashboard() {
     if (payload?.type !== "document_status") return;
     const documentId = payload.document_id;
     const current = jobs[documentId];
-    setJob(documentId, { status: payload.status });
+    setJob(documentId, { status: payload.status, stage: payload.stage });
 
     if (payload.status === "ready") {
       toast.success(`Analisis selesai: ${current?.filename || "dokumen"}`);
@@ -76,7 +77,7 @@ export default function Dashboard() {
     try {
       const doc = await uploadDocument(file);
       removeJob(tempKey);
-      setJob(doc.document_id, { filename: file.name, status: doc.status || "processing" });
+      setJob(doc.document_id, { filename: file.name, status: doc.status || "processing", stage: doc.processing_stage || "analysis" });
       await load();
     } catch (e) {
       removeJob(tempKey);
@@ -116,9 +117,7 @@ export default function Dashboard() {
 
   const activeJobs = Object.entries(jobs);
 
-  if (loading) {
-    return <DualLoader type="dashboard" text="Mempersiapkan dasbor belajar..." />;
-  }
+  if (loading) return <PageSkeleton variant="dashboard" />;
 
   return (
     <div className="w-full" data-testid="dashboard-page">
@@ -175,26 +174,25 @@ export default function Dashboard() {
 
       {activeJobs.length > 0 && (
         <div className="mb-10 space-y-2.5 fade-up" data-testid="active-jobs">
-          {activeJobs.map(([docId, job]) => (
-            <div key={docId} className="flex items-center gap-3 bg-white border border-[#E2E0D8] rounded-lg px-4 py-3" data-testid={`job-${docId}`}>
-              <Loader2 className={`w-4 h-4 ${job.status === "ready" || job.status === "failed" || job.status === "cancelled" ? "" : "animate-spin"} text-[#1D2D50] dark:text-[#E5A93C] shrink-0`} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-[#1A1B26] truncate">{job.filename}</div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-[#A0A2B1]">
-                  {job.status === "uploading" && "Mengunggah..."}
-                  {job.status === "processing" && "AI menganalisis..."}
-                  {job.status === "ready" && "Selesai"}
-                  {job.status === "failed" && "Gagal"}
-                  {job.status === "cancelled" && "Dibatalkan"}
+          {activeJobs.map(([docId, job]) => {
+            const meta = getDocumentStatusMeta({ status: job.status, processing_stage: job.stage });
+            return (
+              <div key={docId} className="flex items-center gap-3 bg-white border border-[#E2E0D8] rounded-lg px-4 py-3" data-testid={`job-${docId}`}>
+                <Loader2 className={`w-4 h-4 ${job.status === "ready" || job.status === "failed" || job.status === "cancelled" ? "" : "animate-spin"} text-[#1D2D50] dark:text-[#E5A93C] shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-[#1A1B26] truncate">{job.filename}</div>
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-[#A0A2B1]">
+                    {job.status === "uploading" ? "Mengunggah..." : meta.detail}
+                  </div>
                 </div>
+                {job.status === "processing" && !docId.startsWith("tmp-") && (
+                  <Button data-testid={`cancel-${docId}`} variant="ghost" size="sm" onClick={() => onCancel(docId)} className="text-[#B83A4B] hover:bg-[#B83A4B]/5 h-8">
+                    <X className="w-3.5 h-3.5 mr-1" /> Batal
+                  </Button>
+                )}
               </div>
-              {job.status === "processing" && !docId.startsWith("tmp-") && (
-                <Button data-testid={`cancel-${docId}`} variant="ghost" size="sm" onClick={() => onCancel(docId)} className="text-[#B83A4B] hover:bg-[#B83A4B]/5 h-8">
-                  <X className="w-3.5 h-3.5 mr-1" /> Batal
-                </Button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -263,6 +261,7 @@ export function DocCard({ doc, onOpen, onCancel, onDelete }) {
   const { user } = useAuth();
   const isInstitutionalStudent = user?.role === "pelajar" && user?.institution_code;
   const isProc = doc.status === "processing";
+  const statusMeta = getDocumentStatusMeta(doc);
   return (
     <div data-testid={`doc-card-${doc.document_id}`} className="card-lift bg-white border border-[#E2E0D8] rounded-xl p-5 relative group">
       <button onClick={onOpen} className="absolute inset-0 rounded-xl" aria-label="Buka dokumen" />
@@ -275,14 +274,12 @@ export function DocCard({ doc, onOpen, onCancel, onDelete }) {
       </div>
       <div className="mt-3 flex items-center justify-between text-xs relative pointer-events-none">
         <span className="text-[#A0A2B1] font-mono">{new Date(doc.created_at).toLocaleDateString("id-ID")}</span>
-        <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
-          doc.status === "ready" ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" :
-          doc.status === "failed" ? "bg-[#B83A4B]/10 text-[#B83A4B]" :
-          doc.status === "cancelled" ? "bg-[#A0A2B1]/10 text-[#646675]" :
-          "bg-[#E5A93C]/10 text-[#E5A93C]"
-        }`}>
-          {doc.status === "ready" ? "Siap" : doc.status === "failed" ? "Gagal" : doc.status === "cancelled" ? "Dibatal" : "Proses"}
+        <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${getDocumentStatusClasses(statusMeta.tone)}`}>
+          {statusMeta.chip}
         </span>
+      </div>
+      <div className="mt-2 text-[11px] text-[#646675] line-clamp-2 relative pointer-events-none">
+        {statusMeta.detail}
       </div>
       {!isInstitutionalStudent && (
         <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">

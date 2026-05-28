@@ -50,7 +50,7 @@ export default function Login() {
       if (error) throw error;
       navigate("/auth/callback", { replace: true });
     } catch (e) {
-      toast.error(e?.message || "Email/Username atau password salah");
+      toast.error("Email atau password salah");
     } finally {
       setLoading(false);
     }

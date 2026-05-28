@@ -290,6 +290,23 @@ api_router.include_router(institution_mgmt.router)
 api_router.include_router(shadow_workspace.router)
 api_router.include_router(teacher_students.router)
 
+# Dev: Music test endpoint
+from pydantic import BaseModel as _BaseModel
+from services.ai_service import aimusic, aimusic_suno
+
+class _MusicTestPayload(_BaseModel):
+    prompt: str
+    style: str = "pop, romantic"
+    engine: str = "suno"  # "suno" or "old"
+
+@api_router.post("/dev/music-test")
+async def dev_music_test(payload: _MusicTestPayload):
+    if payload.engine == "old":
+        result = await aimusic(payload.prompt, payload.style)
+    else:
+        result = await aimusic_suno(payload.prompt, payload.style)
+    return result
+
 # Mount the api_router to app
 fastapi_app.include_router(api_router)
 

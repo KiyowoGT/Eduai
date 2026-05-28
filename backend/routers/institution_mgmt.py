@@ -661,6 +661,12 @@ async def get_teacher_details(
     if not teacher:
         raise HTTPException(404, "Guru tidak ditemukan")
 
+    # Normalize missing/null fields so frontend always gets consistent data
+    teacher.setdefault("titles", [teacher["title"]] if teacher.get("title") else [])
+    teacher.setdefault("teaching_classes", [])
+    if teacher.get("teaching_classes") is None:
+        teacher["teaching_classes"] = []
+
     return teacher
 
 @router.put("/admin/users/teachers/{id}")
@@ -706,10 +712,8 @@ async def update_teacher_details(
         updates["assigned_class"] = None
 
     if TeacherTitle.guru_pengajar in active_titles or "guru_pengajar" in active_titles:
-        if payload.assigned_subject is not None:
-            updates["assigned_subject"] = payload.assigned_subject
-        if payload.teaching_classes is not None:
-            updates["teaching_classes"] = payload.teaching_classes
+        updates["assigned_subject"] = payload.assigned_subject if payload.assigned_subject is not None else teacher.get("assigned_subject")
+        updates["teaching_classes"] = payload.teaching_classes if payload.teaching_classes is not None else teacher.get("teaching_classes", [])
     else:
         updates["assigned_subject"] = None
         updates["teaching_classes"] = []

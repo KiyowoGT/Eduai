@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listQuizResults, listAssignedQuizzes } from "@/lib/api";
-import { ScrollText, BrainCircuit, ArrowRight, Loader2, AlertCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Clock } from "lucide-react";
+import { ScrollText, BrainCircuit, ArrowRight, AlertCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PageSkeleton from "@/components/PageSkeleton";
 
 export default function QuizHistory() {
   const [results, setResults] = useState([]);
@@ -150,9 +151,7 @@ export default function QuizHistory() {
 
       {/* Previous Results */}
       {loading && results.length === 0 ? (
-        <div className="flex items-center gap-2 text-sm text-[#646675]">
-          <Loader2 className="w-4 h-4 animate-spin" /> Memuat riwayat...
-        </div>
+        <PageSkeleton variant="quiz-history" />
       ) : error ? (
         <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />

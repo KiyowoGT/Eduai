@@ -19,7 +19,7 @@ export default function AuditLog() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat…</div>
+        <div className="flex items-center justify-center py-20 text-sm text-[#646675]">Memuat…</div>
       ) : logs.length === 0 ? (
         <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center text-sm text-[#646675]">Belum ada aktivitas tercatat.</div>
       ) : (

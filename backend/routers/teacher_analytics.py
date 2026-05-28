@@ -606,6 +606,186 @@ async def get_teacher_quiz_insights(
     return {"insight_text": insight_text}
 
 
+@router.get("/teacher/analytics/pribadi/students")
+async def get_pribadi_students_analysis(user: User = Depends(require_pengajar)):
+    if user.account_type != "pribadi":
+        raise HTTPException(403, "Hanya untuk Guru Mandiri")
+
+    tokens = await db.class_tokens.find({"created_by_user_id": user.user_id}).to_list(1000)
+    token_strings = [t["class_token"] for t in tokens]
+    students = await db.users.find(
+        {"class_token_used": {"$in": token_strings}, "role": "pelajar"},
+        {"_id": 0, "password": 0, "hash": 0}
+    ).sort("name", 1).to_list(1000)
+
+    teacher_quiz_ids = [q["quiz_id"] for q in await db.quizzes.find({"user_id": user.user_id}, {"quiz_id": 1}).to_list(1000)]
+    quiz_map = {}
+    for q in await db.quizzes.find({"user_id": user.user_id}, {"_id": 0, "quiz_id": 1, "source_titles": 1, "subject_name": 1, "questions": 1}).to_list(1000):
+        quiz_map[q["quiz_id"]] = q
+
+    result_list = []
+    for s in students:
+        uid = s["user_id"]
+        q_results = await db.quiz_results.find({"user_id": uid, "quiz_id": {"$in": teacher_quiz_ids}, "status": "ready"}).to_list(500)
+        sessions = await db.student_sessions.find({"student_user_id": uid, "quiz_id": {"$in": teacher_quiz_ids}, "status": "ready"}).to_list(500)
+
+        combined = []
+        for r in q_results:
+            qid = r.get("quiz_id")
+            qinfo = quiz_map.get(qid, {})
+            combined.append({
+                "quiz_id": qid,
+                "quiz_title": (qinfo.get("source_titles") or ["Kuis"])[0] if qinfo.get("source_titles") else "Kuis",
+                "subject_name": qinfo.get("subject_name") or r.get("subject_name") or "Umum",
+                "score": r.get("score", 0),
+                "answers": r.get("answers", []),
+                "items": r.get("items", []),
+                "submitted_at": r.get("created_at") or r.get("submitted_at")
+            })
+        for ses in sessions:
+            qid = ses.get("quiz_id")
+            qinfo = quiz_map.get(qid, {})
+            combined.append({
+                "quiz_id": qid,
+                "quiz_title": (qinfo.get("source_titles") or ["Kuis"])[0] if qinfo.get("source_titles") else "Kuis",
+                "subject_name": qinfo.get("subject_name") or "Umum",
+                "score": ses.get("score", 0),
+                "answers": ses.get("answers", []),
+                "items": ses.get("items", []),
+                "submitted_at": ses.get("submitted_at"),
+                "source": "redeem"
+            })
+
+        combined.sort(key=lambda x: x.get("submitted_at") or "", reverse=True)
+
+        subject_scores = {}
+        skill_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+        for c in combined:
+            subj = c["subject_name"]
+            if subj not in subject_scores:
+                subject_scores[subj] = []
+            subject_scores[subj].append(c["score"])
+            items = c.get("items", [])
+            for item in items:
+                sk = item.get("skill_type") or "konsep"
+                skill_stats[sk]["total"] += 1
+                if item.get("is_correct"):
+                    skill_stats[sk]["correct"] += 1
+
+        overall_avg = round(sum(c["score"] for c in combined) / len(combined), 1) if combined else 0.0
+        subject_avgs = {subj: round(sum(scores) / len(scores), 1) for subj, scores in subject_scores.items()}
+        skill_breakdown = {}
+        for sk, st in skill_stats.items():
+            skill_breakdown[sk] = {"correct": st["correct"], "total": st["total"], "percentage": round((st["correct"] / st["total"]) * 100, 1) if st["total"] > 0 else 0}
+
+        result_list.append({
+            "user_id": uid,
+            "name": s.get("name", "Siswa"),
+            "email": s.get("email"),
+            "enrolled_class": s.get("enrolled_class"),
+            "class_token_used": s.get("class_token_used"),
+            "quiz_count": len(combined),
+            "overall_average": overall_avg,
+            "subject_averages": subject_avgs,
+            "skill_breakdown": skill_breakdown,
+            "score_history": combined[:20]
+        })
+
+    return {"students": result_list}
+
+
+@router.post("/teacher/analytics/student/{student_id}/analyze")
+async def analyze_student_character(
+    student_id: str,
+    user: User = Depends(require_pengajar),
+    request: Request = None
+):
+    if user.account_type != "pribadi":
+        raise HTTPException(403, "Hanya untuk Guru Mandiri")
+
+    tokens = await db.class_tokens.find({"created_by_user_id": user.user_id}).to_list(1000)
+    token_strings = [t["class_token"] for t in tokens]
+    student = await db.users.find_one(
+        {"user_id": student_id, "class_token_used": {"$in": token_strings}, "role": "pelajar"},
+        {"_id": 0, "password": 0, "hash": 0}
+    )
+    if not student:
+        raise HTTPException(404, "Siswa tidak ditemukan")
+
+    teacher_quiz_ids = [q["quiz_id"] for q in await db.quizzes.find({"user_id": user.user_id}, {"quiz_id": 1}).to_list(1000)]
+
+    q_results = await db.quiz_results.find({"user_id": student_id, "quiz_id": {"$in": teacher_quiz_ids}, "status": "ready"}).to_list(500)
+    sessions = await db.student_sessions.find({"student_user_id": student_id, "quiz_id": {"$in": teacher_quiz_ids}, "status": "ready"}).to_list(500)
+
+    combined = []
+    for r in q_results:
+        combined.append({"score": r.get("score", 0), "subject_name": r.get("subject_name", "Umum"), "submitted_at": r.get("created_at"), "items": r.get("items", [])})
+    for ses in sessions:
+        combined.append({"score": ses.get("score", 0), "subject_name": "Umum", "submitted_at": ses.get("submitted_at"), "items": ses.get("items", [])})
+
+    if not combined:
+        return {
+            "student_name": student.get("name", "Siswa"),
+            "analysis": "Belum ada data kuis yang cukup untuk menganalisis karakter belajar siswa ini.",
+            "summary": "Belum ada data."
+        }
+
+    combined.sort(key=lambda x: x.get("submitted_at") or "")
+    total = len(combined)
+    avg_score = round(sum(c["score"] for c in combined) / total, 1)
+    latest_scores = [c["score"] for c in combined[-5:]]
+    trend = (latest_scores[-1] - latest_scores[0]) / max(latest_scores[0], 1) * 100 if len(latest_scores) >= 2 else 0
+    trend_desc = "meningkat" if trend > 5 else ("menurun" if trend < -5 else "stabil")
+
+    skill_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+    for c in combined:
+        for item in c.get("items", []):
+            sk = item.get("skill_type") or "konsep"
+            skill_stats[sk]["total"] += 1
+            if item.get("is_correct"):
+                skill_stats[sk]["correct"] += 1
+    strong_skills = [sk for sk, st in skill_stats.items() if st["total"] > 0 and (st["correct"] / st["total"]) >= 0.7]
+    weak_skills = [sk for sk, st in skill_stats.items() if st["total"] > 0 and (st["correct"] / st["total"]) < 0.5]
+
+    system = (
+        "Kamu adalah EduScanner AI, konsultan pedagogi yang menganalisis karakter belajar siswa les privat. "
+        "Gunakan Bahasa Indonesia santai tapi profesional. "
+        "Beri analisis tentang: gaya belajar, kekuatan akademik, area yang perlu ditingkatkan, "
+        "dan rekomendasi personal untuk guru. "
+        "Jangan gunakan markdown tebal (** atau ###). Gunakan teks biasa."
+    )
+    prompt = (
+        f"Nama Siswa: {student.get('name', 'Siswa')}\n"
+        f"Total Kuis Dikerjakan: {total}\n"
+        f"Skor Rata-rata: {avg_score}%\n"
+        f"Tren Nilai Terakhir: {trend_desc} (perubahan {trend:.1f}%)\n"
+        f"Kekuatan ({', '.join(strong_skills) if strong_skills else 'Belum teridentifikasi'}):\n"
+        f"Kelemahan ({', '.join(weak_skills) if weak_skills else 'Belum teridentifikasi'}):\n"
+        f"Detail performa per skill: {dict(skill_stats)}\n\n"
+        "Berdasarkan data ini, berikan analisis karakter belajar siswa dan rekomendasi pengajaran yang personal."
+    )
+
+    try:
+        analysis = await _call_gemini(system, prompt)
+        analysis = re.sub(r'<think>[\s\S]*?</think>', '', analysis, flags=re.IGNORECASE).strip()
+    except Exception as e:
+        logger.error(f"Failed to call Gemini for student analysis: {e}")
+        analysis = "Gagal memproses analisis karakter siswa karena batasan kuota layanan."
+
+    summary_line = f"{student.get('name', 'Siswa')} mengerjakan {total} kuis dengan rata-rata {avg_score}%. Tren: {trend_desc}."
+
+    return {
+        "student_name": student.get("name", "Siswa"),
+        "analysis": analysis,
+        "summary": summary_line,
+        "total_quizzes": total,
+        "average_score": avg_score,
+        "trend": trend_desc,
+        "strong_skills": strong_skills,
+        "weak_skills": weak_skills
+    }
+
+
 def _is_productive_subject(subject_name: str) -> bool:
     if not subject_name:
         return False

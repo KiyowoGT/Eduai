@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { listTeacherSchedules } from "@/lib/api";
 import { Calendar } from "lucide-react";
+import PageSkeleton from "@/components/PageSkeleton";
+import AnalyticsMandiri from "@/pages/teacher/AnalyticsMandiri";
 
 const days = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 
@@ -9,13 +11,19 @@ export default function TeacherSchedules() {
   const { user } = useAuth();
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const isPribadi = user?.account_type === "pribadi";
 
   useEffect(() => {
+    if (isPribadi) return;
     listTeacherSchedules()
       .then(setSchedules)
       .catch(() => setSchedules([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isPribadi]);
+
+  if (isPribadi) {
+    return <AnalyticsMandiri />;
+  }
 
   const grouped = {};
   schedules.forEach((s) => {
@@ -32,7 +40,7 @@ export default function TeacherSchedules() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-[#646675]">Memuat...</div>
+        <PageSkeleton variant="grid" />
       ) : schedules.length === 0 ? (
         <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
           Belum ada jadwal. Buat jadwal baru untuk mulai.

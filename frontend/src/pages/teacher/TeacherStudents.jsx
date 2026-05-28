@@ -7,12 +7,16 @@ import {
   deleteStudent,
   uploadStudentsCsv,
   listTeacherMaterialsClasses,
+  createClassToken,
+  listClassTokens,
+  deleteClassToken,
 } from "@/lib/api";
-import { Plus, Trash2, Loader2, Upload, Edit3, X, Key, Copy } from "lucide-react";
+import { Plus, Trash2, Loader2, Upload, Edit3, X, Key, Copy, QrCode, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import PageSkeleton from "@/components/PageSkeleton";
 
 const buildDefaultEmail = (nisn, instCode) => {
   if (!nisn) return "";
@@ -34,12 +38,20 @@ const buildDefaultPassword = (instName, tahunMasuk) => {
 
 export default function TeacherStudents() {
   const { user } = useAuth();
+  const isPribadi = user?.account_type === "pribadi";
   const needsMajor = user?.education_level && !["SD", "SMP"].includes(user.education_level);
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [availableClasses, setAvailableClasses] = useState([]);
   const [fetchedClasses, setFetchedClasses] = useState([]);
+
+  // Token management (pribadi)
+  const [tokens, setTokens] = useState([]);
+  const [showTokenForm, setShowTokenForm] = useState(false);
+  const [tokenName, setTokenName] = useState("");
+  const [creatingToken, setCreatingToken] = useState(false);
+  const [newToken, setNewToken] = useState(null); // show after creation
 
   // Student credentials modal
   const [credentialsModal, setCredentialsModal] = useState(null); // { name, email, password }
@@ -66,12 +78,17 @@ export default function TeacherStudents() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [sList, cList] = await Promise.all([
+      const calls = [
         listTeacherStudents().catch(() => []),
         listTeacherMaterialsClasses().catch(() => [])
-      ]);
+      ];
+      if (isPribadi) {
+        calls.push(listClassTokens().catch(() => []));
+      }
+      const [sList, cList, tList] = await Promise.all(calls);
       setStudents(sList);
       setFetchedClasses(cList || []);
+      if (isPribadi) setTokens(tList || []);
     } catch (e) {
       toast.error("Gagal memuat data");
     } finally {
@@ -208,30 +225,169 @@ export default function TeacherStudents() {
     }
   };
 
-  const filtered = students.filter((s) => !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.nisn?.includes(search));
+  // Token management
+  const handleCreateToken = async (e) => {
+    e.preventDefault();
+    if (!tokenName.trim()) {
+      toast.error("Nama kelas/token wajib diisi");
+      return;
+    }
+    setCreatingToken(true);
+    try {
+      const result = await createClassToken({
+        target_class_room: tokenName.trim(),
+        target_semester_or_grade: 1,
+      });
+      setNewToken(result.class_token);
+      setTokenName("");
+      setShowTokenForm(false);
+      toast.success("Token berhasil dibuat!");
+      loadData();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Gagal membuat token");
+    } finally {
+      setCreatingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async (token) => {
+    if (!confirm(`Hapus token ${token}? Siswa yang sudah tergabung tidak akan terpengaruh.`)) return;
+    try {
+      await deleteClassToken(token);
+      toast.success("Token berhasil dihapus");
+      loadData();
+    } catch (err) {
+      toast.error("Gagal menghapus token");
+    }
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} disalin`);
+  };
+
+  const filtered = students.filter((s) => !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.nisn?.includes(search) || s.email?.toLowerCase().includes(search.toLowerCase()) || s.username?.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="w-full">
       <div className="mb-8 fade-up">
         <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Manajemen Kelas</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Siswa</h1>
-        <p className="text-sm text-[#646675] mt-1.5">{user?.institution} · {students.length} siswa terdaftar</p>
+        <p className="text-sm text-[#646675] mt-1.5">
+          {isPribadi ? "Guru Mandiri" : user?.institution} · {students.length} siswa terdaftar
+        </p>
       </div>
+
+      {/* Token management for pribadi */}
+      {isPribadi && (
+        <div className="bg-white border border-[#E2E0D8] rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-heading text-sm text-[#1A1B26] uppercase tracking-wider">
+              <QrCode className="w-4 h-4 inline mr-1.5 text-[#1D2D50]" />
+              Token Kelas
+            </h3>
+            <Button
+              onClick={() => { setShowTokenForm(true); setNewToken(null); }}
+              size="sm"
+              className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-8 text-xs"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Buat Token
+            </Button>
+          </div>
+
+          {newToken && (
+            <div className="mb-3 p-3 bg-[#2D6A4F]/5 border border-[#2D6A4F]/20 rounded-lg flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[#2D6A4F] font-medium">Token baru dibuat!</p>
+                <p className="text-sm font-mono font-bold text-[#1A1B26] mt-0.5">{newToken}</p>
+              </div>
+              <Button
+                onClick={() => copyToClipboard(newToken, "Token")}
+                size="xs"
+                className="bg-[#2D6A4F] hover:bg-[#204e39] text-white h-7 text-[10px]"
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                Salin
+              </Button>
+            </div>
+          )}
+
+          {showTokenForm && (
+            <form onSubmit={handleCreateToken} className="flex items-end gap-3 mb-3 p-3 bg-[#F8F6F0] rounded-lg border border-[#E2E0D8]">
+              <div className="flex-1">
+                <label className="block text-xs text-[#646675] mb-1">Nama Kelas / Token</label>
+                <Input
+                  value={tokenName}
+                  onChange={(e) => setTokenName(e.target.value)}
+                  placeholder="Contoh: Matematika A, Bimbel IPA, dll"
+                  required
+                  className="h-9 text-sm"
+                />
+              </div>
+              <Button type="submit" disabled={creatingToken} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-9 text-sm shrink-0">
+                {creatingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buat"}
+              </Button>
+              <button type="button" onClick={() => setShowTokenForm(false)} className="text-[#A0A2B1] hover:text-[#646675] p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </form>
+          )}
+
+          {tokens.length > 0 ? (
+            <div className="space-y-1.5">
+              {tokens.map((t) => (
+                <div key={t.class_token} className="flex items-center justify-between p-2.5 bg-[#F8F6F0] rounded-lg border border-[#E2E0D8]/60">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Link2 className="w-3.5 h-3.5 text-[#1D2D50] shrink-0" />
+                    <span className="text-sm font-medium text-[#1A1B26]">{t.target_class_room}</span>
+                    <code className="text-xs font-mono text-[#646675] bg-white px-1.5 py-0.5 rounded border border-[#E2E0D8]">
+                      {t.class_token}
+                    </code>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => copyToClipboard(t.class_token, "Token")}
+                      className="text-[#A0A2B1] hover:text-[#1D2D50] p-1.5 transition-colors"
+                      title="Salin Token"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleRevokeToken(t.class_token)}
+                      className="text-[#A0A2B1] hover:text-[#B83A4B] p-1.5 transition-colors"
+                      title="Hapus Token"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[#A0A2B1]">Belum ada token. Buat token untuk mulai menghubungkan dengan siswa.</p>
+          )}
+        </div>
+      )}
 
       {/* Top actions */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Button onClick={() => { resetForm(); setShowForm(true); }} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-9 text-sm">
-          <Plus className="w-4 h-4 mr-1.5" />
-          Tambah Siswa
-        </Button>
-        <label className="inline-flex items-center gap-2 px-4 py-2 border border-[#E2E0D8] text-sm text-[#646675] rounded-lg hover:bg-[#F8F6F0] transition-colors cursor-pointer h-9">
-          <Upload className="w-4 h-4" />
-          Upload CSV
-          <input type="file" accept=".csv" onChange={handleCsvUpload} className="hidden" disabled={uploading} />
-        </label>
+        {!isPribadi && (
+          <>
+            <Button onClick={() => { resetForm(); setShowForm(true); }} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-9 text-sm">
+              <Plus className="w-4 h-4 mr-1.5" />
+              Tambah Siswa
+            </Button>
+            <label className="inline-flex items-center gap-2 px-4 py-2 border border-[#E2E0D8] text-sm text-[#646675] rounded-lg hover:bg-[#F8F6F0] transition-colors cursor-pointer h-9">
+              <Upload className="w-4 h-4" />
+              Upload CSV
+              <input type="file" accept=".csv" onChange={handleCsvUpload} className="hidden" disabled={uploading} />
+            </label>
+          </>
+        )}
         <div className="flex-1" />
         <Input
-          placeholder="Cari nama atau NISN..."
+          placeholder={isPribadi ? "Cari nama atau email..." : "Cari nama atau NISN..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs h-9 text-sm"
@@ -320,20 +476,21 @@ export default function TeacherStudents() {
       {/* Student table */}
       <div className="bg-white border border-[#E2E0D8] rounded-xl overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-[#1D2D50]" /></div>
+          <PageSkeleton variant="list" />
         ) : filtered.length === 0 ? (
           <div className="text-sm text-[#646675] p-8 text-center">
-            {search ? "Tidak ada siswa yang cocok." : "Belum ada siswa. Tambahkan via form atau upload CSV."}
+            {search ? "Tidak ada siswa yang cocok." : isPribadi ? "Belum ada siswa yang bergabung. Bagikan token kelas untuk mulai." : "Belum ada siswa. Tambahkan via form atau upload CSV."}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-[#F8F6F0] border-b border-[#E2E0D8]">
               <tr className="text-[11px] uppercase tracking-[0.15em] text-[#A0A2B1]">
                 <th className="text-left py-3 px-4 font-semibold">Nama</th>
-                <th className="text-left py-3 px-4 font-semibold">NISN</th>
+                <th className="text-left py-3 px-4 font-semibold">{isPribadi ? "Email" : "NISN"}</th>
                 <th className="text-left py-3 px-4 font-semibold">Kelas</th>
                 {needsMajor && <th className="text-left py-3 px-4 font-semibold">Jurusan</th>}
                 <th className="text-left py-3 px-4 font-semibold">Tahun</th>
+                {isPribadi && <th className="text-left py-3 px-4 font-semibold">User</th>}
                 <th className="text-right py-3 px-4 font-semibold">Aksi</th>
               </tr>
             </thead>
@@ -341,14 +498,25 @@ export default function TeacherStudents() {
               {filtered.map((s) => (
                 <tr key={s.user_id} className="border-b border-[#E2E0D8]/50 last:border-0 hover:bg-[#F8F6F0]/30 transition-colors">
                   <td className="py-3 px-4 text-[#1A1B26] font-medium">{s.name}</td>
-                  <td className="py-3 px-4 text-[#646675] font-mono text-xs">{s.nisn || "-"}</td>
+                  <td className="py-3 px-4 text-[#646675] font-mono text-xs">
+                    {isPribadi ? (s.email || "-") : (s.nisn || "-")}
+                  </td>
                   <td className="py-3 px-4 text-[#646675]">{s.enrolled_class || s.class_name || "-"}</td>
                   {needsMajor && <td className="py-3 px-4 text-[#646675]">{s.major || "-"}</td>}
                   <td className="py-3 px-4 text-[#646675]">{s.tahun_masuk || "-"}</td>
+                  {isPribadi && (
+                    <td className="py-3 px-4 text-[#646675] font-mono text-xs">{s.username || "-"}</td>
+                  )}
                   <td className="py-3 px-4 text-right">
-                    <button onClick={() => handleShowCredentials(s)} className="text-[#A0A2B1] hover:text-[#1D2D50] transition-colors p-1 mr-1.5" title="Lihat Kredensial"><Key className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => openEdit(s)} className="text-[#A0A2B1] hover:text-[#1D2D50] transition-colors p-1" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleDelete(s)} className="text-[#A0A2B1] hover:text-[#B83A4B] transition-colors p-1 ml-1" title="Hapus"><Trash2 className="w-3.5 h-3.5" /></button>
+                    {!isPribadi && (
+                      <button onClick={() => handleShowCredentials(s)} className="text-[#A0A2B1] hover:text-[#1D2D50] transition-colors p-1 mr-1.5" title="Lihat Kredensial"><Key className="w-3.5 h-3.5" /></button>
+                    )}
+                    {!isPribadi && (
+                      <button onClick={() => openEdit(s)} className="text-[#A0A2B1] hover:text-[#1D2D50] transition-colors p-1" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
+                    )}
+                    {!isPribadi && (
+                      <button onClick={() => handleDelete(s)} className="text-[#A0A2B1] hover:text-[#B83A4B] transition-colors p-1 ml-1" title="Hapus"><Trash2 className="w-3.5 h-3.5" /></button>
+                    )}
                   </td>
                 </tr>
               ))}

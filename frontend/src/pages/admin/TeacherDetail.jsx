@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { http } from "@/lib/api";
 import { getJurusanByLevel, parseMajorFromClass } from "@/lib/jurusan";
-import { ArrowLeft, Mail, Shield, AlertTriangle, Plus, X } from "lucide-react";
+import { ArrowLeft, Mail, Shield, AlertTriangle, Plus, X, Lock } from "lucide-react";
 import { toast } from "sonner";
 import DualLoader from "@/components/DualLoader";
 
@@ -45,6 +45,9 @@ export default function TeacherDetail() {
   const [showNewClassInput, setShowNewClassInput] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [newClassName, setNewClassName] = useState("");
+  const [showAuthGate, setShowAuthGate] = useState(false);
+  const [authGatePassword, setAuthGatePassword] = useState("");
+  const [authGateLoading, setAuthGateLoading] = useState(false);
 
   const educationLevel = user?.education_level?.toUpperCase();
   const jurusanOptions = getJurusanByLevel(educationLevel);
@@ -101,6 +104,23 @@ export default function TeacherDetail() {
         titles: nextTitles,
       };
     });
+  };
+
+  const handleAuthGate = async (e) => {
+    e?.preventDefault();
+    if (!authGatePassword) return;
+    setAuthGateLoading(true);
+    try {
+      await http.post("/auth/verify-password", { password: authGatePassword });
+      setShowAuthGate(false);
+      setAuthGatePassword("");
+      setAdminPassword(authGatePassword);
+      setIsEditing(true);
+    } catch {
+      toast.error("Password salah");
+    } finally {
+      setAuthGateLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -194,7 +214,7 @@ export default function TeacherDetail() {
           </div>
           {!isEditing && (
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={() => setShowAuthGate(true)}
               className="px-4 py-2 bg-[#1D2D50] hover:bg-[#1D2D50]/90 text-white text-sm rounded-lg transition-colors shadow-sm"
             >
               Edit Profil
@@ -545,6 +565,47 @@ export default function TeacherDetail() {
           </div>
         )}
       </div>
+
+      {/* Auth Gate Dialog */}
+      {showAuthGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <form onSubmit={handleAuthGate} className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-[#1D2D50]/10 grid place-items-center">
+                <Lock className="w-5 h-5 text-[#1D2D50]" />
+              </div>
+              <div>
+                <div className="font-heading text-lg text-[#1A1B26]">Verifikasi Identitas</div>
+                <div className="text-xs text-[#646675]">Masukkan password akun Anda untuk melanjutkan</div>
+              </div>
+            </div>
+            <input
+              type="password"
+              value={authGatePassword}
+              onChange={(e) => setAuthGatePassword(e.target.value)}
+              placeholder="Password Anda"
+              autoFocus
+              className="w-full px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowAuthGate(false); setAuthGatePassword(""); }}
+                className="px-4 py-2 text-sm text-[#646675] hover:text-[#1A1B26] transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={authGateLoading || !authGatePassword}
+                className="px-5 py-2 bg-[#1D2D50] hover:bg-[#1D2D50]/90 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {authGateLoading ? "Memverifikasi..." : "Lanjutkan"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

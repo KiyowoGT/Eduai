@@ -88,6 +88,96 @@ async def _bg_grade_student_session(session_id: str, quiz: dict, answers: List[i
             {"$set": {"status": "failed", "error": str(e)[:300]}}
         )
 
+@router.get("/my-sessions")
+async def list_my_redeem_sessions(user: User = Depends(get_current_user)):
+    sessions = await db.student_sessions.find(
+        {"student_user_id": user.user_id},
+        {"_id": 0, "session_token": 0}
+    ).sort("submitted_at", -1).limit(50).to_list(50)
+
+    for s in sessions:
+        quiz = await db.quizzes.find_one(
+            {"quiz_id": s["quiz_id"]},
+            {"_id": 0, "source_titles": 1, "subject_name": 1}
+        )
+        if quiz:
+            s["quiz_title"] = quiz.get("source_titles", ["Kuis"])[0] if quiz.get("source_titles") else "Kuis Mandiri"
+            if not s.get("subject_name"):
+                s["subject_name"] = quiz.get("subject_name")
+
+    return {"sessions": sessions}
+
+@router.get("/my-materials")
+async def list_my_redeem_materials(user: User = Depends(get_current_user)):
+    sessions = await db.student_sessions.find(
+        {"student_user_id": user.user_id, "status": "ready"},
+        {"_id": 0, "quiz_id": 1}
+    ).sort("submitted_at", -1).limit(50).to_list(50)
+
+    if not sessions:
+        return {"materials": []}
+
+    quiz_ids = list(set(s.get("quiz_id") for s in sessions if s.get("quiz_id")))
+    if not quiz_ids:
+        return {"materials": []}
+
+    redeem_codes = await db.redeem_codes.find(
+        {"quiz_id": {"$in": quiz_ids}},
+        {"_id": 0, "quiz_id": 1, "code": 1}
+    ).to_list(50)
+    code_by_quiz = {rc["quiz_id"]: rc["code"] for rc in redeem_codes}
+
+    quizzes = await db.quizzes.find(
+        {"quiz_id": {"$in": quiz_ids}},
+        {"_id": 0, "document_ids": 1, "source_titles": 1, "subject_name": 1}
+    ).to_list(50)
+
+    doc_ids = set()
+    for q in quizzes:
+        for did in (q.get("document_ids") or []):
+            doc_ids.add(did)
+        if q.get("document_id"):
+            doc_ids.add(q["document_id"])
+
+    if not doc_ids:
+        return {"materials": []}
+
+    docs = await db.documents.find(
+        {"document_id": {"$in": list(doc_ids)}},
+        {"_id": 0,
+         "document_id": 1, "title": 1, "filename": 1,
+         "subject_name": 1, "summary": 1,
+         "user_id": 1, "created_at": 1}
+    ).to_list(50)
+
+    quiz_docs_map = {}
+    for q in quizzes:
+        qid = q["quiz_id"]
+        q_doc_ids = set()
+        for did in (q.get("document_ids") or []):
+            q_doc_ids.add(did)
+        if q.get("document_id"):
+            q_doc_ids.add(q["document_id"])
+        quiz_docs_map[qid] = q_doc_ids
+
+    materials = []
+    for q in quizzes:
+        qid = q["quiz_id"]
+        code = code_by_quiz.get(qid, "")
+        quiz_title = (q.get("source_titles") or ["Kuis"])[0] if q.get("source_titles") else "Kuis Mandiri"
+        subject = q.get("subject_name") or ""
+        q_doc_ids = quiz_docs_map.get(qid, set())
+        for doc in docs:
+            if doc["document_id"] in q_doc_ids:
+                materials.append({
+                    **doc,
+                    "redeem_code": code,
+                    "quiz_title": quiz_title,
+                    "quiz_subject": subject,
+                })
+
+    return {"materials": materials}
+
 # ============== Endpoints ==============
 
 @router.post("/teacher/quizzes/{quiz_id}/redeem-code")
@@ -140,12 +230,6 @@ async def validate_and_get_redeem_quiz(
     if not redeem:
         raise HTTPException(status_code=404, detail="Kode redeem tidak valid atau sudah kadaluwarsa.")
 
-    # Cek kadaluwarsa jika ada
-    if redeem.get("expires_at"):
-        expires_at = datetime.fromisoformat(redeem["expires_at"])
-        if datetime.now(timezone.utc) > expires_at:
-            raise HTTPException(status_code=404, detail="Kode redeem tidak valid atau sudah kadaluwarsa.")
-
     quiz = await db.quizzes.find_one({"quiz_id": redeem["quiz_id"]})
     if not quiz:
         raise HTTPException(status_code=404, detail="Kuis terkait tidak ditemukan.")
@@ -181,11 +265,6 @@ async def start_redeem_quiz(
     redeem = await db.redeem_codes.find_one({"code": code})
     if not redeem:
         raise HTTPException(status_code=404, detail="Kode redeem tidak valid atau sudah kadaluwarsa.")
-
-    if redeem.get("expires_at"):
-        expires_at = datetime.fromisoformat(redeem["expires_at"])
-        if datetime.now(timezone.utc) > expires_at:
-            raise HTTPException(status_code=404, detail="Kode redeem tidak valid atau sudah kadaluwarsa.")
 
     session_id = uuid.uuid4().hex
     session_token = uuid.uuid4().hex

@@ -42,7 +42,7 @@ export default function AuthCallback() {
         setStatusText("Mempersiapkan dashboard...");
         await new Promise(r => setTimeout(r, 800)); // smooth transition feel
 
-        const isOnboarded = user?.onboarded || user?.institution_code || user?.enrolled_class || user?.education_level;
+        const isOnboarded = user?.onboarded || user?.institution_code || user?.enrolled_class || user?.education_level || user?.role === "pengajar";
         const dest = isOnboarded ? "/dashboard" : "/onboarding";
         navigate(dest, { replace: true });
       } catch (e) {
