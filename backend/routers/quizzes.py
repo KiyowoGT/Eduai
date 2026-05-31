@@ -21,6 +21,10 @@ from services.ai_service import (
     _emit_quiz_status,
     _emit_result_status
 )
+from services.kafka_jobs import (
+    enqueue_quiz_generate,
+    enqueue_quiz_grade,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -176,7 +180,8 @@ async def quiz_generate(request: Request, payload: QuizGenerateRequest, user: Us
     await db.quizzes.insert_one(quiz_doc.copy())
     ip = request.client.host if request.client else ""
     await _emit_quiz_status(user.user_id, quiz_id, "processing")
-    asyncio.create_task(_bg_generate_quiz(quiz_id, documents, user, payload.question_count, ip, recap_text))
+    if not await enqueue_quiz_generate(quiz_id, documents, user, payload.question_count, ip, recap_text):
+        asyncio.create_task(_bg_generate_quiz(quiz_id, documents, user, payload.question_count, ip, recap_text))
     return _public_quiz(quiz_doc)
 
 
@@ -269,6 +274,9 @@ async def quiz_assigned_list(user: User = Depends(get_current_user)):
         })
 
     return {"quizzes": out}
+
+
+@router.get("/quiz/{quiz_id}")
 async def quiz_get(quiz_id: str, user: User = Depends(get_current_user)):
     quiz = await _find_quiz_for_user(quiz_id, user)
     if not quiz:
@@ -426,7 +434,8 @@ async def quiz_submit(request: Request, payload: QuizSubmission, user: User = De
     await db.quiz_results.insert_one(doc.copy())
     ip = request.client.host if request.client else ""
     await _emit_result_status(user.user_id, result_id, "processing")
-    asyncio.create_task(_bg_grade_quiz(result_id, quiz, payload.answers, user, ip))
+    if not await enqueue_quiz_grade(result_id, quiz, payload.answers, user, ip):
+        asyncio.create_task(_bg_grade_quiz(result_id, quiz, payload.answers, user, ip))
     
     if quiz.get("institution_code"):
         await db.quiz_progress.delete_many({"quiz_id": payload.quiz_id, "user_id": user.user_id})

@@ -18,7 +18,41 @@ class TeacherTitle(str, Enum):
     guru_pengajar = "guru_pengajar"
     kajur = "kajur"
 
+# MBTI and learning style enums for personality profiling
+class MBTIType(str, Enum):
+    INTJ = "INTJ"
+    INTP = "INTP"
+    ENTJ = "ENTJ"
+    ENTP = "ENTP"
+    INFJ = "INFJ"
+    INFP = "INFP"
+    ENFJ = "ENFJ"
+    ENFP = "ENFP"
+    ISTJ = "ISTJ"
+    ISFJ = "ISFJ"
+    ESTJ = "ESTJ"
+    ESFJ = "ESFJ"
+    ISTP = "ISTP"
+    ISFP = "ISFP"
+    ESTP = "ESTP"
+    ESFP = "ESFP"
+
+class LearningStyle(str, Enum):
+    visual = "visual"
+    auditory = "auditory"
+    kinesthetic = "kinesthetic"
+    reading_writing = "reading_writing"
+
 EducationLevel = Literal["SD", "SMP", "SMA", "SMK", "MA", "Universitas"]
+
+class PersonalityProfile(BaseModel):
+    mbti: Optional[str] = None
+    learning_style: Optional[LearningStyle] = None
+    strengths: Optional[List[str]] = Field(default_factory=list)
+    weaknesses: Optional[List[str]] = Field(default_factory=list)
+    recommended_teaching_strategies: Optional[List[str]] = Field(default_factory=list)
+    created_at: Optional[datetime] = None
+
 
 class ParentContact(BaseModel):
     name: str
@@ -74,6 +108,8 @@ class User(BaseModel):
     active_scope_id: Optional[str] = None
     hobby: Optional[str] = None
     music_genre: Optional[str] = None
+    # Personality profiling data (optional)
+    personality: Optional[PersonalityProfile] = None
     created_at: datetime
 
     @property

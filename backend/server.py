@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import websockets.exceptions
 from bson import Binary
@@ -19,6 +20,7 @@ from core.config import (
 )
 from core.database import db, client
 from core.websocket import realtime_hub
+from core.kafka import start_producer, stop_producer, KAFKA_ENABLED, health_check as kafka_health_check
 from models.user import User
 from deps.auth import get_current_user, get_current_user_from_access_token
 
@@ -27,7 +29,7 @@ from routers import (
     auth, documents, quizzes, folders, recaps, chats, friends, audio,
     institutions, class_tokens, teacher_schedules, teacher_materials,
     teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace,
-    teacher_students
+    teacher_students, personality
 )
 
 app = fastapi_app = FastAPI(title="EduScanner AI")
@@ -95,6 +97,12 @@ async def progress(user: User = Depends(get_current_user)):
         "recent_results": last_results,
     }
 
+@api_router.get("/diag/kafka")
+async def diag_kafka():
+    """Kafka producer health & metrics snapshot."""
+    return await kafka_health_check()
+
+
 @api_router.get("/diag/gemini")
 async def diag_gemini():
     gemini_ok = False
@@ -130,7 +138,7 @@ async def diag_gemini():
                         "X-Supabase-Api-Version": "2025-04-01",
                     },
                 )
-            supa_ok = r.status_code in (200, 401)
+            supa_ok = r.status_code in (200, 401) or (r.status_code == 403 and "signature is invalid" not in r.text)
             supa_detail = f"status={r.status_code}"
         except Exception as e:
             supa_detail = str(e)[:200]
@@ -253,17 +261,31 @@ async def _ensure_db_indexes():
 # ============== Startup/Shutdown Lifecycle ==============
 @fastapi_app.on_event("startup")
 async def startup():
+    import asyncio
+    from tasks.cleanup import cleanup_anonymous_sessions_loop
+    from core.kafka import start_producer, KAFKA_ENABLED
+
     await _ensure_db_indexes()
     await _ensure_pdfs_bucket()
     await _sync_local_audios_to_mongodb()
-    
+
+    # Start Kafka producer (non-blocking; falls back gracefully if broker is down)
+    await start_producer()
+    if KAFKA_ENABLED:
+        logger.info("Kafka message broker integration active.")
+        from workers.ai_worker import _run_consumer
+        asyncio.create_task(_run_consumer())
+        logger.info("Kafka AI worker task started in-process.")
+    else:
+        logger.info("Kafka disabled; AI jobs will run inline via asyncio.")
+
     # Daftarkan background task pembersihan data sesi anonim >90 hari
-    import asyncio
-    from tasks.cleanup import cleanup_anonymous_sessions_loop
     asyncio.create_task(cleanup_anonymous_sessions_loop())
 
 @fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
+    from core.kafka import stop_producer
+    await stop_producer()
     if client:
         client.close()
 
@@ -307,8 +329,30 @@ async def dev_music_test(payload: _MusicTestPayload):
         result = await aimusic_suno(payload.prompt, payload.style)
     return result
 
+# ============== Catch-all SPA Routing Handler ==============
+@fastapi_app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    # Jika request mengarah ke API atau WebSocket, kembalikan JSON 404 asli
+    if request.url.path.startswith("/api") or request.url.path.startswith("/ws"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    
+    # Jika mengarah ke halaman frontend (seperti /auth/callback atau /dashboard),
+    # arahkan kembali ke file index.html dari build frontend agar React Router yang menangani rutenya
+    FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "frontend" / "build"
+    index_file = FRONTEND_BUILD / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file)
+    
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
 # Mount the api_router to app
 fastapi_app.include_router(api_router)
+
+# Serve frontend static assets (JS, CSS, etc.)
+FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "frontend" / "build"
+static_dir = FRONTEND_BUILD / "static"
+if static_dir.is_dir():
+    fastapi_app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Add Middleware
 fastapi_app.add_middleware(

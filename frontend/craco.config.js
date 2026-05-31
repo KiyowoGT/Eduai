@@ -79,6 +79,7 @@ webpackConfig.devServer = (devServerConfig) => {
       createProxyMiddleware({
         target: BACKEND_TARGET,
         changeOrigin: true,
+        ws: true,
         pathFilter: "/api",
       })
     );

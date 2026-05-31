@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { updateProfile } from "@/lib/api";
+import { updateProfile, getPersonalityQuestions, submitPersonalityAssessment } from "@/lib/api";
 import { EDUCATION_LEVELS, MAJORS, hasMajor, gradeOptions, institutionLabel, institutionPlaceholder } from "@/lib/education";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -60,6 +60,11 @@ export default function Onboarding() {
   const [hobby, setHobby] = useState("");
   const [musicGenre, setMusicGenre] = useState("pop, romantic");
   const [submitting, setSubmitting] = useState(false);
+
+  // Personality assessment
+  const [personalityQuestions, setPersonalityQuestions] = useState([]);
+  const [personalityAnswers, setPersonalityAnswers] = useState({});
+  const [takingAssessment, setTakingAssessment] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -120,6 +125,24 @@ export default function Onboarding() {
     if (role === "pelajar" && pelajarStep === 2 && !hobby) {
       toast.error("Pilih hobi atau kegiatan"); return;
     }
+
+    // If taking personality assessment, submit answers first
+    if (role === "pelajar" && takingAssessment) {
+      try {
+        setSubmitting(true);
+        const resp = await submitPersonalityAssessment(personalityAnswers);
+        if (resp?.ok) {
+          // merge profile into updated user payload from backend
+          const updated = resp.profile || {};
+          // Let backend save profile; update local user after updateProfile
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Gagal menyimpan hasil asesmen kepribadian");
+      } finally {
+        setSubmitting(false);
+      }
+    }
     setSubmitting(true);
     try {
       const payload = buildPayload();
@@ -131,6 +154,11 @@ export default function Onboarding() {
         role: role || prev?.role,
         onboarded: true,
       }));
+      // If backend returned personality profile from assessment, merge
+      try {
+        const profileResp = await getPersonalityQuestions();
+        // no-op: profile stored server-side; fetch on next session
+      } catch (e) {}
       toast.success("Profil berhasil disimpan");
       navigate("/dashboard", { replace: true });
     } catch (err) {

@@ -11,6 +11,7 @@ from models.user import User
 from models.recap import RecapRequest
 from deps.auth import get_current_user, write_audit
 from services.ai_service import _bg_generate_recap, _emit_recap_status
+from services.kafka_jobs import enqueue_recap_generate
 from services.tts_service import _generate_tts
 from routers.quizzes import _resolve_documents
 
@@ -37,7 +38,8 @@ async def recap_generate(request: Request, payload: RecapRequest, user: User = D
     await db.recaps.insert_one(doc.copy())
     ip = request.client.host if request.client else ""
     await _emit_recap_status(user.user_id, recap_id, "processing")
-    asyncio.create_task(_bg_generate_recap(recap_id, documents, user, ip))
+    if not await enqueue_recap_generate(recap_id, documents, user, ip):
+        asyncio.create_task(_bg_generate_recap(recap_id, documents, user, ip))
     doc.pop("_id", None)
     return doc
 

@@ -2,12 +2,11 @@ import axios from "axios";
 import { supabase } from "@/lib/supabase";
 
 const RAW_BACKEND_URL = process.env.REACT_APP_BACKEND_URL?.trim();
-const isLocalBackend = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(RAW_BACKEND_URL || "");
-const isProdBrowser = typeof window !== "undefined" && window.location.hostname !== "localhost";
 
-const BACKEND_URL = RAW_BACKEND_URL && RAW_BACKEND_URL !== "undefined" && !(isProdBrowser && isLocalBackend)
-  ? RAW_BACKEND_URL.replace(/\/+$/, "")
-  : (typeof window !== "undefined" ? window.location.origin : "");
+// Gunakan window.location.origin secara dinamis jika berjalan di browser agar port dan domain selalu serasi
+const BACKEND_URL = typeof window !== "undefined"
+  ? window.location.origin
+  : (RAW_BACKEND_URL && RAW_BACKEND_URL !== "undefined" ? RAW_BACKEND_URL.replace(/\/+$/, "") : "");
 
 export const API = `${BACKEND_URL}/api`;
 export const WS_API = `${BACKEND_URL.replace(/^http/i, "ws")}/api/ws`;
@@ -768,4 +767,25 @@ export function waitForStatus(typePrefix, id, { timeoutMs = 180000, signal } = {
       }
     });
   });
+}
+
+// ============== Personality Profiling ==============
+export async function getPersonalityQuestions() {
+  const r = await http.get("/personality/questions");
+  return r.data;
+}
+
+export async function submitPersonalityAssessment(answers) {
+  const r = await http.post("/personality/submit", { answers });
+  return r.data;
+}
+
+export async function getPersonalityProfile() {
+  const r = await http.get("/personality/profile");
+  return r.data;
+}
+
+export async function getClassPersonalityInsights(classId) {
+  const r = await http.get(`/teacher/class/${classId}/personality-insights`);
+  return r.data;
 }

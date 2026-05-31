@@ -15,6 +15,7 @@ from models.user import User, AccountType
 from models.quiz import RedeemCodeCreate, RedeemQuizSubmit
 from deps.auth import get_current_user, require_pengajar, write_audit
 from services.ai_service import generate_deep_feedback
+from services.kafka_jobs import enqueue_quiz_grade_student
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/redeem", tags=["redeem"])
@@ -398,7 +399,8 @@ async def submit_redeem_quiz(
 
     # 6. Trigger AI Grading background task
     ip = request.client.host if request.client else ""
-    asyncio.create_task(_bg_grade_student_session(session["session_id"], quiz, payload.answers, feedback_student, ip))
+    if not await enqueue_quiz_grade_student(session["session_id"], quiz, payload.answers, feedback_student, ip):
+        asyncio.create_task(_bg_grade_student_session(session["session_id"], quiz, payload.answers, feedback_student, ip))
 
     return {
         "session_id": session["session_id"],

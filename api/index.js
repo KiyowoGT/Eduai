@@ -115,6 +115,185 @@ routes['GET /auth/me'] = async (req, res) => {
 
 routes['POST /auth/logout'] = async (req, res) => send(res, 200, { status: 'ok' });
 
+routes['GET /auth/roles'] = async (req, res) => {
+  const auth = await getAuth(req);
+  if (!auth) return send(res, 401, { detail: 'Unauthorized' });
+  try {
+    const db = await getDb();
+    let user = await db.collection('users').findOne({ user_id: auth.userId });
+    if (!user && auth.email) {
+      user = await db.collection('users').findOne({ email: auth.email });
+    }
+    if (!user) {
+      return send(res, 200, { roles: [] });
+    }
+
+    const roles_list = [];
+
+    // Pelajar role only if user is a student or has student data
+    if (user.role === 'pelajar' || user.enrolled_class) {
+      roles_list.push({
+        role_type: 'pelajar',
+        scope_id: null,
+        status: 'active'
+      });
+    }
+
+    if (user.institution_code) {
+      const titles = new Set();
+      if (user.title) titles.add(user.title);
+      if (Array.isArray(user.titles)) {
+        user.titles.forEach(t => titles.add(t));
+      }
+      for (const t_val of titles) {
+        if (!roles_list.some(r => r.role_type === t_val)) {
+          let scope_id = null;
+          if (t_val === 'guru_kelas') {
+            scope_id = user.assigned_class || null;
+          } else if (t_val === 'guru_pengajar') {
+            scope_id = user.assigned_subject || null;
+          }
+          
+          roles_list.push({
+            role_type: t_val,
+            scope_id: scope_id,
+            status: 'active'
+          });
+        }
+      }
+
+      // Check for additional active role assignments in DB
+      const assignments = await db.collection('role_assignments').find({
+        user_id: user.user_id,
+        status: 'active'
+      }).toArray();
+
+      for (const a of assignments) {
+        if (!roles_list.some(r => r.role_type === a.role_type)) {
+          roles_list.push({
+            role_type: a.role_type,
+            scope_id: a.scope_id || null,
+            status: 'active'
+          });
+        }
+      }
+
+      // Ensure owner has kepala_sekolah
+      if (user.institution_owner && !roles_list.some(r => r.role_type === 'kepala_sekolah')) {
+        roles_list.push({
+          role_type: 'kepala_sekolah',
+          scope_id: null,
+          status: 'active'
+        });
+      }
+    }
+
+    send(res, 200, { roles: roles_list });
+  } catch (e) {
+    send(res, 500, { detail: e.message });
+  }
+};
+
+routes['POST /auth/switch-role'] = async (req, res) => {
+  const auth = await getAuth(req);
+  if (!auth) return send(res, 401, { detail: 'Unauthorized' });
+  try {
+    const { role_type } = req.body || {};
+    if (!role_type) {
+      return send(res, 400, { detail: 'role_type required' });
+    }
+
+    const db = await getDb();
+    let user = await db.collection('users').findOne({ user_id: auth.userId });
+    if (!user && auth.email) {
+      user = await db.collection('users').findOne({ email: auth.email });
+    }
+    if (!user) {
+      return send(res, 404, { detail: 'User tidak ditemukan' });
+    }
+
+    let is_valid_role = false;
+    let scope_id = null;
+    let target_role = 'pengajar'; // Default target role
+
+    if (role_type === 'pelajar' && (user.role === 'pelajar' || user.enrolled_class)) {
+      is_valid_role = true;
+      target_role = 'pelajar';
+    } else {
+      // Check allowed roles from role_assignments
+      const assignment = await db.collection('role_assignments').findOne({
+        user_id: user.user_id,
+        role_type: role_type,
+        status: 'active'
+      });
+
+      if (assignment) {
+        is_valid_role = true;
+        scope_id = assignment.scope_id || null;
+      } else if (role_type === 'kepala_sekolah' && user.institution_owner) {
+        is_valid_role = true;
+      } else {
+        const titles = new Set();
+        if (user.title) titles.add(user.title);
+        if (Array.isArray(user.titles)) {
+          user.titles.forEach(t => titles.add(t));
+        }
+        if (titles.has(role_type)) {
+          is_valid_role = true;
+          if (role_type === 'guru_kelas') {
+            scope_id = user.assigned_class || null;
+          } else if (role_type === 'guru_pengajar') {
+            scope_id = user.assigned_subject || null;
+          }
+        }
+      }
+    }
+
+    if (!is_valid_role) {
+      return send(res, 403, { detail: 'Peran tidak terdaftar atau tidak aktif' });
+    }
+
+    const update_fields = {
+      role: target_role,
+      title: null,
+      active_role: role_type,
+      active_scope_id: scope_id
+    };
+
+    if (target_role !== 'pelajar') {
+      update_fields.title = role_type;
+      if (scope_id !== null) {
+        if (role_type === 'guru_kelas') {
+          update_fields.assigned_class = scope_id;
+        } else if (role_type === 'guru_pengajar') {
+          update_fields.assigned_subject = scope_id;
+        }
+      }
+    }
+
+    await db.collection('users').updateOne(
+      { user_id: user.user_id },
+      { $set: update_fields }
+    );
+
+    // Fetch updated user doc
+    const updated_user_doc = await db.collection('users').findOne({ user_id: user.user_id });
+    if (updated_user_doc) {
+      updated_user_doc.is_institution_linked = !!updated_user_doc.institution_code;
+      updated_user_doc.is_class_linked = !!(updated_user_doc.enrolled_class || updated_user_doc.class_token_used);
+    }
+
+    send(res, 200, {
+      ok: true,
+      active_role: role_type,
+      user: updated_user_doc
+    });
+  } catch (e) {
+    send(res, 500, { detail: e.message });
+  }
+};
+
+
 routes['PUT /profile'] = async (req, res) => {
   const auth = await getAuth(req);
   if (!auth) return send(res, 401, { detail: 'Unauthorized' });

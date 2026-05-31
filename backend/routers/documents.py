@@ -29,10 +29,14 @@ from services.ai_service import (
     _call_groq,
     run_analysis_queued,
     _emit_document_status,
-    aimusic,
+    aimusic_minimax,
     personalize_document_for_student
 )
 from services.tts_service import _generate_tts
+from services.kafka_jobs import (
+    enqueue_document_analyze,
+    enqueue_storage_upload,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -399,7 +403,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), user: 
     except Exception as e:
         logger.warning(f"Gagal simpan PDF ke MongoDB: {e}")
 
-    asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+    if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
+        asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
     base = {
         "document_id": doc_id,
@@ -423,7 +428,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), user: 
     await write_audit(user.user_id, "DOCUMENT_UPLOAD", {"document_id": doc_id, "filename": file.filename}, ip)
     await _emit_document_status(user.user_id, doc_id, "processing", filename=file.filename, stage="analysis")
 
-    asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
+    if not await enqueue_document_analyze(doc_id, str(saved_path), user, ip):
+        asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
 
     doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "file_path": 0})
     return JSONResponse(status_code=200, content=doc)
@@ -511,7 +517,8 @@ async def upload_subject_material(
         except Exception:
             pass
 
-        asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+        if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
+            asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
         source_label = file.filename or (f"Foto_{doc_id[:8]}.png" if is_image else f"Dokumen_{doc_id[:8]}.pdf")
         base = {
@@ -543,7 +550,8 @@ async def upload_subject_material(
         }, ip)
         await _emit_document_status(user.user_id, doc_id, "processing", filename=source_label, stage="analysis")
 
-        asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
+        if not await enqueue_document_analyze(doc_id, str(saved_path), user, ip):
+            asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
 
         doc_view = base.copy()
         doc_view.pop("file_path", None)
@@ -676,7 +684,7 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
             summary_text = doc.get("summary", "")
             if summary_text:
                 try:
-                    res = await aimusic(summary_text, genre)
+                    res = await aimusic_minimax(summary_text, genre)
                     music_summaries[genre] = res
                     await db.documents.update_one(
                         {"document_id": doc_id},
@@ -964,9 +972,7 @@ async def get_or_create_music_summary(
     tags = (payload.tags or "pop, romantic").strip()
     
     music_summaries = doc.get("music_summaries", {})
-    if tags in music_summaries:
-        return music_summaries[tags]
-        
+    # Skip cache — always regenerate with Suno engine for proper vocals
     summary_text = doc.get("summary", "")
     if not summary_text:
         raise HTTPException(400, "Dokumen ini belum memiliki ringkasan untuk diubah menjadi musik")
@@ -988,7 +994,7 @@ async def get_or_create_music_summary(
         await _emit_document_status(user.user_id, doc_id, "processing", stage="hobby")
 
     try:
-        res = await aimusic(summary_text, tags)
+        res = await aimusic_minimax(summary_text, tags)
         music_summaries[tags] = res
         update = {
             "music_summaries": music_summaries,

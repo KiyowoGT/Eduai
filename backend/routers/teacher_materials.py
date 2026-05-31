@@ -22,6 +22,13 @@ from routers.documents import (
 )
 from services.ai_service import run_analysis_queued, _bg_generate_quiz, _bg_generate_music_for_students
 from routers.quizzes import _public_quiz
+from services.kafka_jobs import (
+    enqueue_document_analyze,
+    enqueue_quiz_generate,
+    enqueue_music_generate,
+    enqueue_quiz_auto_publish,
+    enqueue_storage_upload,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -190,7 +197,8 @@ async def upload_teacher_material(
     except Exception as e:
         logger.warning(f"Gagal simpan PDF ke MongoDB: {e}")
 
-    asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+    if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
+        asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
     doc = {
         "document_id": doc_id,
@@ -220,7 +228,8 @@ async def upload_teacher_material(
         "target_classes": class_rooms
     }, ip)
 
-    asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
+    if not await enqueue_document_analyze(doc_id, str(saved_path), user, ip):
+        asyncio.create_task(run_analysis_queued(doc_id, str(saved_path), user, ip))
 
     res = doc.copy()
     res.pop("file_path", None)
@@ -453,7 +462,8 @@ async def publish_teacher_material(
         update_data["published_by"] = user.user_id
         target_classes = doc.get("target_class_rooms") or ([doc.get("target_class_room")] if doc.get("target_class_room") else [])
         if target_classes and user.institution_code and doc.get("summary"):
-            asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
+            if not await enqueue_music_generate(doc_id, target_classes, user.institution_code):
+                asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
     else:
         update_data["submitted_for_review_at"] = datetime.now(timezone.utc).isoformat()
         update_data["submitted_by"] = user.user_id
@@ -508,7 +518,8 @@ async def review_teacher_material(
         )
         target_classes = doc.get("target_class_rooms") or ([doc.get("target_class_room")] if doc.get("target_class_room") else [])
         if target_classes and user.institution_code and doc.get("summary"):
-            asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
+            if not await enqueue_music_generate(doc_id, target_classes, user.institution_code):
+                asyncio.create_task(_bg_generate_music_for_students(doc_id, target_classes, user.institution_code))
         audit_type = "TEACHER_MATERIAL_APPROVED"
     else:
         await db.documents.update_one(
@@ -592,10 +603,12 @@ async def generate_teacher_quiz(
     await db.quizzes.insert_one(quiz_doc.copy())
 
     ip = request.client.host if request.client else ""
-    asyncio.create_task(_bg_generate_quiz(quiz_id, [doc], user, payload.question_count, ip, ""))
+    if not await enqueue_quiz_generate(quiz_id, [doc], user, payload.question_count, ip, ""):
+        asyncio.create_task(_bg_generate_quiz(quiz_id, [doc], user, payload.question_count, ip, ""))
 
     if payload.target_classes:
-        asyncio.create_task(_bg_auto_publish_quiz(quiz_id, payload.target_classes, payload.deadline, user.user_id))
+        if not await enqueue_quiz_auto_publish(quiz_id, payload.target_classes, payload.deadline, user.user_id):
+            asyncio.create_task(_bg_auto_publish_quiz(quiz_id, payload.target_classes, payload.deadline, user.user_id))
 
     return _public_quiz(quiz_doc)
 

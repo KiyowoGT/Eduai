@@ -15,6 +15,7 @@ from models.user import User
 from models.chat import ChatQuestion, SendMessagePayload, DiscussionInvitePayload, DiscussionKickPayload
 from deps.auth import get_current_user, _create_notification, _is_blocked_pair
 from services.ai_service import _audience, _call_groq, _bg_respond_bot, SANDBOX_PROMPT_TEMPLATE
+from services.kafka_jobs import enqueue_chat_respond
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -295,7 +296,8 @@ async def send_discussion_message(doc_id: str, payload: SendMessagePayload, user
             question = content.lower().replace("@bot", "").strip()
             if not question:
                 question = "Jelaskan materi ini secara singkat"
-            asyncio.create_task(_bg_respond_bot(doc_id, question, doc, audience, doc.get("user_id", ""), user=user))
+            if not await enqueue_chat_respond(doc_id, question, doc, audience, doc.get("user_id", ""), user):
+                asyncio.create_task(_bg_respond_bot(doc_id, question, doc, audience, doc.get("user_id", ""), user=user))
         except Exception as e:
             logger.exception(f"Bot trigger gagal: {e}")
 

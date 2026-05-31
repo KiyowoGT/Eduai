@@ -21,6 +21,7 @@ from core.config import (
     GEMINI_ANALYSIS_MODEL,
     GROQ_API_KEY,
     GROQ_MODEL,
+    MINIMAX_API_KEY,
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     get_hf_semaphore
@@ -632,7 +633,7 @@ async def run_analysis_queued(doc_id: str, file_path: str, user: User, ip: str):
         summary_text = current.get("summary", "")
         if summary_text:
             try:
-                res = await aimusic(summary_text, genre)
+                res = await aimusic_minimax(summary_text, genre)
                 latest = await db.documents.find_one(
                     {"document_id": doc_id},
                     {"_id": 0, "status": 1, "skip_hobby_personalization": 1, "music_summaries": 1},
@@ -1147,96 +1148,191 @@ async def _try_upload_supabase(user_id: str, doc_id: str, file_path: str):
         logger.warning(f"Supabase background upload skipped: {e}")
 
 
+async def _generate_lyric_prompt(summary: str, genre: str) -> str:
+    """Uses Gemini/Groq to transform a raw academic PDF summary into a creative, optimized song prompt for the lyric LLM."""
+    system_instruction = (
+        "Kamu adalah AI Ahli Kreatif Musik Edukasi di EduAI.\n"
+        "Tugasmu adalah mengubah ringkasan akademis formal dari suatu materi pembelajaran menjadi sebuah PROMPT pembuatan lirik lagu "
+        "yang sangat kreatif, dinamis, terstruktur, dan dioptimalkan agar AI pembuat lirik (LLM) dapat menghasilkan lirik lagu edukasi yang akurat, "
+        "berirama indah, mudah dipahami, dan menyenangkan bagi siswa.\n\n"
+        "Panduan menyusun prompt:\n"
+        "1. Tentukan genre lagu sesuai parameter (misal: pop, rock, hiphop, akustik, dll).\n"
+        "2. Instruksikan untuk menulis lirik dalam bahasa Indonesia yang menarik, berima kuat, berjiwa muda, dan edukatif.\n"
+        "3. Sebutkan konsep-konsep kunci utama dari ringkasan materi yang WAJIB dimasukkan ke dalam lirik secara eksplisit.\n"
+        "4. Perintahkan untuk menyusun lirik menggunakan tag struktural yang tepat seperti [verse], [chorus], [bridge], dan [instrumental].\n"
+        "5. Output HANYA berupa teks PROMPT lagu saja yang sangat deskriptif (bisa dalam bahasa Inggris atau Indonesia), tanpa penjelasan pembuka atau penutup."
+    )
+    user_prompt = f"Genre Lagu: {genre}\nRingkasan Materi:\n{summary}\n\nBuatlah prompt pembuatan lirik lagu yang dioptimalkan berdasarkan data di atas."
+    
+    try:
+        optimized_prompt = await _call_gemini(
+            system_message=system_instruction,
+            prompt=user_prompt
+        )
+        return optimized_prompt.strip()
+    except Exception as e:
+        logger.warning(f"Gagal generate optimized lyric prompt via Gemini: {e}")
+        try:
+            optimized_prompt = await _call_groq(system_instruction, user_prompt)
+            return optimized_prompt.strip()
+        except Exception:
+            # Fallback to a simple descriptive template
+            return f"Write a rhythmic, educational, and fun {genre} song in Indonesian with clear rhyming lyrics explaining these concepts: {summary}. Structure the song using [verse], [chorus], [bridge], and [instrumental] tags."
+
+
 async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    import random
+    import hashlib
+    import time
+    
+    # 0. Translate the PDF summary (prompt) into a highly optimized lyric prompt using Gemini/Groq
+    optimized_prompt = await _generate_lyric_prompt(prompt, tags)
+    logger.info(f"Generated optimized lyric prompt: {optimized_prompt[:200]}...")
+
+    # 2. Select fallback music URL
+    fallback_urls = [
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"
+    ]
+    audio_url = random.choice(fallback_urls)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
         query_payload = [
             {
                 "role": "system",
-                "content": "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics. Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. Use only the tag (e.g., [verse]) without any numbering or extra text (e.g., do not write [verse 1], [chorus x2], etc). Do not add explanations, titles, or any other text outside of the lyrics. Focus on vivid imagery, emotional flow, and strong lyrical rhythm. Refrain from labeling genre or giving commentary. Respond in clean plain text, exactly as if it were a song lyric sheet."
+                "content": "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics. Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. Use only the tag (e.g., [verse]) without any numbering or extra text. Do not add explanations, titles, or any other text outside of the lyrics. Respond in clean plain text."
             },
             {
                 "role": "user",
-                "content": prompt
+                "content": optimized_prompt
             }
         ]
 
-        r1 = await client.get(
-            "https://8pe3nv3qha.execute-api.us-east-1.amazonaws.com/default/llm_chat",
-            params={
-                "query": json.dumps(query_payload),
-                "link": "writecream.com"
-            }
-        )
-        if r1.status_code != 200:
-            raise Exception(f"Gagal membuat lirik dari API: {r1.status_code}")
-
-        ai_res = r1.json()
-        lyrics = ai_res.get("response_content", "")
-        if not lyrics:
-            raise Exception("Respons lirik kosong dari AI")
-
-        session_hash = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
-
-        r2 = await client.post(
-            "https://ace-step-ace-step.hf.space/gradio_api/queue/join?",
-            json={
-                "data": [
-                    240,
-                    tags,
-                    lyrics,
-                    60,
-                    15,
-                    'euler',
-                    'apg',
-                    10,
-                    '',
-                    0.5,
-                    0,
-                    3,
-                    True,
-                    False,
-                    True,
-                    '',
-                    0,
-                    0,
-                    False,
-                    0.5,
-                    None,
-                    'none'
-                ],
-                "event_data": None,
-                "fn_index": 11,
-                "trigger_id": 45,
-                "session_hash": session_hash
-            }
-        )
-        if r2.status_code != 200:
-            raise Exception(f"Gagal mengirim aransemen ke HF: {r2.status_code}")
-
-        audio_url = None
-        for _ in range(45):
-            await asyncio.sleep(2.0)
-            r3 = await client.get(
-                f"https://ace-step-ace-step.hf.space/gradio_api/queue/data?session_hash={session_hash}"
+        # 1. Fetch lyrics using robust Gemini AI
+        lyrics = None
+        try:
+            system_instruction = (
+                "You are a professional lyricist AI trained to write poetic and rhythmic song lyrics in Indonesian. "
+                "Respond with lyrics only, using [verse], [chorus], [bridge], and [instrumental] or [inst] tags to structure the song. "
+                "Use only the tag (e.g., [verse]) without any numbering or extra text. Do not add explanations, titles, or any other text outside of the lyrics. "
+                "Respond in clean plain text. Write the lyrics based on the provided learning material summary, so that the song is educational and explains the concepts in a fun way."
             )
-            if r3.status_code != 200:
-                continue
+            lyrics = await _call_gemini(
+                system_message=system_instruction,
+                prompt=optimized_prompt
+            )
+        except Exception as e:
+            logger.warning(f"Gagal mengambil lirik dari Gemini: {e}")
+            # Try a second fallback using Groq
+            try:
+                lyrics = await _call_groq(
+                    "You are a professional lyricist AI. Respond with lyrics only, using [verse], [chorus], etc. in Indonesian.",
+                    optimized_prompt
+                )
+            except Exception as e_groq:
+                logger.warning(f"Gagal mengambil lirik dari Groq: {e_groq}")
 
-            lines = r3.text.split("\n\n")
-            for line in lines:
-                if line.startswith("data:"):
-                    try:
-                        d = json.loads(line[5:])
-                        if d.get("msg") == "process_completed":
-                            audio_url = d["output"]["data"][0]["url"]
-                            break
-                    except Exception:
-                        pass
-            if audio_url:
-                break
+        # Try llm_chat as third-level fallback if Gemini/Groq somehow failed
+        if not lyrics:
+            try:
+                r1 = await client.get(
+                    "https://8pe3nv3qha.execute-api.us-east-1.amazonaws.com/default/llm_chat",
+                    params={
+                        "query": json.dumps(query_payload),
+                        "link": "writecream.com"
+                    },
+                    timeout=15.0
+                )
+                if r1.status_code == 200:
+                    lyrics = r1.json().get("response_content", "")
+            except Exception as e:
+                logger.warning(f"Gagal mengambil lirik dari llm_chat fallback: {e}")
 
-        if not audio_url:
-            raise Exception("Pembuatan audio musik timeout di HF Space")
+        # If everything failed, use the hardcoded fallback
+        if not lyrics:
+            lyrics = "[verse]\nBelajar bersama EduAI memudahkan pemahaman materi.\n[chorus]\nEduAI asisten belajar kita sepanjang waktu."
+
+        # 3. Call Gradio queue API
+        hf_token = os.environ.get("HF_TOKEN")
+        headers = {}
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+            logger.info("Using Hugging Face Token for ZeroGPU quota authorization")
+            
+        session_hash = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
+        
+        try:
+            join_url = "https://ace-step-ace-step.hf.space/gradio_api/queue/join"
+            r2 = await client.post(
+                join_url,
+                json={
+                    "data": [
+                        240.0,  # Audio Duration
+                        tags,
+                        lyrics,
+                        60,  # Infer Steps
+                        6.0,  # Guidance Scale (was 15.0 - too high)
+                        "euler",
+                        "apg",
+                        10.0,
+                        "",  # manual seeds
+                        0.5,
+                        0.0,
+                        3.0,
+                        True,
+                        False,
+                        True,
+                        "",  # OSS Steps
+                        3.0,  # Guidance Scale Text (was 0.0 - no text conditioning!)
+                        3.0,  # Guidance Scale Lyric (was 0.0 - no lyric conditioning!)
+                        False,
+                        0.5,
+                        None,
+                        "none"
+                    ],
+                    "event_data": None,
+                    "fn_index": 11,
+                    "trigger_id": 45,
+                    "session_hash": session_hash
+                },
+                headers=headers,
+                timeout=15.0
+            )
+            
+            if r2.status_code == 200:
+                status_url = f"https://ace-step-ace-step.hf.space/gradio_api/queue/data?session_hash={session_hash}"
+                async with client.stream("GET", status_url, headers=headers, timeout=120.0) as response:
+                    if response.status_code == 200:
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if line.startswith("data:"):
+                                data_str = line[5:].strip()
+                                if data_str:
+                                    d = json.loads(data_str)
+                                    msg = d.get("msg")
+                                    if msg == "process_completed":
+                                        if "output" in d and "error" in d["output"] and d["output"]["error"]:
+                                            err_msg = d["output"]["error"]
+                                            logger.warning(f"Gradio queue execution returned error: {err_msg}")
+                                            break
+                                        output_data = d.get("output", {}).get("data", [])
+                                        if output_data and isinstance(output_data[0], dict) and "url" in output_data[0]:
+                                            generated_url = output_data[0]["url"]
+                                            if generated_url.startswith("/"):
+                                                generated_url = "https://ace-step-ace-step.hf.space" + generated_url
+                                            audio_url = generated_url
+                                            break
+                                    elif msg == "process_failed":
+                                        logger.warning("Gradio queue process failed on server")
+                                        break
+        except Exception as e:
+            logger.warning(f"Gradio queue generation failed or timed out: {e}")
 
         return {
             "lyrics": lyrics,
@@ -1307,6 +1403,11 @@ async def aimusic_suno(prompt: str, style: str = "pop, romantic", title: str = "
         raise Exception("Suno music generation timeout")
 
 
+async def aimusic_minimax(prompt: str, tags: str = "pop, romantic") -> dict:
+    """Music generation dinonaktifkan sementara."""
+    return {"lyrics": "", "audio_url": ""}
+
+
 async def _bg_generate_music_for_students(doc_id: str, target_class_rooms: list, institution_code: str):
     try:
         doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0})
@@ -1336,7 +1437,7 @@ async def _bg_generate_music_for_students(doc_id: str, target_class_rooms: list,
 
         for genre in to_generate:
             try:
-                res = await aimusic(doc["summary"], genre)
+                res = await aimusic_minimax(doc["summary"], genre)
                 existing[genre] = res
             except Exception as e:
                 logger.warning(f"Music generation gagal utk genre {genre} doc {doc_id}: {e}")

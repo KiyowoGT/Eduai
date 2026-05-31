@@ -25,6 +25,8 @@ GEMINI_ANALYSIS_MODEL = os.environ.get('GEMINI_ANALYSIS_MODEL', "gemini-2.5-flas
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', "")
 GROQ_MODEL = os.environ.get('GROQ_MODEL', "llama-3.3-70b-versatile")
 
+MINIMAX_API_KEY = os.environ.get('MINIMAX_API_KEY', "")
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
