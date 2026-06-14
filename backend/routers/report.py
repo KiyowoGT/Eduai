@@ -4,10 +4,10 @@ from deps.auth import get_current_user
 from models.user import User
 from core.database import db
 from pydantic import BaseModel
-from services.ai_service import ai_service
+from services.ai_service import _call_gemini
 from core.config import GEMINI_BASE_URL
 
-router = APIRouter(prefix="/system", tags=["System & Support"]) # Prefix ganti ke /system
+router = APIRouter(prefix="/system", tags=["System & Support"])
 
 class BugReport(BaseModel):
     title: str
@@ -31,16 +31,16 @@ async def report_bug(payload: BugReport, user: User = Depends(get_current_user))
 
 @router.post("/ai-help")
 async def ai_help(payload: AIHelpPayload, user: User = Depends(get_current_user)):
-    context = (
+    system_prompt = (
         "Kamu adalah Virtual Tutor AI dari platform EduAI (Schooly AI). "
         "Tugasmu adalah membantu user (pelajar/pengajar) dengan pertanyaan "
         "seputar materi pelajaran, fitur aplikasi EduAI, atau masalah teknis ringan. "
         "Jawab dengan ramah, suportif, dan profesional dalam bahasa Indonesia."
     )
     
-    response = await ai_service.generate_chat_response(
-        messages=[{"role": "user", "content": payload.message}],
-        system_prompt=context,
-        base_url=GEMINI_BASE_URL # Mengarahkan ke gateway CachyOS
+    # Menggunakan _call_gemini yang sudah ada di ai_service
+    response = await _call_gemini(
+        system_message=system_prompt,
+        prompt=payload.message
     )
     return {"reply": response}
