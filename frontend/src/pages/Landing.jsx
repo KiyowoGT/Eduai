@@ -20,29 +20,39 @@ export default function Landing() {
   useEffect(() => {
     ScrollTrigger.refresh();
 
-    gsap.fromTo(".feature-card", 
-      { opacity: 0, y: 50 },
-      { 
-        opacity: 1, y: 0, duration: 0.8, stagger: 0.2,
-        scrollTrigger: {
-          trigger: "#fitur",
-          start: "top 80%",
-          toggleActions: "play none none reverse"
-        }
+    try {
+      const featureCards = gsap.utils.toArray(".feature-card");
+      if (featureCards.length > 0 && document.querySelector("#fitur")) {
+        gsap.fromTo(featureCards, 
+          { opacity: 0, y: 50 },
+          { 
+            opacity: 1, y: 0, duration: 0.8, stagger: 0.2,
+            scrollTrigger: {
+              trigger: "#fitur",
+              start: "top 80%",
+              toggleActions: "play none none reverse"
+            }
+          }
+        );
       }
-    );
+    } catch (e) {}
 
-    gsap.fromTo(".pricing-card", 
-      { opacity: 0, scale: 0.9 },
-      { 
-        opacity: 1, scale: 1, duration: 0.8, stagger: 0.3,
-        scrollTrigger: {
-          trigger: "#harga",
-          start: "top 70%",
-          toggleActions: "play none none reverse"
-        }
+    try {
+      const pricingCards = gsap.utils.toArray(".pricing-card");
+      if (pricingCards.length > 0 && document.querySelector("#harga")) {
+        gsap.fromTo(pricingCards, 
+          { opacity: 0, scale: 0.9 },
+          { 
+            opacity: 1, scale: 1, duration: 0.8, stagger: 0.3,
+            scrollTrigger: {
+              trigger: "#harga",
+              start: "top 70%",
+              toggleActions: "play none none reverse"
+            }
+          }
+        );
       }
-    );
+    } catch (e) {}
   }, []);
 
   if (loading) {
