@@ -60,6 +60,7 @@ export default function BugReportModal({ isOpen, onClose }) {
     setAiLoading(true);
 
     try {
+      // Mengarahkan ke endpoint /system/ai-help yang sudah dikonfigurasi untuk gateway CachyOS
       const res = await http.post("/system/ai-help", { message: userMsg });
       setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
     } catch (err) {
@@ -105,39 +106,13 @@ export default function BugReportModal({ isOpen, onClose }) {
           })}
         </div>
 
-        {/* Tab Content Area */}
-        <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar">
+        {/* Tab Content Area (Fixed Height) */}
+        <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar min-h-[300px]"> {/* min-h ditambahkan */}
           {activeTab === "support" && (
             <div className="space-y-3 animate-in fade-in duration-300">
-              <h3 className="text-sm font-bold text-white">Contact Options</h3>
-              <a href="https://t.me/adminschoolyai" target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-[#1F2133] border border-[#24283B] hover:border-[#363B54] transition-all group">
-                <div className="w-10 h-10 rounded-lg bg-[#0088CC] grid place-items-center shrink-0"><Send className="w-5 h-5 text-white" /></div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-white">Telegram</div>
-                  <div className="text-xs text-[#646675]">Quick chat support</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#363B54] group-hover:text-[#A9B1D6]" />
-              </a>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-[#1F2133] border border-[#24283B] opacity-60">
-                <div className="w-10 h-10 rounded-lg bg-[#25D366] grid place-items-center shrink-0"><Phone className="w-5 h-5 text-white" /></div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-white">WhatsApp</div>
-                  <div className="text-xs text-[#646675]">Now inactive (suspend)</div>
-                </div>
-              </div>
-              <a href="mailto:admin@cindigital.id" className="flex items-center gap-3 p-3 rounded-xl bg-[#1F2133] border border-[#24283B] hover:border-[#363B54] transition-all group">
-                <div className="w-10 h-10 rounded-lg bg-[#E54D52] grid place-items-center shrink-0"><Mail className="w-5 h-5 text-white" /></div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-white">Email</div>
-                  <div className="text-xs text-[#646675]">admin@cindigital.id</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#363B54] group-hover:text-[#A9B1D6]" />
-              </a>
-              <div className="mt-4 pt-3 border-t border-[#24283B] space-y-3">
-                <h3 className="text-sm font-bold text-white">Lapor Masalah / Bug</h3>
-                <textarea className="w-full bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-2 focus:ring-[#363B54] resize-none" placeholder="Ceritakan masalah kamu..." value={title} onChange={(e) => setTitle(e.target.value)} rows={3} />
-                <button onClick={handleReport} disabled={loading || !title.trim()} className="w-full bg-[#1D2D50] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#15223E] transition-colors disabled:opacity-50">{loading ? "Mengirim..." : "Kirim Laporan"}</button>
-              </div>
+              <h3 className="text-sm font-bold text-white mb-3">Lapor Masalah / Bug</h3>
+              <textarea className="w-full bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-2 focus:ring-[#363B54] resize-none" placeholder="Ceritakan masalah kamu..." value={title} onChange={(e) => setTitle(e.target.value)} rows={5} />
+              <button onClick={handleReport} disabled={loading || !title.trim()} className="w-full bg-[#1D2D50] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#15223E] transition-colors disabled:opacity-50">{loading ? "Mengirim..." : "Kirim Laporan"}</button>
             </div>
           )}
 
