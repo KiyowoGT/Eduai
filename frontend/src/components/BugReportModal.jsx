@@ -133,8 +133,6 @@ export default function BugReportModal({ isOpen, onClose }) {
                 </div>
                 <ChevronRight className="w-4 h-4 text-[#363B54] group-hover:text-[#A9B1D6]" />
               </a>
-              <div className="flex items-center gap-2 pt-1 text-xs text-[#646675]"><Clock className="w-3.5 h-3.5" />Aktif: 09:00 - 21:00 ( kecuali kamis/jumat )</div>
-              
               <div className="mt-4 pt-3 border-t border-[#24283B] space-y-3">
                 <h3 className="text-sm font-bold text-white">Lapor Masalah / Bug</h3>
                 <textarea className="w-full bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-2 focus:ring-[#363B54] resize-none" placeholder="Ceritakan masalah kamu..." value={title} onChange={(e) => setTitle(e.target.value)} rows={3} />
