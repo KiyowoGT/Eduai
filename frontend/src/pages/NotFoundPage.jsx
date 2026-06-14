@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
+import mascotImg from "@/assets/404-mascot.jpg";
 
 const NotFoundPage = () => {
   const navigate = useNavigate();
@@ -8,9 +9,9 @@ const NotFoundPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#12131A] text-white p-6 text-center">
       <img 
-        src="https://kommodo.ai/i/CKR7uPTg1ymOW921Gi5i" 
-        alt="Maskot EduAI 404" 
-        className="w-64 h-64 mb-8 object-contain animate-bounce"
+        src={mascotImg}
+        alt="Maskot Schooly AI 404" 
+        className="w-64 h-64 mb-8 object-contain"
       />
       <h1 className="text-4xl font-bold mb-4">Halaman Tidak Ditemukan</h1>
       <p className="text-[#A9B1D6] mb-8 max-w-md">
