@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Bug } from "lucide-react";
+import { useState } from "react";
+import { MessageSquareText } from "lucide-react";
 import BugReportModal from "./BugReportModal";
 
 export default function BugReportFAB() {
@@ -9,11 +9,11 @@ export default function BugReportFAB() {
   useEffect(() => {
     let timeout;
     const handleScroll = () => {
-      setVisible(false); // Sembunyi pas scroll jalan
+      setVisible(false);
       clearTimeout(timeout);
       timeout = setTimeout(() => {
-        setVisible(true); // Muncul pas berhenti
-      }, 500); // Tunggu 500ms setelah berhenti
+        setVisible(true);
+      }, 500);
     };
 
     window.addEventListener("scroll", handleScroll);
@@ -32,7 +32,7 @@ export default function BugReportFAB() {
         }`}
         title="Lapor Bug / Masalah"
       >
-        <Bug className="w-6 h-6" />
+        <MessageSquareText className="w-6 h-6" />
       </button>
       <BugReportModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </>
