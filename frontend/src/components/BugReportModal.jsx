@@ -106,32 +106,47 @@ export default function BugReportModal({ isOpen, onClose }) {
           })}
         </div>
 
-          <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar min-h-[350px]">
-            {activeTab === "support" && (
-              <div className="space-y-3 animate-in fade-in duration-300">
-                <h3 className="text-sm font-bold text-white mb-3">Lapor Masalah / Bug</h3>
-                <textarea className="w-full bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-2 focus:ring-[#363B54] resize-none" placeholder="Ceritakan masalah kamu..." value={title} onChange={(e) => setTitle(e.target.value)} rows={5} />
-                <button onClick={handleReport} disabled={loading || !title.trim()} className="w-full bg-[#1D2D50] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#15223E] transition-colors disabled:opacity-50">{loading ? "Mengirim..." : "Kirim Laporan"}</button>
+        {/* Tab Content Area (Fixed Height 350px for all tabs) */}
+        <div className="h-[370px] overflow-y-auto px-5 pb-5 custom-scrollbar">
+          {activeTab === "support" && (
+            <div className="h-full flex flex-col justify-between animate-in fade-in duration-300">
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-white mb-2">Lapor Masalah / Bug</h3>
+                <textarea 
+                  className="w-full bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-2 focus:ring-[#363B54] resize-none" 
+                  placeholder="Ceritakan masalah kamu..." 
+                  value={title} 
+                  onChange={(e) => setTitle(e.target.value)} 
+                  rows={6} 
+                />
               </div>
-            )}
+              <button 
+                onClick={handleReport} 
+                disabled={loading || !title.trim()} 
+                className="w-full bg-[#1D2D50] text-white py-3 rounded-xl text-sm font-bold hover:bg-[#15223E] transition-colors disabled:opacity-50 mt-4 shrink-0"
+              >
+                {loading ? "Mengirim..." : "Kirim Laporan"}
+              </button>
+            </div>
+          )}
 
-            {activeTab === "channel" && (
-              <div className="space-y-3 animate-in fade-in duration-300">
-                <h3 className="text-sm font-bold text-white">Community Channel</h3>
-                <a href="https://t.me/schoolyai" target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-[#1F2133] border border-[#24283B] hover:border-[#363B54] transition-all group">
-                  <div className="w-10 h-10 rounded-lg bg-[#0088CC] grid place-items-center shrink-0"><Users className="w-5 h-5 text-white" /></div>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold text-white">Telegram Group</div>
-                    <div className="text-xs text-[#646675]">Gabung komunitas Schooly AI</div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#363B54] group-hover:text-[#A9B1D6]" />
-                </a>
-              </div>
-            )}
+          {activeTab === "channel" && (
+            <div className="space-y-3 animate-in fade-in duration-300">
+              <h3 className="text-sm font-bold text-white">Community Channel</h3>
+              <a href="https://t.me/schoolyai" target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-[#1F2133] border border-[#24283B] hover:border-[#363B54] transition-all group">
+                <div className="w-10 h-10 rounded-lg bg-[#0088CC] grid place-items-center shrink-0"><Users className="w-5 h-5 text-white" /></div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-white">Telegram Group</div>
+                  <div className="text-xs text-[#646675]">Gabung komunitas Schooly AI</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[#363B54] group-hover:text-[#A9B1D6]" />
+              </a>
+            </div>
+          )}
 
           {activeTab === "chatbot" && (
-            <div className="flex flex-col h-[350px] animate-in zoom-in-95 duration-300">
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            <div className="flex flex-col h-full animate-in zoom-in-95 duration-300">
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar max-h-[290px]">
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
@@ -156,7 +171,7 @@ export default function BugReportModal({ isOpen, onClose }) {
                 )}
                 <div ref={chatEndRef} />
               </div>
-              <form onSubmit={handleAiChat} className="mt-3 flex gap-2">
+              <form onSubmit={handleAiChat} className="mt-auto pt-3 flex gap-2 shrink-0">
                 <input 
                   className="flex-1 bg-[#1F2133] border border-[#24283B] p-3 rounded-xl text-sm text-white placeholder:text-[#646675] focus:outline-none focus:ring-1 focus:ring-[#1D2D50]" 
                   placeholder="Tanya AI Tutor..." 
