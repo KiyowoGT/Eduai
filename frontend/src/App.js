@@ -46,6 +46,8 @@ import MusicTest from "@/pages/MusicTest";
 import PortalMandiri from "@/pages/PortalMandiri";
 
 
+import NotFoundPage from "@/pages/NotFoundPage";
+
 function AppRouter() {
   return (
     <Routes>
@@ -78,22 +80,21 @@ function AppRouter() {
               <Route path="/teacher/schedules" element={<TeacherSchedules />} />
               <Route path="/teacher/students" element={<TeacherStudents />} />
               <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-              <Route path="/admin/users" element={<UserManagement />} />
-              <Route path="/admin/users/teachers/new" element={<CreateTeacher />} />
-              <Route path="/admin/users/teachers/:id" element={<TeacherDetail />} />
-              <Route path="/admin/users/mutations" element={<MutationManager />} />
-              <Route path="/admin/academic-years" element={<AcademicYearManager />} />
-              <Route path="/admin/audit-logs" element={<AuditLogViewer />} />
-              <Route path="/admin/system-health" element={<SystemHealth />} />
-              <Route path="/admin/bugs" element={<BugTracker />} />
-              <Route path="/admin/maintenance-mode" element={<MaintenanceMode />} />
-              <Route path="/admin/reports" element={<ReportsPage />} />
-              <Route path="/admin/settings" element={<SettingsPage />} />
+              <Route path="/admin/users" element={<AdminGuard><UserManagement /></AdminGuard>} />
+              <Route path="/admin/users/teachers/new" element={<AdminGuard><CreateTeacher /></AdminGuard>} />
+              <Route path="/admin/users/teachers/:id" element={<AdminGuard><TeacherDetail /></AdminGuard>} />
+              <Route path="/admin/users/mutations" element={<AdminGuard><MutationManager /></AdminGuard>} />
+              <Route path="/admin/academic-years" element={<AdminGuard><AcademicYearManager /></AdminGuard>} />
+              <Route path="/admin/audit-logs" element={<AdminGuard><AuditLogViewer /></AdminGuard>} />
+              <Route path="/admin/system-health" element={<AdminGuard><SystemHealth /></AdminGuard>} />
+              <Route path="/admin/bugs" element={<AdminGuard><BugTracker /></AdminGuard>} />
+              <Route path="/admin/maintenance-mode" element={<AdminGuard><MaintenanceMode /></AdminGuard>} />
+              <Route path="/admin/reports" element={<AdminGuard><ReportsPage /></AdminGuard>} />
+              <Route path="/admin/settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
               <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
               <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
               </Route>
-
-      <Route path="*" element={<Landing />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
