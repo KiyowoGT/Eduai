@@ -11,7 +11,7 @@ const NotFoundPage = () => {
       <img 
         src={mascotImg}
         alt="Maskot Schooly AI 404" 
-        className="w-[400px] h-[400px] mb-8 object-contain animate-pulse"
+        className="w-[400px] h-[400px] mb-8 object-contain"
       />
       <h1 className="text-4xl font-bold mb-4">Halaman Tidak Ditemukan</h1>
       <p className="text-[#A9B1D6] mb-8 max-w-md">
