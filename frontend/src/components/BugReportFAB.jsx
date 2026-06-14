@@ -27,7 +27,7 @@ export default function BugReportFAB() {
     <>
       <button 
         onClick={() => setShowModal(true)}
-        className={`fixed bottom-32 md:bottom-8 right-6 z-[9999] bg-[#B83A4B] text-white p-3.5 rounded-full shadow-lg transition-all duration-300 ${
+        className={`fixed bottom-40 md:bottom-12 right-6 z-[9999] bg-[#B83A4B] text-white p-3.5 rounded-full shadow-lg transition-all duration-300 ${
           visible ? "scale-100 opacity-100 translate-y-0" : "scale-0 opacity-0 translate-y-10"
         }`}
         title="Lapor Bug / Masalah"
