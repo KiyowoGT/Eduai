@@ -369,6 +369,11 @@ static_dir = FRONTEND_BUILD / "static"
 if static_dir.is_dir():
     fastapi_app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+# Serve additional public assets (e.g. mascots, icons in /img/)
+img_dir = FRONTEND_BUILD / "img"
+if img_dir.is_dir():
+    fastapi_app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+
 # Add Middleware
 fastapi_app.add_middleware(
     CORSMiddleware,

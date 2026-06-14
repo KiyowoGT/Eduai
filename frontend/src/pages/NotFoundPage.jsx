@@ -8,7 +8,7 @@ const NotFoundPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#12131A] text-white p-6 text-center">
       <img 
-        src="/img/mascot-404.svg"
+        src="/img/mascot-404.png"
         alt="Maskot Schooly AI 404" 
         className="w-[400px] h-[400px] mb-8 object-contain"
       />
