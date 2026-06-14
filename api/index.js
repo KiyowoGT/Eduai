@@ -789,7 +789,6 @@ Kewajiban Mutlak:
     (async () => {
       try {
         await new Promise(r => setTimeout(r, 2000));
-        console.log(`Analyzing PDF ${docId} via Gemini API (background)...`);
         const geminiResp = await callGeminiWithPDF(system, analyzePrompt, filePart.data);
         const parsed = parseJsonBlock(geminiResp);
         if (parsed) {
@@ -941,7 +940,6 @@ Kewajiban Mutlak:
         created_at: new Date().toISOString()
       });
 
-      console.log(`Analyzing subject document ${filePart.filename} via Gemini...`);
       let analysisResult = null;
       let status = 'ready';
 
@@ -1227,7 +1225,6 @@ routes['POST /quiz/generate'] = async (req, res) => {
     // BACKGROUND GENERATION
     (async () => {
       try {
-        console.log(`Generating quiz ${quizId} in background...`);
         const questions = await generateQuizQuestions(documents, user, questionCount, recapText);
         await db.collection('quizzes').updateOne(
           { quiz_id: quizId },
@@ -1784,7 +1781,6 @@ async function generateDefaultTTS(text) {
   }
   if (currentChunk) chunks.push(currentChunk);
 
-  console.log(`Splitting text into ${chunks.length} chunks for Google Translate TTS.`);
 
   const buffers = [];
   for (let i = 0; i < chunks.length; i++) {
@@ -1809,12 +1805,10 @@ async function generateCloneVoice(text, audioUrl) {
   if (!cleaned) throw new Error("Teks kosong setelah dibersihkan");
 
   const chunks = chunkText(cleaned, 120);
-  console.log(`Split text into ${chunks.length} chunks for premium voice generation.`);
 
   const premiumVoiceUrl = audioUrl || "https://eduai-deploy.vercel.app/suara/cara-membedakan-voice-changer-atau-murni-ala-miti-mythia-batford-aesood.wav";
 
   async function generateSingleChunk(chunkTextStr, index) {
-    console.log(`[Chunk ${index + 1}/${chunks.length}] Submitting to Chatterbox using ${premiumVoiceUrl}...`);
     const submitResp = await fetch("https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/call/clone_voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1831,7 +1825,6 @@ async function generateCloneVoice(text, audioUrl) {
       throw new Error(`Gradio did not return an event_id. Response: ${JSON.stringify(submitResult)}`);
     }
 
-    console.log(`[Chunk ${index + 1}/${chunks.length}] Event ID: ${eventId}. Fetching stream...`);
     const streamResp = await fetch(`https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/call/clone_voice/${eventId}`);
     if (!streamResp.ok) {
       throw new Error(`Failed to connect to result stream: ${streamResp.statusText}`);
@@ -1879,7 +1872,6 @@ async function generateCloneVoice(text, audioUrl) {
               fileUrl = `https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/file=${fileUrl}`;
             }
             
-            console.log(`[Chunk ${index + 1}/${chunks.length}] Downloading audio...`);
             const audioResp = await fetch(fileUrl);
             if (!audioResp.ok) throw new Error(`Failed to download audio: ${audioResp.statusText}`);
             const arrayBuffer = await audioResp.arrayBuffer();
@@ -1894,7 +1886,6 @@ async function generateCloneVoice(text, audioUrl) {
     throw new Error(`Could not find a valid audio result in event stream: ${streamText}`);
   }
 
-  console.log(`Generating all ${chunks.length} chunks in parallel to prevent Vercel 504 timeouts...`);
   const promises = chunks.map(async (chunk, i) => {
     try {
       return await generateSingleChunk(chunk, i);
@@ -1909,7 +1900,6 @@ async function generateCloneVoice(text, audioUrl) {
     throw new Error("Gagal menggenerasi seluruh chunk audio");
   }
 
-  console.log(`Successfully generated ${audioBuffers.length}/${chunks.length} chunks. Combining WAVs...`);
   return concatenateWavs(audioBuffers);
 }
 
@@ -2204,10 +2194,8 @@ async function generateQuizQuestions(documents, user, n = 5, recapText = '') {
 
     let resp;
     if (documents.length === 1) {
-      console.log(`Generating batch of ${batchCount} questions for 1 document using Groq Qwen model...`);
       resp = await callGroqQwen(system, prompt, false);
     } else {
-      console.log(`Generating batch of ${batchCount} questions for ${documents.length} documents using Gemini...`);
       resp = await callGemini(system, prompt);
     }
 

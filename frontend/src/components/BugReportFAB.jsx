@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
 import { Headset, Plus } from "lucide-react";
+import { useLocation } from "react-router-dom"; // Import useLocation
+import useMediaQuery from "@/hooks/useMediaQuery";
 import BugReportModal from "./BugReportModal";
 
 export default function BugReportFAB() {
   const [showModal, setShowModal] = useState(false);
   const [visible, setVisible] = useState(true);
+  const location = useLocation();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  
+  // Deteksi halaman spesifik
+  const isTargetPage = location.pathname === '/dokumen/ec13668112ec46b699dd3a2b73cbd1ef';
 
   useEffect(() => {
     let timeout;
@@ -23,30 +30,27 @@ export default function BugReportFAB() {
     };
   }, []);
 
+  // JANGAN RENDER WIDGET jika di mobile DAN di halaman target
+  if (isMobile && isTargetPage) {
+    return null;
+  }
+
   return (
     <>
       <button
         onClick={() => setShowModal(!showModal)}
         className={`fixed bottom-24 md:bottom-10 right-6 z-[9999] group flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#4F46E5] text-white shadow-[0_8px_30px_rgb(37,99,235,0.4)] hover:shadow-[0_12px_40px_rgb(37,99,235,0.6)] hover:-translate-y-1 transition-all duration-500 ${
           visible ? "scale-100 opacity-100 translate-y-0" : "scale-0 opacity-0 translate-y-10"
-        }`}
-        title="EduAI Help Center"
+        } ${showModal ? "rotate-45" : "rotate-0"}`}
       >
-        <div className="absolute inset-0 bg-white/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-        
-        {/* Dynamic Icon with Transition */}
-        <div className="relative w-6 h-6 flex items-center justify-center">
-          <div className={`absolute transition-all duration-500 transform ${showModal ? "scale-0 rotate-90 opacity-0" : "scale-100 rotate-0 opacity-100"}`}>
-            <Headset className="w-6 h-6" />
-          </div>
-          <div className={`absolute transition-all duration-500 transform ${showModal ? "scale-100 rotate-45 opacity-100" : "scale-0 rotate-0 opacity-0"}`}>
-            <Plus className="w-7 h-7" />
-          </div>
-        </div>
+        {showModal ? (
+          <Plus className="w-7 h-7" />
+        ) : (
+          <Headset className="w-7 h-7" />
+        )}
       </button>
-      
-      {/* Help Card anchored above button */}
-      <BugReportModal isOpen={showModal} onClose={() => setShowModal(false)} />
+
+      {showModal && <BugReportModal onClose={() => setShowModal(false)} />}
     </>
   );
 }
