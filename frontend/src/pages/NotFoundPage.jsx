@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import mascotImg from "@/assets/404-mascot.jpg";
+import mascotImg from "@/assets/404-mascot.png";
 
 const NotFoundPage = () => {
   const navigate = useNavigate();
