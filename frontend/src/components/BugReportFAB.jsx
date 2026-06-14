@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageSquareText } from "lucide-react";
+import { Plus } from "lucide-react";
 import BugReportModal from "./BugReportModal";
 
 export default function BugReportFAB() {
@@ -25,14 +25,14 @@ export default function BugReportFAB() {
 
   return (
     <>
-      <button 
+      <button
         onClick={() => setShowModal(true)}
-        className={`fixed bottom-24 md:bottom-20 right-6 z-[9999] bg-[#B83A4B] text-white p-3.5 rounded-full shadow-lg transition-all duration-300 ${
+        className={`fixed bottom-24 md:bottom-20 right-6 z-[9999] bg-[#1D2D50] text-white p-3.5 rounded-full shadow-lg transition-all duration-300 ${
           visible ? "scale-100 opacity-100 translate-y-0" : "scale-0 opacity-0 translate-y-10"
         }`}
-        title="Lapor Bug / Masalah"
+        title="Contact Support"
       >
-        <MessageSquareText className="w-6 h-6" />
+        <Plus className="w-6 h-6" />
       </button>
       <BugReportModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </>
