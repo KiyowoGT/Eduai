@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageSquareText } from "lucide-react";
 import BugReportModal from "./BugReportModal";
 
