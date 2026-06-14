@@ -50,7 +50,7 @@ export default function BugReportFAB() {
         )}
       </button>
 
-      {showModal && <BugReportModal onClose={() => setShowModal(false)} />}
+      {showModal && <BugReportModal isOpen={showModal} onClose={() => setShowModal(false)} />}
     </>
   );
 }
