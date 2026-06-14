@@ -36,9 +36,12 @@ export const AuthProvider = ({ children }) => {
           setUser({ id: session.user.id, ...me });
         }
       } catch (err) {
-        // fetchMe failed — fall back to session user but don't force onboarded: false
+        // fetchMe failed — session token likely expired/stale.
+        // Force sign-out to clear the zombie session so user sees login screen.
+        console.warn("[AuthContext] fetchMe failed, signing out stale session:", err?.message);
         if (!cancelled) {
-          setUser((prev) => prev ?? sessionToUser(session));
+          try { await supabase.auth.signOut(); } catch {}
+          setUser(null);
         }
       } finally {
         if (!cancelled) setLoading(false);

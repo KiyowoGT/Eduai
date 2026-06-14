@@ -508,7 +508,7 @@ export default function DocumentDetail() {
                           {user?.music_genre || "Pop Romantic"}
                         </span>
                         <h4 className="font-heading text-lg font-bold truncate">Melodi Rangkuman Akademik</h4>
-                        <p className="text-xs text-[#A0A2B1]">Diaransemen khusus oleh AI Eduai berdasarkan materi ajar</p>
+                        <p className="text-xs text-[#A0A2B1]">Diaransemen khusus oleh Schooly AI berdasarkan materi ajar</p>
                         <audio
                           src={musicData.audio_url}
                           controls

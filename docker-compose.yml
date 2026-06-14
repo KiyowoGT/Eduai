@@ -10,7 +10,7 @@ version: "3.9"
 services:
   # ── Kafka Broker (KRaft, single-node) ────────────────────────────────────────
   kafka:
-    image: bitnami/kafka:3.9
+    image: bitnamilegacy/kafka:3.9
     container_name: eduai-kafka
     restart: unless-stopped
     ports:
@@ -65,7 +65,7 @@ services:
 
   # ── Topic initialiser (one-shot) ───────────────────────────────────────────────
   kafka-init:
-    image: bitnami/kafka:3.9
+    image: bitnamilegacy/kafka:3.9
     container_name: eduai-kafka-init
     depends_on:
       kafka:

@@ -8,6 +8,10 @@ export default function HomeRedirect() {
 
   if (!user) return null;
 
+  if (user.is_superadmin) {
+    return <AdminDashboard />;
+  }
+
   if (user.role === "pelajar") {
     return <Dashboard />;
   }
@@ -19,5 +23,7 @@ export default function HomeRedirect() {
     return <TeacherDashboard />;
   }
 
+  // User logged in but has no role (e.g. expired session with partial data) —
+  // fall through to Dashboard which will show onboarding prompt.
   return <Dashboard />;
 }

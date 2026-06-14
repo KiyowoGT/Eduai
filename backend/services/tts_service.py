@@ -25,207 +25,164 @@ async def _generate_tts(text: str, output_path: str, user: Optional[User] = None
         raise HTTPException(400, "Teks kosong setelah dibersihkan")
         
     use_cloning = True
-    voice_url = None
+    voice_model = "moona" # default RVC model
+    
     if user:
         if getattr(user, "clone_voice_enabled", None) is False:
             use_cloning = False
-        voice_url = getattr(user, "clone_voice_url", None)
+        # Map user preference to holo model if available
+        pref_model = getattr(user, "clone_voice_url", None) or "moona"
+        if isinstance(pref_model, str):
+            pref_model = pref_model.lower().strip()
+            # simple mapping for ease of use
+            for m in ['moona', 'lofi', 'risu', 'ollie', 'anya', 'reine', 'zeta', 'kaela', 'kobo']:
+                if m in pref_model:
+                    voice_model = m
+                    break
         
     if use_cloning:
-        def _chunk_text(text_to_chunk, max_chars=120):
-            words = text_to_chunk.split()
-            if not words:
-                return []
-            chunks_list = []
-            current_chunk = ""
-            for word in words:
-                candidate = (current_chunk + " " + word).strip() if current_chunk else word
-                if len(candidate) > max_chars:
-                    if current_chunk.strip():
-                        chunks_list.append(current_chunk.strip())
-                    current_chunk = word
-                else:
-                    current_chunk = candidate
-            if current_chunk.strip():
-                chunks_list.append(current_chunk.strip())
-            return chunks_list
-
-        def _concatenate_wavs(wav_contents):
-            if not wav_contents:
-                return b""
-            if len(wav_contents) == 1:
-                return wav_contents[0]
-            first_wav = wav_contents[0]
-            pcm_datas = [wav[44:] for wav in wav_contents]
-            total_pcm_length = sum(len(pcm) for pcm in pcm_datas)
-            import struct
-            header = bytearray(first_wav[:44])
-            header[4:8] = struct.pack("<I", total_pcm_length + 36)
-            header[40:44] = struct.pack("<I", total_pcm_length)
-            return bytes(header) + b"".join(pcm_datas)
-
-        async def _try_chatterbox():
-            local_default_path = os.path.abspath(
-                os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)),
-                    "frontend",
-                    "public",
-                    "suara",
-                    "cara-membedakan-voice-changer-atau-murni-ala-miti-mythia-batford-aesood.wav"
-                )
-            )
-            target_voice_url = voice_url or "https://eduai-deploy.vercel.app/suara/cara-membedakan-voice-changer-atau-murni-ala-miti-mythia-batford-aesood.wav"
-            chunks = _chunk_text(cleaned, 120)
-            logger.info(f"Split text into {len(chunks)} chunks for premium voice generation using {target_voice_url}")
-            
+        async def _try_rvcholo():
             try:
-                from gradio_client import Client
-                logger.info("Using gradio_client to query Chatterbox AI.")
+                # 1. Generate normal TTS first using edge-tts as baseline audio
+                temp_tts_path = output_path + ".temp.mp3"
+                import edge_tts
+                communicate = edge_tts.Communicate(cleaned, _TTS_VOICE)
+                await communicate.save(temp_tts_path)
                 
-                def _gen_chunk_client(chunk_text: str, idx: int) -> Optional[bytes]:
-                    try:
-                        logger.info(f"Generating chunk {idx + 1}/{len(chunks)} with gradio_client: '{chunk_text}'")
-                        client = Client("https://alstears-chatterbox-id-clone-api.hf.space")
-                        
-                        audio_file_param = None
-                        audio_url_param = ""
-                        
-                        if voice_url:
-                            if voice_url.startswith("http://") or voice_url.startswith("https://"):
-                                audio_url_param = voice_url
-                            elif os.path.exists(voice_url):
-                                from gradio_client import handle_file
-                                audio_file_param = handle_file(voice_url)
-                            else:
-                                audio_url_param = voice_url
-                        else:
-                            if os.path.exists(local_default_path):
-                                from gradio_client import handle_file
-                                audio_file_param = handle_file(local_default_path)
-                            else:
-                                audio_url_param = "https://eduai-deploy.vercel.app/suara/cara-membedakan-voice-changer-atau-murni-ala-miti-mythia-batford-aesood.wav"
-                                
-                        result_path = client.predict(
-                            text=chunk_text,
-                            audio_file=audio_file_param,
-                            audio_url=audio_url_param,
-                            api_name="/clone_voice"
-                        )
-                        logger.info(f"gradio_client generated chunk {idx + 1} at: {result_path}")
-                        if result_path and os.path.exists(result_path):
-                            with open(result_path, "rb") as f:
-                                return f.read()
-                        elif result_path and result_path.startswith("http"):
-                            import requests
-                            r = requests.get(result_path)
-                            r.raise_for_status()
-                            return r.content
-                    except Exception as e:
-                        logger.error(f"gradio_client failed on chunk {idx + 1}: {e}")
-                    return None
+                # Read baseline audio to buffer
+                with open(temp_tts_path, "rb") as f:
+                    audio_buffer = f.read()
+                
+                # Cleanup temp file
+                if os.path.exists(temp_tts_path):
+                    os.remove(temp_tts_path)
 
-                loop = asyncio.get_event_loop()
-                tasks = [
-                    loop.run_in_executor(None, _gen_chunk_client, chunk, idx)
-                    for idx, chunk in enumerate(chunks)
-                ]
-                results = await asyncio.gather(*tasks)
-                wav_results = [r for r in results if r is not None]
-                if len(wav_results) == len(chunks):
-                    logger.info(f"gradio_client successfully generated all {len(chunks)} chunks. Combining WAVs...")
-                    return _concatenate_wavs(wav_results)
-                logger.error(f"gradio_client generated only {len(wav_results)}/{len(chunks)} chunks. Falling back to HTTP client...")
-            except ImportError:
-                logger.info("gradio_client not installed. Falling back to HTTP client.")
-            except Exception as e:
-                logger.error(f"gradio_client setup failed: {e}. Falling back to HTTP client.")
+                # 2. Upload to kit-lemonfoot-vtuber-rvc-models space
+                api_url = "https://kit-lemonfoot-vtuber-rvc-models.hf.space"
+                file_url = "https://kit-lemonfoot-vtuber-rvc-models.hf.space/file="
+                
+                models = {
+                    "moona": ["Moona Hoshinova", "weights/hololive-id/Moona/Moona_Megaaziib.pth", "weights/hololive-id/Moona/added_IVF1259_Flat_nprobe_1_v2_mbkm.index", ""],
+                    "lofi": ["Airani Iofifteen", "weights/hololive-id/Iofi/Iofi_KitLemonfoot.pth", "weights/hololive-id/Iofi/added_IVF256_Flat_nprobe_1_AiraniIofifteen_Speaking_V2_v2.index", ""],
+                    "risu": ["Ayunda Risu", "weights/hololive-id/Risu/Risu_Megaaziib.pth", "weights/hololive-id/Risu/added_IVF2090_Flat_nprobe_1_v2_mbkm.index", ""],
+                    "ollie": ["Kureiji Ollie", "weights/hololive-id/Ollie/Ollie_Dacoolkid.pth", "weights/hololive-id/Ollie/added_IVF2227_Flat_nprobe_1_ollie_v2_mbkm.index", ""],
+                    "anya": ["Anya Melfissa", "weights/hololive-id/Anya/Anya_Megaaziib.pth", "weights/hololive-id/Anya/added_IVF910_Flat_nprobe_1_anyav2_v2_mbkm.index", ""],
+                    "reine": ["Pavolia Reine", "weights/hololive-id/Reine/Reine_KitLemonfoot.pth", "weights/hololive-id/Reine/added_IVF256_Flat_nprobe_1_PavoliaReine_Speaking_KitLemonfoot_v2.index", ""],
+                    "zeta": ["Vestia Zeta", "weights/hololive-id/Zeta/Zeta_Megaaziib.pth", "weights/hololive-id/Zeta/added_IVF462_Flat_nprobe_1_zetav2_v2.index", ""],
+                    "kaela": ["Kaela Kovalskia", "weights/hololive-id/Kaela/Kaela_Megaaziib.pth", "weights/hololive-id/Kaela/added_IVF265_Flat_nprobe_1_kaelaV2_v2.index", ""],
+                    "kobo": ["Kobo Kanaeru", "weights/hololive-id/Kobo/Kobo_Megaaziib.pth", "weights/hololive-id/Kobo/added_IVF454_Flat_nprobe_1_kobov2_v2.index", ""]
+                }
+                
+                fn_indices = {
+                    "moona": 44,
+                    "lofi": 45,
+                    "risu": 46,
+                    "ollie": 47,
+                    "anya": 48,
+                    "reine": 49,
+                    "zeta": 50,
+                    "kaela": 51,
+                    "kobo": 52
+                }
 
-            # Fallback raw HTTP client logic
-            async def _gen_chunk(chunk: str, idx: int, client: httpx.AsyncClient) -> Optional[bytes]:
-                try:
-                    logger.info(f"Generating chunk {idx + 1}/{len(chunks)}: '{chunk}'")
-                    submit_resp = await client.post(
-                        "https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/call/clone_voice",
-                        json={"data": [chunk, None, target_voice_url]}
+                import string
+                import random
+                def generate_session():
+                    return "".join(random.choices(string.ascii_lowercase + string.digits, k=9))
+                
+                session_hash = generate_session()
+                upload_id = generate_session()
+                orig_name = f"rynn_{int(asyncio.get_event_loop().time())}.mp3"
+                
+                logger.info(f"RVC Holo ID: Uploading baseline TTS to HuggingFace space using model {voice_model}")
+                
+                # Upload request using httpx
+                async with httpx.AsyncClient(timeout=180.0) as client:
+                    files = {"files": (orig_name, audio_buffer, "audio/mpeg")}
+                    upload_resp = await client.post(
+                        f"{api_url}/upload?upload_id={upload_id}",
+                        files=files
                     )
-                    submit_resp.raise_for_status()
-                    submit_data = submit_resp.json()
-                    event_id = submit_data.get("event_id")
-                    if not event_id:
-                        logger.error(f"Gradio 6 submission failed to return event_id for chunk {idx + 1}: {submit_data}")
-                        return None
-                        
-                    logger.info(f"Job submitted for chunk {idx + 1}. Event ID: {event_id}. Fetching stream...")
-                    stream_resp = await client.get(
-                        f"https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/call/clone_voice/{event_id}"
-                    )
-                    stream_resp.raise_for_status()
-                    stream_text = stream_resp.text
+                    upload_resp.raise_for_status()
+                    uploaded_paths = upload_resp.json()
+                    uploaded_path = uploaded_paths[0]
                     
-                    error_match = re.search(r"event:\s*error\s*[\r\n]+data:\s*([^\r\n]+)", stream_text)
-                    if error_match:
-                        try:
-                            import json
-                            err_obj = json.loads(error_match.group(1))
-                            if err_obj and "error" in err_obj:
-                                logger.error(f"Gradio returned error for chunk {idx + 1}: {err_obj['error']}")
-                        except Exception:
-                            pass
-
-                    matches = re.findall(r"data:\s*([^\r\n]+)", stream_text)
-                    if not matches:
-                        logger.error(f"No data events received in Gradio 6 stream for chunk {idx + 1}: {stream_text}")
-                        return None
+                    audio_payload = {
+                        "path": uploaded_path,
+                        "url": f"{file_url}{uploaded_path}",
+                        "orig_name": orig_name,
+                        "size": len(audio_buffer),
+                        "mime_type": "audio/mpeg",
+                        "meta": {"_type": "gradio.FileData"}
+                    }
+                    
+                    # Gradio queue join
+                    logger.info(f"RVC Holo ID: Submitting conversion request (Session: {session_hash})")
+                    join_resp = await client.post(
+                        f"{api_url}/queue/join?session_hash={session_hash}",
+                        json={
+                            "data": [
+                                *models[voice_model],
+                                audio_payload,
+                                "",
+                                "English-Ana (Female)",
+                                0, # transpose
+                                "pm",
+                                0.4,
+                                1,
+                                0,
+                                1,
+                                0.23
+                            ],
+                            "event_data": None,
+                            "fn_index": fn_indices[voice_model],
+                            "trigger_id": 620,
+                            "session_hash": session_hash
+                        }
+                    )
+                    join_resp.raise_for_status()
+                    
+                    # Poll queue data
+                    logger.info("RVC Holo ID: Polling result from Gradio queue...")
+                    data_resp = await client.get(
+                        f"{api_url}/queue/data?session_hash={session_hash}"
+                    )
+                    data_resp.raise_for_status()
+                    
+                    result_url = None
+                    lines = data_resp.text.split("\n\n")
+                    for line in lines:
+                        if line.startswith("data:"):
+                            try:
+                                import json
+                                d = json.loads(line[5:])
+                                if d.get("msg") == "process_completed":
+                                    result_url = d["output"]["data"][1]["url"]
+                                    break
+                            except Exception:
+                                pass
+                                
+                    if result_url:
+                        if result_url.startswith("/"):
+                            result_url = f"{api_url}{result_url}"
+                        logger.info(f"RVC Holo ID: Successfully generated audio! Downloading from: {result_url}")
+                        audio_resp = await client.get(result_url)
+                        audio_resp.raise_for_status()
+                        return audio_resp.content
+                    else:
+                        logger.error("RVC Holo ID: No process_completed message found in queue response.")
                         
-                    for match in reversed(matches):
-                        try:
-                            import json
-                            parsed = json.loads(match.strip())
-                            if isinstance(parsed, list) and len(parsed) > 0:
-                                audio_info = parsed[0]
-                                audio_url = None
-                                if isinstance(audio_info, dict):
-                                    if "url" in audio_info:
-                                        audio_url = audio_info["url"]
-                                    elif "path" in audio_info:
-                                        audio_url = f"https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/file={audio_info['path']}"
-                                elif isinstance(audio_info, str):
-                                    audio_url = audio_info
-                                    
-                                if audio_url:
-                                    if audio_url.startswith("/"):
-                                        audio_url = f"https://alstears-chatterbox-id-clone-api.hf.space{audio_url}"
-                                    elif not audio_url.startswith("http"):
-                                        audio_url = f"https://alstears-chatterbox-id-clone-api.hf.space/gradio_api/file={audio_url}"
-                                        
-                                    logger.info(f"Downloading audio for chunk {idx + 1} from: {audio_url}")
-                                    audio_resp = await client.get(audio_url)
-                                    audio_resp.raise_for_status()
-                                    return audio_resp.content
-                        except Exception as parse_err:
-                            logger.debug(f"Skipping unparseable stream data block: {parse_err}")
-                except Exception as e:
-                    logger.exception(f"Failed to generate chunk {idx + 1}: {e}")
-                return None
-
-            async with httpx.AsyncClient(timeout=180.0) as client:
-                tasks = [_gen_chunk(chunk, idx, client) for idx, chunk in enumerate(chunks)]
-                results = await asyncio.gather(*tasks)
-                
-            wav_results = [r for r in results if r is not None]
-            if len(wav_results) == len(chunks):
-                logger.info(f"Successfully generated all {len(chunks)} chunks. Combining WAVs...")
-                return _concatenate_wavs(wav_results)
-            logger.error(f"Generated only {len(wav_results)}/{len(chunks)} chunks successfully.")
+            except Exception as e:
+                logger.exception(f"RVC Holo ID failed: {e}")
             return None
 
-        audio_content = await _try_chatterbox()
+        audio_content = await _try_rvcholo()
         if audio_content:
             with open(output_path, "wb") as f:
                 f.write(audio_content)
             return
         else:
-            logger.error("Chatterbox Gradio 6 failed to generate audio. Falling back to default TTS.")
+            logger.error("RVC Holo ID failed to generate audio. Falling back to default edge-tts.")
 
     # Default edge-tts neural voice fallback (fast and instant)
     import edge_tts

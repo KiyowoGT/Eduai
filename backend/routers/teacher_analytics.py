@@ -37,8 +37,11 @@ async def get_teacher_students(user: User = Depends(require_pengajar)):
         if not user.institution_code:
             raise HTTPException(400, "User tidak terhubung ke institusi manapun")
 
-        # Scope validation: Only Kepala Sekolah, Kurikulum, Guru Kelas, and Guru Pengajar are allowed to view the student roster
-        if not any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum, TeacherTitle.guru_kelas, TeacherTitle.guru_pengajar)):
+        active_role = user.active_role
+        active_scope = user.active_scope_id
+
+        # Scope validation
+        if active_role not in ("kepala_sekolah", "kurikulum", "guru_kelas", "guru_pengajar"):
             raise HTTPException(403, "Akses ditolak: Hanya Wali Kelas, Kurikulum, Kepala Sekolah, atau Guru Pengajar yang dapat melihat daftar siswa.")
 
         query = {
@@ -46,21 +49,20 @@ async def get_teacher_students(user: User = Depends(require_pengajar)):
             "role": "pelajar"
         }
 
-        is_guru_kelas = TeacherTitle.guru_kelas in user.all_titles
-        is_guru_pengajar = TeacherTitle.guru_pengajar in user.all_titles
-        is_admin_or_kuri = any(t in user.all_titles for t in (TeacherTitle.kepala_sekolah, TeacherTitle.kurikulum))
-
-        if not is_admin_or_kuri:
-            allowed_classes = []
-            if is_guru_kelas and user.assigned_class:
-                allowed_classes.append(user.assigned_class)
-            if is_guru_pengajar:
-                allowed_classes.extend(list(getattr(user, "teaching_classes", []) or []))
-            
-            if allowed_classes:
-                query["enrolled_class"] = {"$in": allowed_classes}
-            elif is_guru_kelas or is_guru_pengajar:
+        if active_role in ("kepala_sekolah", "kurikulum"):
+            # admin bisa lihat semua
+            pass
+        elif active_role == "guru_kelas" and active_scope:
+            query["enrolled_class"] = active_scope
+        elif active_role == "guru_pengajar" and active_scope:
+            # guru_pengajar bisa lihat students di kelas manapun tempat ia mengajar
+            teaching_classes = list(getattr(user, "teaching_classes", []) or [])
+            if teaching_classes:
+                query["enrolled_class"] = {"$in": teaching_classes}
+            else:
                 query["enrolled_class"] = "__none__"
+        else:
+            query["enrolled_class"] = "__none__"
 
     students = await db.users.find(query, {
         "_id": 0,
@@ -105,13 +107,28 @@ async def get_quiz_analytics(
         raise HTTPException(404, "Kuis tidak ditemukan")
 
     if user.account_type != "pribadi":
-        is_allowed = (
-            quiz.get("user_id") == user.user_id or
-            (user.assigned_subject and quiz.get("subject_name") and quiz.get("subject_name").lower() == user.assigned_subject.lower()) or
-            TeacherTitle.kepala_sekolah in user.all_titles or
-            TeacherTitle.kurikulum in user.all_titles or
-            (TeacherTitle.guru_kelas in user.all_titles and quiz.get("class_name") == user.assigned_class)
+        active_role = user.active_role
+        active_scope = user.active_scope_id
+
+        # Kepala sekolah dan kurikulum bisa lihat semua kuis institusi
+        is_admin = active_role in ("kepala_sekolah", "kurikulum")
+        # Guru pencipta kuis selalu bisa lihat kuis miliknya
+        is_creator = quiz.get("user_id") == user.user_id
+        # Guru pengajar: validasi berdasarkan scope aktif, bukan semua assigned_subject
+        is_guru_pengajar = (
+            active_role == "guru_pengajar" and
+            active_scope and
+            quiz.get("subject_name") and
+            quiz.get("subject_name").lower() == active_scope.lower()
         )
+        # Guru kelas: validasi berdasarkan scope aktif, bukan semua assigned_class
+        is_guru_kelas = (
+            active_role == "guru_kelas" and
+            active_scope and
+            quiz.get("class_name") == active_scope
+        )
+
+        is_allowed = is_creator or is_admin or is_guru_pengajar or is_guru_kelas
         if not is_allowed:
             raise HTTPException(403, "Anda tidak memiliki akses ke analitik kuis ini")
 

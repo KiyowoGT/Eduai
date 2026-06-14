@@ -38,16 +38,6 @@ async def folder_create(request: Request, payload: FolderCreate, user: User = De
 
 @router.get("/folders")
 async def folder_list(user: User = Depends(get_current_user)):
-    if user.role == "pelajar" and user.institution_code and user.enrolled_class:
-        from services.sync_service import provision_student_by_class
-        try:
-            await provision_student_by_class(user.user_id, user.institution_code, user.enrolled_class)
-            fresh_user = await db.users.find_one({"user_id": user.user_id})
-            if fresh_user:
-                user.subjects = fresh_user.get("subjects") or []
-        except Exception as e:
-            logger.warning(f"Gagal melakukan auto-provision pelajar di folder_list: {e}")
-
     folders = await db.folders.find({"user_id": user.user_id, "status": {"$ne": "deleted"}}, {"_id": 0}).sort("created_at", -1).to_list(200)
     for f in folders:
         private_count = await db.documents.count_documents({"user_id": user.user_id, "folder_id": f["folder_id"]})

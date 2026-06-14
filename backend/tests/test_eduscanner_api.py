@@ -66,26 +66,26 @@ class TestAuth:
 
 # ============== Profile ==============
 class TestProfile:
-    def test_update_profile_universitas(self, auth_client, test_session):
+    def test_update_profile_smk(self, auth_client, test_session):
         payload = {
-            "education_level": "Universitas",
-            "major": "Informatika",
-            "institution": "UBSI",
-            "current_semester": 4,
+            "education_level": "SMK",
+            "major": "Teknologi Informasi",
+            "institution": "SMKN 1 Jakarta",
+            "current_semester": 11,
         }
         r = auth_client.put(f"{API}/profile", json=payload)
         assert r.status_code == 200, r.text
         data = r.json()
-        assert data["education_level"] == "Universitas"
-        assert data["major"] == "Informatika"
-        assert data["institution"] == "UBSI"
-        assert data["current_semester"] == 4
+        assert data["education_level"] == "SMK"
+        assert data["major"] == "Teknologi Informasi"
+        assert data["institution"] == "SMKN 1 Jakarta"
+        assert data["current_semester"] == 11
         assert data["onboarded"] is True
         assert "_id" not in data
 
         r2 = auth_client.get(f"{API}/auth/me")
         assert r2.status_code == 200
-        assert r2.json()["major"] == "Informatika"
+        assert r2.json()["major"] == "Teknologi Informasi"
 
     def test_update_profile_sd_no_major(self, auth_client, mongo_db, test_session):
         payload = {
@@ -103,10 +103,10 @@ class TestProfile:
         user = mongo_db.users.find_one({"user_id": test_session["user_id"]})
         assert user["major"] is None
 
-        # Restore to Universitas for downstream tests
+        # Restore to SMK for downstream tests
         auth_client.put(f"{API}/profile", json={
-            "education_level": "Universitas",
-            "major": "Informatika",
+            "education_level": "SMK",
+            "major": "Teknologi Informasi",
             "institution": "UBSI",
             "current_semester": 4,
         })

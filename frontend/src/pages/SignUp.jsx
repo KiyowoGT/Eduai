@@ -171,7 +171,7 @@ export default function SignUp() {
                   <GraduationCap className="w-8 h-8 text-[#E5A93C]" />
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="font-heading text-2xl font-bold tracking-tighter text-[#1A1B26] dark:text-white">EduScanner <span className="text-[#B83A4B]">AI</span></span>
+                  <span className="font-heading text-2xl font-bold tracking-tighter text-[#1A1B26] dark:text-white">Schooly <span className="text-[#B83A4B]">AI</span></span>
                   <div className="flex items-center gap-2 mt-0.5">
                     <div className="h-[1px] w-3 bg-[#E5A93C]/50" />
                     <span className="text-[9px] uppercase tracking-[0.4em] text-[#E5A93C] font-black">Registration Portal</span>

@@ -8,8 +8,9 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
   Copy, Check, Hash, LogOut, User, Mail, School, AtSign, Key, Shield, ShieldCheck, Building2, Eye, EyeOff,
-  ScrollText, Settings, Users, FolderOpen, BrainCircuit, Ticket
+  ScrollText, Settings, Users, FolderOpen, BrainCircuit, Ticket, HelpCircle
 } from "lucide-react";
+import BugReportModal from "@/components/BugReportModal";
 
 export default function Profile() {
   const { user, setUser, refresh, logout } = useAuth();
@@ -33,9 +34,6 @@ export default function Profile() {
       { to: "/audit-log", label: "Audit Log", icon: ScrollText }
     );
   } else {
-    if (user?.role === "pelajar" && !user?.institution_code) {
-      otherMenus.push({ to: "/portal", label: "Portal Mandiri", icon: Ticket });
-    }
     otherMenus.push(
       { to: "/teman", label: "Teman", icon: Users },
       { to: "/folder", label: "Folder Materi", icon: FolderOpen },
@@ -58,6 +56,7 @@ export default function Profile() {
 
   // Theme
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme') || 'system');
+  const [showBugReportModal, setShowBugReportModal] = useState(false);
 
   // Password
   const [currentPassword, setCurrentPassword] = useState("");
@@ -261,7 +260,7 @@ export default function Profile() {
               <div className="text-xs text-[#A0A2B1] mt-1">
                 {user?.education_level}{user?.major ? ` · ${user.major}` : ""}
                 {user?.institution ? ` · ${user.institution}` : ""}
-                {user?.current_semester ? ` · ${user.education_level === "Universitas" ? `Sem ${user.current_semester}` : `Kls ${user.current_semester}`}` : ""}
+                {user?.current_semester ? ` · Kls ${user.current_semester}` : ""}
               </div>
             )}
           </div>
@@ -533,6 +532,20 @@ export default function Profile() {
           ))}
         </div>
       </div>
+      
+      {/* Help & Support (CS) */}
+      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
+        <h2 className="font-heading text-lg text-[#1A1B26] mb-4 flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-[#1D2D50]" />
+            Bantuan & Dukungan Pelanggan
+        </h2>
+        <p className="text-sm text-[#646675] mb-4">
+            Laporkan masalah, berikan saran, atau dapatkan bantuan teknis dari tim dukungan kami.
+        </p>
+        <Button onClick={() => setShowBugReportModal(true)} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm">
+            Lapor Masalah
+        </Button>
+      </div>
 
       {/* Other Menus (Mobile Only) */}
       {otherMenus.length > 0 && (
@@ -569,6 +582,8 @@ export default function Profile() {
           Keluar
         </Button>
       </div>
+
+      <BugReportModal isOpen={showBugReportModal} onClose={() => setShowBugReportModal(false)} />
     </div>
   );
 }

@@ -642,7 +642,17 @@ export async function listTeacherSchedules() {
 }
 
 export async function getAdminTeachers() {
-  const r = await http.get("/admin/teachers");
+  const r = await http.get("/admin/users");
+  return { teachers: r.data, users: r.data };
+}
+
+export async function suspendUser(userId, durationMinutes) {
+  const r = await http.post(`/admin/users/${userId}/suspend`, { duration_minutes: durationMinutes });
+  return r.data;
+}
+
+export async function banUser(userId) {
+  const r = await http.delete(`/admin/users/${userId}`);
   return r.data;
 }
 

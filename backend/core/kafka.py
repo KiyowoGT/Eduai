@@ -68,7 +68,7 @@ ALL_TOPICS = [
     TOPIC_CLEANUP,
 ]
 
-CONSUMER_GROUP = "eduai-ai-workers"
+CONSUMER_GROUP = "eduai-workers-3"
 
 # ── Module-level singletons ────────────────────────────────────────────────
 _producer: Optional[AIOKafkaProducer] = None
@@ -144,7 +144,6 @@ async def start_producer() -> None:
                 bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
                 value_serializer=_encode,
                 acks="all",
-                retries=5,
                 linger_ms=20,
                 compression_type="gzip",
                 request_timeout_ms=30_000,
@@ -303,8 +302,8 @@ def make_consumer(topics: list[str] = ALL_TOPICS) -> AIOKafkaConsumer:
         value_deserializer=_decode,
         auto_offset_reset="earliest",
         enable_auto_commit=False,
-        session_timeout_ms=300_000,
-        heartbeat_interval_ms=10_000,
-        max_poll_interval_ms=300_000,
+        session_timeout_ms=45_000,
+        heartbeat_interval_ms=5_000,
+        max_poll_interval_ms=600_000,
     )
     return consumer

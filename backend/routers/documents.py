@@ -213,7 +213,7 @@ async def get_education_settings(user: User = Depends(get_current_user)):
         "schedule": doc.get("schedule") or [],
         "education_level": doc.get("education_level"),
         "major": doc.get("major"),
-        "current_semester": doc.get("current_semester"),
+        "current_semester": user.effective_grade,
         "institution": doc.get("institution"),
     }
 
@@ -228,9 +228,11 @@ async def generate_material(payload: MaterialGeneratePayload, request: Request, 
         raise HTTPException(404, "User tidak ditemukan")
 
     level = user_doc.get("education_level", "Umum")
-    grade = user_doc.get("current_semester", "")
+    grade = user.effective_grade or ""
     major = user_doc.get("major", "")
     institution = user_doc.get("institution", "")
+    personality = user_doc.get("personality") or {}
+    learning_style = personality.get("learning_style", "umum")
 
     subj_data = None
     for s in (user_doc.get("subjects") or []):
@@ -245,11 +247,32 @@ async def generate_material(payload: MaterialGeneratePayload, request: Request, 
 
     audience = _audience(user)
 
+    # Sesuaikan instruksi prompt berdasarkan gaya belajar siswa
+    style_instruction = ""
+    if learning_style == "visual":
+        style_instruction = (
+            "Karena siswa memiliki gaya belajar VISUAL, buat ringkasan yang kaya dengan analogi bentuk/diagram, "
+            "dan gunakan struktur tabel teks atau diagram konsep yang mudah digambarkan secara visual."
+        )
+    elif learning_style == "auditory":
+        style_instruction = (
+            "Karena siswa memiliki gaya belajar AUDITORI, gunakan penjelasan lisan bergaya dialog/storytelling "
+            "dan sertakan skenario tanya-jawab verbal singkat di akhir penjelasan materi."
+        )
+    elif learning_style == "kinesthetic":
+        style_instruction = (
+            "Karena siswa memiliki gaya belajar KINESTETIK, sertakan 1 panduan aktivitas praktik mandiri "
+            "atau eksperimen sederhana (studi kasus nyata) di bagian study_notes agar siswa bisa langsung mempraktekkannya."
+        )
+    else:
+        style_instruction = "Gunakan penjelasan teks yang detail dan terstruktur logis."
+
     system = (
         f"Kamu adalah asisten pembelajaran untuk {audience}. "
         f"Buat materi belajar tentang {topic} untuk {level}, kelas {grade}"
         + (f", jurusan {major}" if major else "")
         + (f", {institution}" if institution else "") + ". "
+        f"{style_instruction} "
         f"Gunakan bahasa Indonesia. Format output sebagai JSON dengan keys: "
         f"title (string), summary (string, 2-3 paragraf), key_concepts (array of {{concept, explanation}}), "
         f"study_notes (string, penjelasan detail poin-poin penting), "

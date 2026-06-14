@@ -129,7 +129,7 @@ export default function Dashboard() {
             {user?.education_level}
             {user?.major ? ` · ${user.major}` : ""}
             {" · "}{user?.institution}
-            {" · "}{user?.education_level === "Universitas" ? `Semester ${user?.current_semester}` : `Kelas ${user?.current_semester}`}
+            {" · "}{`Kelas ${user?.current_semester}`}
           </p>
         </div>
       </div>
@@ -212,7 +212,7 @@ export default function Dashboard() {
               <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Pengaturan Belajar</div>
               <div className="text-sm text-[#1A1B26] mt-0.5">
                 {user?.education_level
-                  ? `${user.education_level} · ${user.education_level === "Universitas" ? "Semester" : "Kelas"} ${user?.current_semester}`
+                  ? `${user.education_level} · Kelas ${user?.current_semester}`
                   : "Atur kelas, mapel, dan jadwal kamu"}
               </div>
             </div>

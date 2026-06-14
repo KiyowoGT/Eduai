@@ -35,7 +35,7 @@ class QuizChatPayload(BaseModel):
 def _public_quiz(quiz_doc: dict) -> dict:
     out = {k: v for k, v in quiz_doc.items() if k != "_id"}
     if isinstance(out.get("questions"), list):
-        out["questions"] = [{k: v for k, v in q.items() if k != "correct_index"} for q in out["questions"]]
+        out["questions"] = [{k: v for k, v in q.items() if k not in ("correct_index", "explanation")} for q in out["questions"]]
     return out
 
 async def _find_quiz_for_user(quiz_id: str, user: User) -> Optional[dict]:

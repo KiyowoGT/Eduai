@@ -41,6 +41,7 @@
     "cra-template": "1.2.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "gsap": "^3.15.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.507.0",
     "next-themes": "^0.4.6",
@@ -64,6 +65,7 @@
     "start": "PORT=3010 BROWSER=none craco start",
     "dev": "PORT=3010 BROWSER=none craco start",
     "build": "craco build",
+    "deploy": "bash /mnt/hdd/Eduai/deploy.sh",
     "test": "craco test"
   },
   "browserslist": {

@@ -24,9 +24,13 @@ import {
   UserPlus,
   ClipboardList,
   Ticket,
+  Activity,
+  Bug,
+  Wrench,
 } from "lucide-react";
 import NotificationsDropdown from "@/components/NotificationsDropdown";
 import ContextSwitcher from "@/components/ContextSwitcher";
+import BugReportFAB from "@/components/BugReportFAB";
 
 const labelMap = {
   kepala_sekolah: "Kepala Sekolah",
@@ -43,11 +47,23 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const isTeacher = user?.role === "pengajar";
+  const isSuperAdmin = user?.is_superadmin === true;
   const isAdmin = isTeacher && user?.title === "kepala_sekolah";
   const isStudent = user?.role === "pelajar";
   const perms = useMemo(() => user?.permissions || [], [user?.permissions]);
 
   const navItems = useMemo(() => {
+    if (isSuperAdmin) {
+      return [
+        { to: "/admin", label: "Dashboard", icon: LayoutDashboard, tid: "nav-sys-monitor" },
+        { to: "/admin/system-health", label: "Server Health", icon: Activity, tid: "nav-sys-health" },
+        { to: "/admin/bugs", label: "Bug Tracker", icon: Bug, tid: "nav-sys-bugs" },
+        { to: "/admin/maintenance-mode", label: "Maintenance", icon: Wrench, tid: "nav-sys-maint" },
+        { to: "/admin/users", label: "User Mgmt", icon: Users, tid: "nav-sys-users" },
+        { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText, tid: "nav-sys-audit" },
+      ];
+    }
+
     if (isAdmin) {
       return [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tid: "nav-dashboard" },
@@ -110,7 +126,14 @@ export default function AppLayout() {
 
   const mobileNavItems = useMemo(() => {
     let items;
-    if (isAdmin) {
+    if (isSuperAdmin) {
+      items = [
+        { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/admin/system-health", label: "Health", icon: Activity },
+        { to: "/admin/bugs", label: "Bugs", icon: Bug },
+        { to: "/admin/maintenance-mode", label: "Maint", icon: Wrench },
+      ];
+    } else if (isAdmin) {
       items = [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { to: "/admin/users", label: "Akun", icon: User2 },
@@ -169,7 +192,9 @@ export default function AppLayout() {
     navigate("/", { replace: true });
   };
 
-  const userTitle = isAdmin
+  const userTitle = isSuperAdmin
+    ? "Super Admin"
+    : isAdmin
     ? "Kepala Sekolah"
     : isTeacher
       ? labelMap[user?.title] || user?.title
@@ -179,18 +204,18 @@ export default function AppLayout() {
           : "Pelajar"
         : "";
 
-  const userSubtitle = isAdmin
+  const userSubtitle = isSuperAdmin
+    ? "Schooly AI Core"
+    : isAdmin
     ? user?.institution || ""
     : isTeacher
       ? user?.assigned_class
         ? `${user.assigned_class}${user?.assigned_subject ? ` · ${user.assigned_subject}` : ""}`
         : user?.institution || ""
       : isStudent
-        ? user?.education_level === "Universitas"
-          ? `Sem ${user?.current_semester}`
-          : user?.current_semester
-            ? `Kelas ${user.current_semester}`
-            : user?.institution || ""
+        ? user?.current_semester
+          ? `Kelas ${user.current_semester}`
+          : user?.institution || ""
         : "";
 
   return (
@@ -201,7 +226,7 @@ export default function AppLayout() {
         <div className="flex items-center gap-2">
           <GraduationCap className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
           <span className="font-heading text-lg">
-            {isAdmin ? "Admin" : "EduScanner"}
+            {isAdmin ? "Admin" : "Schooly AI"}
           </span>
         </div>
         <div>
@@ -230,10 +255,10 @@ export default function AppLayout() {
               {sidebarOpen && (
                 <div className="overflow-hidden">
                   <div className="font-heading text-lg leading-none truncate">
-                    {isAdmin ? "EduAI Admin" : "EduScanner"}
+                    {isSuperAdmin ? "Schooly Admin" : isAdmin ? "Schooly Admin" : "Schooly AI"}
                   </div>
                   <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1] mt-0.5 truncate">
-                    {isAdmin ? "Super Admin" : isTeacher ? "Portal Guru" : "University"}
+                    {isSuperAdmin ? "Super Admin" : isAdmin ? "Kepala Sekolah" : isTeacher ? "Portal Guru" : "University"}
                   </div>
                 </div>
               )}
@@ -257,6 +282,7 @@ export default function AppLayout() {
               <NavLink
                 key={it.to}
                 to={it.to}
+                end={it.to === "/admin" || it.to === "/dashboard"}
                 data-testid={it.tid}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? "bg-[#1D2D50] dark:bg-[#E5A93C] text-white dark:text-[#12131A]" : "text-[#646675] hover:bg-[#F8F6F0] dark:hover:bg-white/5 hover:text-[#1A1B26] dark:hover:text-white"
@@ -327,6 +353,7 @@ export default function AppLayout() {
               <div key={it.to} className="relative flex justify-center items-center">
                 <NavLink
                   to={it.to}
+                  end={it.to === "/admin" || it.to === "/dashboard"}
                   className="absolute -top-6 w-12 h-12 bg-[#1D2D50] rounded-[14px] rotate-45 shadow-[0_8px_20px_-4px_rgba(29,45,80,0.4)] flex items-center justify-center active:scale-90 transition-all duration-200"
                   title={it.label}
                 >
@@ -342,6 +369,7 @@ export default function AppLayout() {
             <NavLink
               key={it.to}
               to={it.to}
+              end={it.to === "/admin" || it.to === "/dashboard"}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${isActive ? "text-[#1D2D50] dark:text-[#E5A93C]" : "text-[#A0A2B1] dark:text-zinc-400"}`
               }
@@ -352,6 +380,8 @@ export default function AppLayout() {
           );
         })}
       </nav>
+      {/* Floating Action Button untuk Lapor Bug */}
+      <BugReportFAB />
     </div>
   );
 }

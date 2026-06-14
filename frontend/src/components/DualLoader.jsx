@@ -167,7 +167,7 @@ export default function DualLoader({ type = "default", text = "Memuat data...", 
               </div>
             </div>
             <div className="space-y-1">
-              <p className="font-heading text-lg text-[#1A1B26] dark:text-white tracking-tight leading-none">EduScanner AI</p>
+              <p className="font-heading text-lg text-[#1A1B26] dark:text-white tracking-tight leading-none">Schooly AI</p>
               <p className="text-[10px] uppercase tracking-widest text-[#646675] dark:text-[#A0A2B1] font-black">{text}</p>
             </div>
           </div>

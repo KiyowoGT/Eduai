@@ -19,6 +19,7 @@ from core.config import (
     GEMINI_API_KEYS,
     GEMINI_MODEL,
     GEMINI_ANALYSIS_MODEL,
+    GEMINI_BASE_URL,
     GROQ_API_KEY,
     GROQ_MODEL,
     MINIMAX_API_KEY,
@@ -136,10 +137,81 @@ async def _call_gemini(
     keys = list(GEMINI_API_KEYS) if GEMINI_API_KEYS else ['']
 
     last_error = None
+    # Jika GEMINI_BASE_URL mengarah ke Tailscale/custom route 9router, 
+    # kita gunakan library openai (AsyncOpenAI) agar otentikasi Bearer Token terkirim dengan benar.
+    if "tail30e3e2" in GEMINI_BASE_URL or "9router" in GEMINI_BASE_URL:
+        from openai import AsyncOpenAI
+        import base64
+        for key_idx, api_key in enumerate(keys):
+            try:
+                logger.info(f"Using AsyncOpenAI client for Gemini model {model_name} (key {key_idx + 1}/{len(keys)})")
+                client = AsyncOpenAI(api_key=api_key, base_url=GEMINI_BASE_URL)
+                
+                system = system_message
+                if response_schema:
+                    try:
+                        schema_json = json.dumps(response_schema.model_json_schema(), ensure_ascii=False)
+                        system += f"\n\nRESPON HANYA DALAM FORMAT JSON. JANGAN gunakan markdown code block. JANGAN gunakan formatting. JSON HARUS sesuai schema ini:\n{schema_json}"
+                    except Exception:
+                        system += "\n\nRESPON HANYA DALAM FORMAT JSON yang valid."
+                
+                messages = [
+                    {"role": "system", "content": system}
+                ]
+                if file_path:
+                    import pypdf
+                    def _get_pdf_text(path: str) -> str:
+                        reader = pypdf.PdfReader(path)
+                        extracted = []
+                        for i, page in enumerate(reader.pages[:20]):
+                            txt = page.extract_text() or ""
+                            extracted.append(f"[Halaman {i+1}]\n{txt}")
+                        return "\n\n".join(extracted)
+                    
+                    pdf_text = await asyncio.to_thread(_get_pdf_text, file_path)
+                    user_content = f"Berikut adalah isi dari dokumen PDF yang di-upload:\n\n{pdf_text}\n\nPerintah:\n{prompt}"
+                    if response_schema:
+                        user_content += "\n\nRESPON HANYA DALAM FORMAT JSON. JANGAN GUNAKAN MARKDOWN."
+                    messages.append({
+                        "role": "user",
+                        "content": user_content
+                    })
+                else:
+                    user_content = prompt
+                    if response_schema:
+                        user_content += "\n\nRESPON HANYA DALAM FORMAT JSON."
+                    messages.append({"role": "user", "content": user_content})
+
+                extra_args = {}
+                if response_schema:
+                    extra_args["response_format"] = {"type": "json_object"}
+                    
+                resp = await client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    temperature=0.3 if response_schema else 0.7,
+                    max_tokens=8192,
+                    **extra_args
+                )
+                content = resp.choices[0].message.content or ""
+                content = re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
+                m = re.search(r"```(?:json)?\s*([\s\S]+?)```", content)
+                if m:
+                    content = m.group(1).strip()
+                return content
+            except Exception as e:
+                last_error = e
+                logger.error(f"AsyncOpenAI client error: {e}")
+                if key_idx < len(keys) - 1:
+                    continue
+        raise last_error
+
+    # Fallback default ke google-genai SDK jika menggunakan endpoint asli Google
     for key_idx, api_key in enumerate(keys):
         client = genai.Client(
             api_key=api_key,
             http_options=types.HttpOptions(
+                base_url=GEMINI_BASE_URL,
                 timeout=300000,
                 retry_options=types.HttpRetryOptions(
                     attempts=5,
@@ -200,7 +272,7 @@ async def _call_groq(system_message: str, prompt: str) -> str:
         max_prompt = max(500, 4000 - len(system_message))
         prompt = prompt[:max_prompt] + "\n... [jawaban dipotong, tetap jawab berdasarkan data yang ada]"
     def _gen() -> str:
-        client = GroqClient(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+        client = GroqClient(api_key=GROQ_API_KEY, base_url=GEMINI_BASE_URL)
         resp = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[
@@ -219,12 +291,14 @@ async def _call_groq(system_message: str, prompt: str) -> str:
 def _audience(user: User) -> str:
     level = user.education_level or "Umum"
     major = user.major or ("Umum" if level in {"SD", "SMP"} else "Umum")
-    sem = user.current_semester
-    if level in {"SD", "SMP", "SMA", "SMK", "MA"}:
+    sem = user.effective_grade
+    if level in {"SD", "SMP", "SMA", "SMK", "MA", "MAK"}:
         sem_label = f"kelas {sem}" if sem else ""
         base = f"siswa {level} {sem_label} jurusan/peminatan {major}".strip()
     else:
-        base = f"mahasiswa {level} semester {sem or '-'} prodi {major}"
+        # fallback untuk level tidak dikenal (scope dibatasi SMA/sederajat, universitas tidak didukung)
+        sem_label = f"kelas {sem}" if sem else ""
+        base = f"siswa {level} {sem_label}".strip()
 
     methods = user.teaching_methods or ["anand_kumar", "real_world", "imagination", "independence", "confidence"]
     method_instructions = []
@@ -633,7 +707,7 @@ async def run_analysis_queued(doc_id: str, file_path: str, user: User, ip: str):
         summary_text = current.get("summary", "")
         if summary_text:
             try:
-                res = await aimusic_minimax(summary_text, genre)
+                res = await aimusic(summary_text, genre)
                 latest = await db.documents.find_one(
                     {"document_id": doc_id},
                     {"_id": 0, "status": 1, "skip_hobby_personalization": 1, "music_summaries": 1},
@@ -1404,8 +1478,12 @@ async def aimusic_suno(prompt: str, style: str = "pop, romantic", title: str = "
 
 
 async def aimusic_minimax(prompt: str, tags: str = "pop, romantic") -> dict:
-    """Music generation dinonaktifkan sementara."""
-    return {"lyrics": "", "audio_url": ""}
+    """Mengaktifkan kembali music generation menggunakan Suno generator bawaan."""
+    try:
+        return await aimusic_suno(prompt, tags)
+    except Exception as e:
+        logger.error(f"aimusic_minimax fallback to aimusic failed: {e}")
+        return await aimusic(prompt, tags)
 
 
 async def _bg_generate_music_for_students(doc_id: str, target_class_rooms: list, institution_code: str):

@@ -80,7 +80,7 @@ export default function HobiOnboarding() {
       <div className="hidden md:flex flex-col justify-between p-12 bg-[#1D2D50] text-white relative overflow-hidden">
         <div className="flex items-center gap-2.5 relative z-10">
           <Sparkles className="w-5 h-5 text-[#E5A93C]" />
-          <span className="font-heading text-xl">EduScanner AI</span>
+          <span className="font-heading text-xl">Schooly AI</span>
         </div>
         <div className="relative z-10">
           <h2 className="font-heading text-3xl lg:text-4xl leading-tight">Personalisasi pengalaman belajar kamu.</h2>

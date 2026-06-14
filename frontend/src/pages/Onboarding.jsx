@@ -113,8 +113,8 @@ export default function Onboarding() {
         if (!username.trim()) { toast.error("Lengkapi username"); return false; }
       }
     } else if (pelajarStep === 1) {
-      if (!level || !institution.trim() || !grade) {
-        toast.error("Lengkapi semua field"); return false;
+      if (!level || !grade) {
+        toast.error("Lengkapi jenjang dan kelas"); return false;
       }
       if (showMajor && !major) {
         toast.error("Pilih jurusan"); return false;
@@ -185,7 +185,7 @@ export default function Onboarding() {
           ) : (
             <GraduationCap className="w-5 h-5 text-[#E5A93C]" />
           )}
-          <span className="font-heading text-xl">EduScanner AI</span>
+          <span className="font-heading text-xl">Schooly AI</span>
         </div>
         <div className="relative z-10">
           <h2 className="font-heading text-3xl lg:text-4xl leading-tight">
@@ -270,23 +270,23 @@ export default function Onboarding() {
                 )}
 
                 <div>
-                  <Label className="text-xs uppercase tracking-[0.15em] text-[#646675]">{institutionLabel(level || "SMA")}</Label>
+                  <Label className="text-xs uppercase tracking-[0.15em] text-[#646675]">Nama Sekolah (opsional)</Label>
                   <Input
                     data-testid="input-institution"
                     value={institution}
                     onChange={(e) => setInstitution(e.target.value)}
-                    placeholder={institutionPlaceholder(level || "SMA")}
+                    placeholder="Misal: SMAN 3 Bandung (opsional)"
                     className="mt-1.5 bg-white border-[#E2E0D8] h-11"
                   />
                 </div>
 
                 <div>
                   <Label className="text-xs uppercase tracking-[0.15em] text-[#646675]">
-                    {level === "Universitas" ? "Semester" : "Kelas"}
+                    Kelas
                   </Label>
                   <Select value={grade} onValueChange={setGrade} disabled={!level}>
                     <SelectTrigger data-testid="select-grade" className="mt-1.5 bg-white border-[#E2E0D8] h-11">
-                      <SelectValue placeholder={level ? (level === "Universitas" ? "Pilih semester" : "Pilih kelas") : "Pilih jenjang dulu"} />
+                      <SelectValue placeholder={level ? "Pilih kelas" : "Pilih jenjang dulu"} />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
                       {grades.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -345,7 +345,7 @@ export default function Onboarding() {
                   className="w-full h-14 bg-white border-2 border-[#E2E0D8] hover:border-[#1D2D50] text-[#1A1B26] text-base rounded-md flex items-center justify-between px-6"
                 >
                   <span className="font-medium">Institut</span>
-                  <span className="text-xs text-[#A0A2B1]">Sekolah / Universitas</span>
+                  <span className="text-xs text-[#A0A2B1]">Sekolah</span>
                 </Button>
                 <Button
                   type="button"
@@ -389,7 +389,7 @@ export default function Onboarding() {
                       <Input
                         value={institution}
                         onChange={(e) => setInstitution(e.target.value)}
-                        placeholder="Masukkan nama sekolah / universitas"
+                        placeholder="Masukkan nama sekolah"
                         className="mt-1.5 bg-white border-[#E2E0D8] h-11"
                       />
                     </div>

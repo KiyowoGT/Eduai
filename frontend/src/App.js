@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminDashboard from "@/pages/AdminDashboard";
+import AdminGuard from "@/components/AdminGuard";
 import AppLayout from "@/components/AppLayout";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -37,6 +39,9 @@ import AcademicYearManager from "@/pages/admin/AcademicYearManager";
 import ReportsPage from "@/pages/admin/ReportsPage";
 import SettingsPage from "@/pages/admin/SettingsPage";
 import AuditLogViewer from "@/pages/admin/AuditLogViewer";
+import SystemHealth from "@/pages/admin/SystemHealth";
+import BugTracker from "@/pages/admin/BugTracker";
+import MaintenanceMode from "@/pages/admin/MaintenanceMode";
 import MusicTest from "@/pages/MusicTest";
 import PortalMandiri from "@/pages/PortalMandiri";
 
@@ -56,33 +61,38 @@ function AppRouter() {
         <ProtectedRoute requireOnboarded={false}><HobiOnboarding /></ProtectedRoute>
       } />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<HomeRedirect />} />
-        <Route path="/dokumen" element={<Documents />} />
-        <Route path="/dokumen/:id" element={<DocumentDetail />} />
-        <Route path="/teman" element={<Friends />} />
-        <Route path="/folder" element={<Folders />} />
-        <Route path="/folder/:id" element={<FolderDetail />} />
-        <Route path="/recap/:id" element={<Recap />} />
-        <Route path="/kuis/:id" element={<Quiz />} />
-        <Route path="/hasil/:id" element={<QuizResult />} />
-        <Route path="/riwayat-kuis" element={<QuizHistory />} />
-        <Route path="/portal" element={<PortalMandiri />} />
-        <Route path="/pengaturan-belajar" element={<EducationSettings />} />
-        <Route path="/audit-log" element={<AuditLog />} />
-        <Route path="/profil" element={<Profile />} />
-        <Route path="/teacher/schedules" element={<TeacherSchedules />} />
-        <Route path="/teacher/students" element={<TeacherStudents />} />
-        <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
-        <Route path="/admin/users" element={<UserManagement />} />
-        <Route path="/admin/users/teachers/new" element={<CreateTeacher />} />
-        <Route path="/admin/users/teachers/:id" element={<TeacherDetail />} />
-        <Route path="/admin/users/mutations" element={<MutationManager />} />
-        <Route path="/admin/academic-years" element={<AcademicYearManager />} />
-        <Route path="/admin/audit-logs" element={<AuditLogViewer />} />
-        <Route path="/admin/reports" element={<ReportsPage />} />
-        <Route path="/admin/settings" element={<SettingsPage />} />
-        <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
-      </Route>
+              <Route path="/dashboard" element={<HomeRedirect />} />
+              <Route path="/dokumen" element={<Documents />} />
+              <Route path="/dokumen/:id" element={<DocumentDetail />} />
+              <Route path="/teman" element={<Friends />} />
+              <Route path="/folder" element={<Folders />} />
+              <Route path="/folder/:id" element={<FolderDetail />} />
+              <Route path="/recap/:id" element={<Recap />} />
+              <Route path="/kuis/:id" element={<Quiz />} />
+              <Route path="/hasil/:id" element={<QuizResult />} />
+              <Route path="/riwayat-kuis" element={<QuizHistory />} />
+              <Route path="/portal" element={<PortalMandiri />} />
+              <Route path="/pengaturan-belajar" element={<EducationSettings />} />
+              <Route path="/audit-log" element={<AuditLog />} />
+              <Route path="/profil" element={<Profile />} />
+              <Route path="/teacher/schedules" element={<TeacherSchedules />} />
+              <Route path="/teacher/students" element={<TeacherStudents />} />
+              <Route path="/teacher/analytics" element={<TeacherAnalytics />} />
+              <Route path="/admin/users" element={<UserManagement />} />
+              <Route path="/admin/users/teachers/new" element={<CreateTeacher />} />
+              <Route path="/admin/users/teachers/:id" element={<TeacherDetail />} />
+              <Route path="/admin/users/mutations" element={<MutationManager />} />
+              <Route path="/admin/academic-years" element={<AcademicYearManager />} />
+              <Route path="/admin/audit-logs" element={<AuditLogViewer />} />
+              <Route path="/admin/system-health" element={<SystemHealth />} />
+              <Route path="/admin/bugs" element={<BugTracker />} />
+              <Route path="/admin/maintenance-mode" element={<MaintenanceMode />} />
+              <Route path="/admin/reports" element={<ReportsPage />} />
+              <Route path="/admin/settings" element={<SettingsPage />} />
+              <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
+              <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
+              </Route>
+
       <Route path="*" element={<Landing />} />
     </Routes>
   );

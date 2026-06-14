@@ -440,10 +440,13 @@ async def execute_student_promotions(
                 return_document=True
             )
 
-            # Move student
+            # Move student & sync academic year id to matching class year id
             await db.users.update_one(
                 {"user_id": user_id, "institution_code": user.institution_code},
-                {"$set": {"enrolled_class": new_cls["name"]}}
+                {"$set": {
+                    "enrolled_class": new_cls["name"],
+                    "academic_year_id": academic_year_id
+                }}
             )
             success_count += 1
         except Exception as e:

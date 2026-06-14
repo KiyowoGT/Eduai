@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from core.database import db
 from models.user import User, UserRole, TeacherTitle, ProfileUpdate, TeachingMethodsUpdate, FriendCodeUpdate, OnboardingCompletePayload
+
 from deps.auth import (
     get_current_user,
     write_audit,
@@ -94,8 +95,53 @@ async def auth_session(request: Request, response: Response):
 
 
 @router.get("/auth/me")
-async def auth_me(user: User = Depends(get_current_user)):
+async def auth_me(response: Response, user: User = Depends(get_current_user)):
+    # Nonaktifkan cache browser sepenuhnya untuk otentikasi sesi
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
     user_dict = user.model_dump()
+    
+    # Auto-sync folders to subjects for private/independent students (B2C)
+    if user.role == "pelajar" and user.account_type == "pribadi":
+        try:
+            # Ambil folder aktif
+            active_folders = await db.folders.find(
+                {"user_id": user.user_id, "status": {"$ne": "deleted"}}
+            ).to_list(100)
+            
+            existing_subjects = user.subjects or []
+            existing_folder_ids = {s.get("folder_id") for s in existing_subjects if s.get("folder_id")}
+            
+            updated = False
+            for f in active_folders:
+                fid = f["folder_id"]
+                fname = f["name"]
+                if fid not in existing_folder_ids:
+                    # Buat id mapel unik berbasis folder_id
+                    subj_id = f"subj_{fid[:12]}"
+                    existing_subjects.append({
+                        "id": subj_id,
+                        "name": fname,
+                        "folder_id": fid
+                    })
+                    updated = True
+            
+            # Jika ada folder baru yang disinkronkan, update DB dan model cache
+            if updated:
+                await db.users.update_one(
+                    {"user_id": user.user_id},
+                    {"$set": {"subjects": existing_subjects}}
+                )
+                user_dict["subjects"] = existing_subjects
+                user.subjects = existing_subjects
+        except Exception as e:
+            logger.warning(f"Gagal melakukan auto-sync folders ke subjects di auth_me: {e}")
+
+    if not user.institution_code:
+        # Kembalikan effective_grade jika grade_set_at ada, jika tidak, fallback ke data semester static
+        user_dict["current_semester"] = user.effective_grade if user.grade_set_at else user.current_semester
     user_dict["is_institution_linked"] = bool(user.institution_code)
     user_dict["is_class_linked"] = bool(user.enrolled_class or user.class_token_used)
     user_dict["permissions"] = user.get_permissions()
@@ -252,7 +298,7 @@ async def onboarding_complete(payload: OnboardingCompletePayload, request: Reque
             update_data["institution"] = institution_doc.get("name") if institution_doc else ""
             level = token_doc.get("level")
             major = token_doc.get("major") or (institution_doc.get("major") if institution_doc else None)
-            sma_equiv = {"SMA", "SMK", "MA"}
+            sma_equiv = {"SMA", "SMK", "MA", "MAK"}
             if level in sma_equiv and not major:
                 raise HTTPException(
                     400,
@@ -272,6 +318,7 @@ async def onboarding_complete(payload: OnboardingCompletePayload, request: Reque
             update_data["education_level"] = payload.education_level
             update_data["institution"] = payload.institution
             update_data["current_semester"] = payload.current_semester
+            update_data["grade_set_at"] = datetime.now(timezone.utc).isoformat()
             update_data["major"] = payload.major
             update_data["institution_code"] = None
             update_data["class_token_used"] = None
@@ -346,6 +393,8 @@ async def update_profile(payload: ProfileUpdate, request: Request, user: User = 
         update_data["institution"] = payload.institution
     if payload.current_semester is not None:
         update_data["current_semester"] = payload.current_semester
+        if not user.institution_code:  # pelajar mandiri → reset grade_set_at
+            update_data["grade_set_at"] = datetime.now(timezone.utc).isoformat()
     if payload.teaching_methods is not None:
         update_data["teaching_methods"] = payload.teaching_methods
     if payload.clone_voice_enabled is not None:
@@ -439,17 +488,10 @@ async def switch_role(payload: SwitchRolePayload, request: Request, user: User =
         raise HTTPException(status_code=403, detail="Peran tidak terdaftar atau tidak aktif")
 
     # Persist active context. Do not wipe the other persona's scope fields.
-    update_fields = {"role": target_role, "title": None, "active_role": payload.role_type, "active_scope_id": scope_id}
+    update_fields = {"role": target_role, "active_role": payload.role_type, "active_scope_id": scope_id}
 
     if target_role != UserRole.pelajar:
         update_fields["title"] = payload.role_type
-        # If a scope_id was resolved (e.g. from role_assignments), update the active assignment.
-        # Otherwise, keep existing assignments intact to avoid destructive clearing of profile settings.
-        if scope_id is not None:
-            if payload.role_type == "guru_kelas":
-                update_fields["assigned_class"] = scope_id
-            elif payload.role_type == "guru_pengajar":
-                update_fields["assigned_subject"] = scope_id
 
     await db.users.update_one(
         {"user_id": user.user_id},

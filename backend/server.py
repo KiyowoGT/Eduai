@@ -29,7 +29,7 @@ from routers import (
     auth, documents, quizzes, folders, recaps, chats, friends, audio,
     institutions, class_tokens, teacher_schedules, teacher_materials,
     teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace,
-    teacher_students, personality
+    teacher_students, personality, admin, system, report
 )
 
 app = fastapi_app = FastAPI(title="EduScanner AI")
@@ -111,10 +111,20 @@ async def diag_gemini():
     for idx, key in enumerate(GEMINI_API_KEYS):
         masked = key[:8] + "..." if key else ""
         try:
-            url = f"{GEMINI_BASE_URL}/models/{GEMINI_MODEL}:generateContent"
-            body = {"contents": [{"role": "user", "parts": [{"text": "Balas: OK"}]}]}
+            url = f"{GEMINI_BASE_URL}/chat/completions"
+            body = {
+                "model": GEMINI_MODEL,
+                "messages": [{"role": "user", "content": "Balas: OK"}]
+            }
             async with httpx.AsyncClient(timeout=15.0) as hc:
-                r = await hc.post(url, json=body, headers={"X-Goog-Api-Key": key})
+                r = await hc.post(
+                    url,
+                    json=body,
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json"
+                    }
+                )
             ok = r.status_code == 200
             keys_status.append({"key": masked, "ok": ok, "status": r.status_code})
             if ok and not gemini_ok:
@@ -265,9 +275,11 @@ async def startup():
     from tasks.cleanup import cleanup_anonymous_sessions_loop
     from core.kafka import start_producer, KAFKA_ENABLED
 
+    from core.feature_flags import ensure_default_flags
     await _ensure_db_indexes()
     await _ensure_pdfs_bucket()
     await _sync_local_audios_to_mongodb()
+    await ensure_default_flags()
 
     # Start Kafka producer (non-blocking; falls back gracefully if broker is down)
     await start_producer()
@@ -311,6 +323,9 @@ api_router.include_router(redeem.router)
 api_router.include_router(institution_mgmt.router)
 api_router.include_router(shadow_workspace.router)
 api_router.include_router(teacher_students.router)
+api_router.include_router(admin.router)
+api_router.include_router(system.router)
+api_router.include_router(report.router)
 
 # Dev: Music test endpoint
 from pydantic import BaseModel as _BaseModel

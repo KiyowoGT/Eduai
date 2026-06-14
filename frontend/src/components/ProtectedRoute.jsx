@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children, requireOnboarded = true }) {
               </div>
             </div>
             <div className="space-y-2">
-              <p className="font-heading text-2xl text-[#1A1B26] dark:text-white tracking-tight">EduScanner AI</p>
+              <p className="font-heading text-2xl text-[#1A1B26] dark:text-white tracking-tight">Schooly AI</p>
               <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-widest text-[#646675] dark:text-[#A0A2B1] font-bold">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#E5A93C] animate-ping" />
                 <span>Memeriksa sesi akademik...</span>

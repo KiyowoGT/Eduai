@@ -19,7 +19,6 @@ export default function AuditLogViewer() {
   }, []);
 
   const actions = [...new Set(logs.map((l) => l.action).filter(Boolean))];
-
   const filtered = logs.filter((l) => {
     const q = search.toLowerCase();
     if (q && !JSON.stringify(l).toLowerCase().includes(q)) return false;
@@ -38,42 +37,28 @@ export default function AuditLogViewer() {
   return (
     <div className="w-full">
       <div className="mb-8 fade-up">
-        <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Kepatuhan & Keamanan</div>
+        <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">System Operations</div>
         <h1 className="font-heading text-3xl lg:text-4xl text-[#1A1B26] mt-1">Audit Log</h1>
-        <p className="text-sm text-[#646675] mt-1.5">
-          {user?.institution} · Log immutable — tidak dapat diedit atau dihapus
-        </p>
+        <p className="text-sm text-[#646675] mt-1.5">Log immutable — tidak dapat diedit atau dihapus</p>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A2B1]" />
-          <input
-            type="text"
-            placeholder="Cari target_id, metadata, atau actor..."
-            value={search}
+          <input type="text" placeholder="Cari target_id, metadata, atau actor..." value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
-          />
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] placeholder:text-[#A0A2B1] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20" />
         </div>
-        <select
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20"
-        >
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}
+          className="px-4 py-2.5 rounded-lg border border-[#E2E0D8] bg-white text-sm text-[#1A1B26] focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20">
           <option value="">Semua Aksi</option>
-          {actions.map((a) => (
-            <option key={a} value={a}>{a}</option>
-          ))}
+          {actions.map((a) => (<option key={a} value={a}>{a}</option>))}
         </select>
         <button className="inline-flex items-center gap-2 px-4 py-2.5 border border-[#E2E0D8] text-sm text-[#646675] rounded-lg hover:bg-[#F8F6F0] transition-colors">
-          <Download className="w-4 h-4" />
-          Export
+          <Download className="w-4 h-4" /> Export
         </button>
       </div>
 
-      {/* Table */}
       {loading ? (
         <DualLoader type="default" text="Memuat audit log..." />
       ) : filtered.length === 0 ? (
@@ -99,17 +84,13 @@ export default function AuditLogViewer() {
                     {new Date(log.timestamp || log.created_at).toLocaleString("id-ID")}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="text-[#1A1B26]">{log.actor?.name || log.actor || "-"}</div>
+                    <div className="text-[#1A1B26] font-medium">{log.actor?.name || log.actor || "-"}</div>
                     {log.actor?.role && <div className="text-xs text-[#646675]">{log.actor.role}</div>}
                   </td>
                   <td className="py-3 px-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${actionColor(log.action)}`}>
-                      {log.action || "-"}
-                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${actionColor(log.action)}`}>{log.action || "-"}</span>
                   </td>
-                  <td className="py-3 px-4 text-[#646675] text-xs">
-                    {log.target ? `${log.target.type || "?"}: ${log.target.id || "?"}` : "-"}
-                  </td>
+                  <td className="py-3 px-4 text-[#646675] text-xs">{log.target ? `${log.target.type || "?"}: ${log.target.id || "?"}` : "-"}</td>
                   <td className="py-3 px-4 text-[#646675] text-xs font-mono">{log.ip_address || "-"}</td>
                 </tr>
               ))}
@@ -118,14 +99,11 @@ export default function AuditLogViewer() {
         </div>
       )}
 
-      {/* Immutability Notice */}
       <div className="mt-6 flex items-start gap-3 p-4 rounded-xl bg-[#B83A4B]/5 border border-[#B83A4B]/10">
         <Shield className="w-5 h-5 text-[#B83A4B] shrink-0 mt-0.5" />
         <div>
           <div className="text-sm font-medium text-[#B83A4B]">Log Audit Bersifat Immutable</div>
-          <div className="text-xs text-[#646675] mt-0.5">
-            Semua log audit dicatat secara permanen dan tidak dapat diedit atau dihapus oleh siapapun, termasuk Kepala Sekolah. Setiap perubahan di sistem selalu meninggalkan jejak digital yang tidak bisa diubah.
-          </div>
+          <div className="text-xs text-[#646675] mt-0.5">Semua log audit dicatat secara permanen dan tidak dapat diedit atau dihapus.</div>
         </div>
       </div>
     </div>

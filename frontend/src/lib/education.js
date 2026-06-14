@@ -1,4 +1,4 @@
-export const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK", "MA", "Universitas"];
+export const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK", "MA", "MAK"];
 
 export const MAJORS = {
   SD: [],
@@ -31,33 +31,7 @@ export const MAJORS = {
     "Asisten Keperawatan",
     "Agribisnis Tanaman",
   ],
-  Universitas: [
-    "Informatika / Ilmu Komputer",
-    "Sistem Informasi",
-    "Teknik Elektro",
-    "Teknik Sipil",
-    "Teknik Industri",
-    "Teknik Mesin",
-    "Arsitektur",
-    "Kedokteran",
-    "Keperawatan",
-    "Farmasi",
-    "Kesehatan Masyarakat",
-    "Agribisnis",
-    "Akuntansi",
-    "Manajemen",
-    "Ilmu Hukum",
-    "Ilmu Komunikasi",
-    "Hubungan Internasional",
-    "Administrasi Bisnis",
-    "Administrasi Publik",
-    "Psikologi",
-    "Sastra Inggris",
-    "Ilmu Politik",
-    "Sosiologi",
-    "Pendidikan Guru Sekolah Dasar (PGSD)",
-    "Desain Komunikasi Visual (DKV)",
-  ],
+  MAK: [],
 };
 
 export function hasMajor(level) {
@@ -68,24 +42,21 @@ export function gradeOptions(level) {
   // returns [{value, label}]
   if (level === "SD") return [1,2,3,4,5,6].map(n => ({ value: String(n), label: `Kelas ${n}` }));
   if (level === "SMP") return [7,8,9].map(n => ({ value: String(n), label: `Kelas ${n}` }));
-  if (["SMA","SMK","MA"].includes(level)) return [10,11,12].map(n => ({ value: String(n), label: `Kelas ${n}` }));
-  if (level === "Universitas") return [1,2,3,4,5,6,7,8,9,10,11,12,13,14].map(n => ({ value: String(n), label: `Semester ${n}` }));
+  if (["SMA","SMK","MA","MAK"].includes(level)) return [10,11,12].map(n => ({ value: String(n), label: `Kelas ${n}` }));
   return [];
 }
 
 export function gradeLabel(level, n) {
   if (!n) return "";
-  if (level === "Universitas") return `Semester ${n}`;
   return `Kelas ${n}`;
 }
 
 export function institutionLabel(level) {
-  if (level === "Universitas") return "Universitas";
   return "Nama Sekolah";
 }
 
 export function institutionPlaceholder(level) {
-  if (level === "Universitas") return "Misal: UBSI / Universitas Indonesia";
-  if (level === "SMK") return "Misal: SMKN 1 Jakarta";
+  if (level === "SMK" || level === "MAK") return "Misal: SMKN 1 Jakarta";
+  if (level === "MA") return "Misal: MAN 1 Bandung";
   return "Misal: SMAN 3 Bandung / SMP Labschool";
 }

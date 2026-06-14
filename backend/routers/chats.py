@@ -36,15 +36,22 @@ def _can_trigger_bot(doc_id: str, user_id: str) -> bool:
     _BOT_RATE_LIMIT[key] = times
     return True
 
-async def _can_access_discussion(doc_id: str, user_id: str) -> Optional[dict]:
-    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user_id}, {"_id": 0})
+async def _can_access_discussion(doc_id: str, user: User) -> Optional[dict]:
+    # Owner check
+    doc = await db.documents.find_one({"document_id": doc_id, "user_id": user.user_id}, {"_id": 0})
     if doc:
         return doc
+        
+    # Participant check
     participant = await db.discussion_participants.find_one(
-        {"document_id": doc_id, "user_id": user_id}, {"_id": 0}
+        {"document_id": doc_id, "user_id": user.user_id}, {"_id": 0}
     )
     if participant:
-        doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0, "file_path": 0})
+        query = {"document_id": doc_id}
+        if user.institution_code:
+            query["institution_code"] = user.institution_code
+            
+        doc = await db.documents.find_one(query, {"_id": 0, "file_path": 0})
         return doc
     return None
 
@@ -238,7 +245,7 @@ async def get_document_quiz_results(document_id: str, user: User = Depends(get_c
 
 @router.get("/documents/{doc_id}/messages")
 async def list_discussion_messages(doc_id: str, user: User = Depends(get_current_user), limit: int = 50, before: Optional[str] = None):
-    doc = await _can_access_discussion(doc_id, user.user_id)
+    doc = await _can_access_discussion(doc_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     query = {"document_id": doc_id}
@@ -252,7 +259,7 @@ async def list_discussion_messages(doc_id: str, user: User = Depends(get_current
 
 @router.post("/documents/{doc_id}/messages")
 async def send_discussion_message(doc_id: str, payload: SendMessagePayload, user: User = Depends(get_current_user)):
-    doc = await _can_access_discussion(doc_id, user.user_id)
+    doc = await _can_access_discussion(doc_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
     if not payload.content.strip():
@@ -350,7 +357,7 @@ async def invite_to_discussion(doc_id: str, payload: DiscussionInvitePayload, us
 
 @router.get("/documents/{doc_id}/discussion/participants")
 async def list_discussion_participants(doc_id: str, user: User = Depends(get_current_user)):
-    doc = await _can_access_discussion(doc_id, user.user_id)
+    doc = await _can_access_discussion(doc_id, user)
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
 

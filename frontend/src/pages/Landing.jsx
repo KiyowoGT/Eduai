@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useAuth } from "@/context/AuthContext";
+
+gsap.registerPlugin(ScrollTrigger);
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, GraduationCap, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap, Menu, X } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
@@ -12,6 +16,34 @@ export default function Landing() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    ScrollTrigger.refresh();
+
+    gsap.fromTo(".feature-card", 
+      { opacity: 0, y: 50 },
+      { 
+        opacity: 1, y: 0, duration: 0.8, stagger: 0.2,
+        scrollTrigger: {
+          trigger: "#fitur",
+          start: "top 80%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+
+    gsap.fromTo(".pricing-card", 
+      { opacity: 0, scale: 0.9 },
+      { 
+        opacity: 1, scale: 1, duration: 0.8, stagger: 0.3,
+        scrollTrigger: {
+          trigger: "#harga",
+          start: "top 70%",
+          toggleActions: "play none none reverse"
+        }
+      }
+    );
+  }, []);
 
   if (loading) {
     return <DualLoader variant="full" type="landing" text="Mempersiapkan portal akademik..." />;
@@ -36,7 +68,7 @@ export default function Landing() {
               <GraduationCap className="w-5 h-5 text-[#E5A93C] relative z-10" />
             </div>
             <div className="flex flex-col text-left">
-              <span className="font-heading text-lg sm:text-xl font-bold tracking-tighter text-[#1D2D50] dark:text-white">EduScanner <span className="text-[#B83A4B]">AI</span></span>
+              <span className="font-heading text-lg sm:text-xl font-bold tracking-tighter text-[#1D2D50] dark:text-white">Schooly <span className="text-[#B83A4B]">AI</span></span>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="h-[1px] w-3 bg-[#E5A93C]" />
                 <span className="text-[8px] uppercase tracking-[0.4em] text-[#1D2D50] dark:text-[#E5A93C] font-black leading-none">Premier Tier</span>
@@ -123,8 +155,8 @@ export default function Landing() {
             </div>
             
             <h1 className="font-heading text-4xl sm:text-6xl md:text-7xl xl:text-8xl text-[#1D2D50] dark:text-white tracking-tighter leading-[0.95] mb-8">
-              Riset Akademik, <br />
-              <span className="italic text-[#E5A93C] italic-scholarly">Eksklusif.</span>
+              Dari Materi Jadi <br />
+              <span className="italic text-[#E5A93C] italic-scholarly">Prestasi.</span>
             </h1>
             
             <p className="text-[#1D2D50] dark:text-white/70 text-base sm:text-lg md:text-xl leading-relaxed max-w-xl font-bold mb-12">
@@ -240,7 +272,7 @@ export default function Landing() {
             <h2 className="font-heading text-3xl sm:text-5xl md:text-7xl text-white tracking-tighter italic italic-scholarly leading-none mb-6">Investasi <span className="not-italic font-black text-[#E5A93C]">Akademik.</span></h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 items-stretch">
+          <div className="pricing-card-container">
             <PricingCard 
               title="Basic"
               price="IDR 0"
@@ -258,7 +290,7 @@ export default function Landing() {
             <PricingCard 
               title="Institution"
               price="Custom"
-              desc="Lembaga riset & universitas."
+              desc="Lembaga riset & sekolah."
               features={["Admin Dashboard", "Audit Log Analytics", "SLA Guarantee", "Custom API"]}
             />
           </div>
@@ -293,7 +325,7 @@ export default function Landing() {
                   <GraduationCap className="w-7 h-7 text-[#E5A93C]" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-heading text-3xl font-black tracking-tighter text-[#1D2D50] dark:text-white leading-none">EduScanner AI</span>
+                  <span className="font-heading text-3xl font-black tracking-tighter text-[#1D2D50] dark:text-white leading-none">Schooly AI</span>
                   <span className="text-[9px] uppercase tracking-[0.4em] text-[#B83A4B] dark:text-[#E5A93C] font-black mt-1">Superior Framework</span>
                 </div>
               </div>
@@ -327,7 +359,7 @@ export default function Landing() {
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-12 border-t border-[#1D2D50]/10 dark:border-white/10 opacity-70">
-            <p className="text-[10px] uppercase tracking-[0.3em] font-black text-[#1D2D50] dark:text-white/50">© 2026 EduScanner AI Framework • Premier Edition</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] font-black text-[#1D2D50] dark:text-white/50">© 2026 Schooly AI Framework • Premier Edition</p>
             <div className="flex items-center gap-4 bg-[#1D2D50]/5 dark:bg-white/5 px-4 py-2 rounded-full border border-[#1D2D50]/10 dark:border-white/10 shadow-sm">
                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse" />
                <span className="text-[9px] uppercase tracking-widest font-black text-[#1D2D50] dark:text-white/80">Quantum Nodes Online</span>
@@ -341,7 +373,7 @@ export default function Landing() {
 
 function FeatureCard({ icon: Icon, title, desc }) {
   return (
-    <div className="p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] bg-white dark:bg-white/5 border-2 border-[#1D2D50]/5 dark:border-white/5 shadow-xl transition-all duration-700 hover:scale-[1.05] hover:shadow-[0_40px_80px_-20px_rgba(29,45,80,0.15)] hover:border-[#E5A93C]/40 dark:hover:border-[#E5A93C]/60 group relative overflow-hidden">
+    <div className="feature-card p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] bg-white dark:bg-white/5 border-2 border-[#1D2D50]/5 dark:border-white/5 shadow-xl transition-all duration-700 hover:scale-[1.05] hover:shadow-[0_40px_80px_-20px_rgba(29,45,80,0.15)] hover:border-[#E5A93C]/40 dark:hover:border-[#E5A93C]/60 group relative overflow-hidden">
       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#E5A93C]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
       <div className="w-16 h-16 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center mb-8 shadow-2xl border border-white/10 group-hover:rotate-6 transition-transform duration-500">
         <Icon className="w-6 h-6 text-[#E5A93C] dark:text-[#12131A]" />
@@ -354,35 +386,35 @@ function FeatureCard({ icon: Icon, title, desc }) {
 
 function PricingCard({ title, price, period = "", desc, features, premium = false }) {
   return (
-    <div className={`relative p-6 sm:p-10 md:p-12 rounded-[2rem] sm:rounded-[3rem] md:rounded-[3.5rem] transition-all duration-1000 md:hover:scale-[1.03] flex flex-col overflow-hidden ${premium ? 'bg-[#1D2D50] dark:bg-[#121E36] text-white shadow-[0_50px_100px_-20px_rgba(29,45,80,0.4)] md:scale-105 border-4 border-[#E5A93C] z-10' : 'bg-white dark:bg-white/5 text-[#1D2D50] dark:text-white border-2 border-[#1D2D50]/10 dark:border-white/10 shadow-xl'}`}>
+    <div className={`pricing-card${premium ? ' premium-tier' : ''}`}>
       {premium && (
-        <div className="absolute top-0 right-0 px-8 py-3 bg-[#E5A93C] text-[#1D2D50] dark:text-[#12131A] text-[10px] font-black uppercase tracking-[0.4em] rounded-bl-3xl shadow-2xl z-20">
+        <div className="badge-premier">
           Premier tier
         </div>
       )}
       
-      <div className="mb-8 md:mb-12 text-left">
-        <span className={`text-[10px] font-black uppercase tracking-[0.5em] mb-4 block ${premium ? 'text-[#E5A93C]' : 'text-[#B83A4B] dark:text-[#E5A93C]'}`}>{title}</span>
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-4xl sm:text-5xl md:text-6xl font-heading font-black tracking-tighter italic italic-scholarly">{price}</span>
-          <span className={`text-sm font-bold uppercase tracking-widest ${premium ? 'text-white/40' : 'text-[#1D2D50]/30 dark:text-white/30'}`}>{period}</span>
-        </div>
-        <p className={`text-xs font-bold mt-6 leading-relaxed ${premium ? 'text-white/70' : 'text-[#1D2D50]/80 dark:text-white/60'}`}>{desc}</p>
+      <div className="header-title">{title}</div>
+      
+      <div className="price-row">
+        <span className="price-val">{price}</span>
+        {period && <span className="price-period">{period}</span>}
       </div>
-
-      <div className="space-y-5 mb-10 md:mb-14 flex-1">
+      
+      <p className="card-desc">{desc}</p>
+      
+      <div className="features-list">
         {features.map((feature, idx) => (
-          <div key={idx} className="flex items-center gap-4">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center border ${premium ? 'border-[#E5A93C]/40 bg-[#E5A93C]/10' : 'border-[#1D2D50]/20 bg-[#1D2D50]/5 dark:border-white/20 dark:bg-white/5'}`}>
+          <div key={idx} className="feature-item">
+            <div className="icon-wrapper">
                <CheckCircle2 className={`w-3 h-3 ${premium ? 'text-[#E5A93C]' : 'text-[#1D2D50] dark:text-[#E5A93C]'}`} />
             </div>
-            <span className={`text-[12px] font-black uppercase tracking-widest ${premium ? 'text-white/90' : 'text-[#1D2D50] dark:text-white/80'}`}>{feature}</span>
+            <span className={premium ? 'text-white/90' : 'text-[#1D2D50] dark:text-white/80'}>{feature}</span>
           </div>
         ))}
       </div>
 
       <Button
-        className={`w-full h-14 md:h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.4em] transition-all duration-500 ${premium ? 'bg-[#E5A93C] hover:bg-[#D4AF37] text-[#1D2D50] dark:text-[#12131A] shadow-[0_20px_50px_rgba(229,169,60,0.3)]' : 'bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] shadow-xl hover:shadow-2xl'}`}
+        className={`cta-btn ${premium ? 'bg-[#E5A93C] hover:bg-[#D4AF37] text-[#1D2D50] dark:text-[#12131A] shadow-[0_20px_50px_rgba(229,169,60,0.3)]' : 'bg-[#1D2D50] dark:bg-[#E5A93C] hover:bg-[#15223E] dark:hover:bg-[#D4AF37] text-white dark:text-[#12131A] shadow-xl hover:shadow-2xl'}`}
       >
         Aktivasi {title}
       </Button>
