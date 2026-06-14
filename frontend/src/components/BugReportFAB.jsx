@@ -10,8 +10,8 @@ export default function BugReportFAB() {
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   
-  // Deteksi halaman spesifik
-  const isTargetPage = location.pathname === '/dokumen/ec13668112ec46b699dd3a2b73cbd1ef';
+  // Deteksi halaman dokumen manapun
+  const isDocumentPage = location.pathname.startsWith('/dokumen/');
 
   useEffect(() => {
     let timeout;
@@ -30,8 +30,8 @@ export default function BugReportFAB() {
     };
   }, []);
 
-  // JANGAN RENDER WIDGET jika di mobile DAN di halaman target
-  if (isMobile && isTargetPage) {
+  // JANGAN RENDER WIDGET jika di mobile DAN di halaman dokumen
+  if (isMobile && isDocumentPage) {
     return null;
   }
 
