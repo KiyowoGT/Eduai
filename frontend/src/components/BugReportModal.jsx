@@ -1,55 +1,49 @@
 import { useState } from "react";
-import { Headphones, Users, Bot, X, Send, Phone, Mail, Clock } from "lucide-react";
+import { 
+  Headset, Users, Sparkles, X, Send, Phone, Mail, Clock, 
+  GraduationCap, BookOpen, ChevronRight, MessageSquare 
+} from "lucide-react";
 import { toast } from "sonner";
 import { http } from "@/lib/api";
 
 const TABS = [
-  { id: "support", label: "Support", icon: Headphones },
-  { id: "channel", label: "Channel", icon: Users },
-  { id: "chatbot", label: "Chatbot", icon: Bot },
+  { id: "support", label: "Support", icon: Headset },
+  { id: "channels", label: "Channels", icon: Users },
+  { id: "ai", label: "AI Assistant", icon: Sparkles },
 ];
 
 export default function BugReportModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState("support");
-  const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleReport = async () => {
-    if (!title.trim()) {
-      toast.error("Tulis dulu laporannya.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await http.post("/report-bug", { title: title.trim(), severity: "Medium" });
-      toast.success("Laporan terkirim! Tim CS akan segera merespons.");
-      setTitle("");
-      onClose();
-    } catch {
-      toast.error("Gagal mengirim laporan.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/20 backdrop-blur-sm transition-all" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-4 duration-300"
+        className="bg-white rounded-t-[24px] md:rounded-[24px] w-full max-w-[400px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-in slide-in-from-bottom-6 duration-500 ease-out"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 pb-3">
-          <h2 className="font-heading text-lg font-bold text-[#1A1B26]">Contact Support</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5 text-[#646675]" />
-          </button>
+        <div className="p-6 pb-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#2563EB]/10 flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-[#2563EB]" />
+              </div>
+              <h2 className="font-heading text-xl font-bold text-slate-900 tracking-tight">EduAI Help Center</h2>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-all">
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Need help? Contact our team or ask EduAI Assistant.
+          </p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 px-5 mb-5">
+        {/* Navigation Tabs */}
+        <div className="flex p-2 bg-slate-50/50 border-b border-slate-100">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -57,136 +51,109 @@ export default function BugReportModal({ isOpen, onClose }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center gap-1.5 flex-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${
+                className={`flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
-                    ? "bg-[#1D2D50]/10 text-[#1D2D50] ring-1 ring-[#1D2D50]/20"
-                    : "bg-[#F8F6F0] text-[#646675] hover:bg-[#E2E0D8]"
+                    ? "bg-white text-[#2563EB] shadow-sm ring-1 ring-slate-200"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? "text-[#1D2D50]" : "text-[#A0A2B1]"}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-[#2563EB]" : "text-slate-400"}`} />
                 {tab.label}
               </button>
             );
           })}
         </div>
 
-        {/* Tab Content */}
-        <div className="px-5 pb-5">
-          {activeTab === "support" && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-[#1A1B26]">Contact Options</h3>
+        {/* Content Area */}
+        <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          {/* Support & Channels Content */}
+          {(activeTab === "support" || activeTab === "channels") && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[13px] font-bold uppercase tracking-wider text-slate-400">Contact Options</h3>
+              </div>
 
-              {/* Telegram */}
-              <a
-                href="https://t.me/adminschoolyai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 rounded-xl border border-[#E2E0D8] hover:bg-[#F8F6F0] transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#0088CC] grid place-items-center shrink-0">
+              {/* Telegram Card */}
+              <a href="https://t.me/adminschoolyai" target="_blank" className="group flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-white hover:border-[#2563EB]/30 hover:shadow-md transition-all">
+                <div className="w-11 h-11 rounded-xl bg-[#0088CC] flex items-center justify-center shrink-0 shadow-lg shadow-[#0088CC]/20 group-hover:scale-105 transition-transform">
                   <Send className="w-5 h-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-[#1A1B26]">Telegram</div>
-                  <div className="text-xs text-[#646675]">Quick chat support</div>
+                <div className="flex-1">
+                  <div className="text-[15px] font-bold text-slate-900">Telegram Support</div>
+                  <div className="text-xs text-slate-500">Quick response from our support team</div>
                 </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors" />
               </a>
 
-              {/* WhatsApp */}
-              <div className="flex items-center gap-3 p-3 rounded-xl border border-[#E2E0D8] bg-[#F8F6F0] opacity-60">
-                <div className="w-10 h-10 rounded-lg bg-[#25D366] grid place-items-center shrink-0">
+              {/* WhatsApp Card */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl border border-slate-50 bg-slate-50/50 opacity-60">
+                <div className="w-11 h-11 rounded-xl bg-[#25D366] flex items-center justify-center shrink-0 grayscale">
                   <Phone className="w-5 h-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-[#1A1B26]">WhatsApp</div>
-                  <div className="text-xs text-[#646675]">Now inactive (suspend)</div>
+                <div className="flex-1">
+                  <div className="text-[15px] font-bold text-slate-900">WhatsApp Support</div>
+                  <div className="text-xs text-slate-500">Direct customer assistance</div>
                 </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Inactive</span>
               </div>
 
-              {/* Email */}
-              <a
-                href="mailto:admin@cindigital.id"
-                className="flex items-center gap-3 p-3 rounded-xl border border-[#E2E0D8] hover:bg-[#F8F6F0] transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#B83A4B] grid place-items-center shrink-0">
+              {/* Email Card */}
+              <a href="mailto:admin@eduai.id" className="group flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-white hover:border-[#2563EB]/30 hover:shadow-md transition-all">
+                <div className="w-11 h-11 rounded-xl bg-[#2563EB] flex items-center justify-center shrink-0 shadow-lg shadow-[#2563EB]/20 group-hover:scale-105 transition-transform">
                   <Mail className="w-5 h-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-[#1A1B26]">Email</div>
-                  <div className="text-xs text-[#646675]">admin@cindigital.id</div>
+                <div className="flex-1">
+                  <div className="text-[15px] font-bold text-slate-900">Email Support</div>
+                  <div className="text-xs text-slate-500">admin@eduai.id</div>
                 </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2563EB] transition-colors" />
               </a>
-
-              {/* Footer */}
-              <div className="flex items-center gap-2 pt-2 text-xs text-[#A0A2B1]">
-                <Clock className="w-3.5 h-3.5" />
-                Aktif: 09:00 - 21:00 ( kecuali kamis/jumat )
-              </div>
             </div>
           )}
 
-          {activeTab === "channel" && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-[#1A1B26]">Community Channel</h3>
-              <a
-                href="https://t.me/schoolyai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 rounded-xl border border-[#E2E0D8] hover:bg-[#F8F6F0] transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#0088CC] grid place-items-center shrink-0">
-                  <Users className="w-5 h-5 text-white" />
+          {/* AI Assistant Content */}
+          {activeTab === "ai" && (
+            <div className="space-y-4 animate-in zoom-in-95 duration-300">
+              <div className="p-6 rounded-[24px] bg-gradient-to-br from-[#2563EB] to-[#4F46E5] text-white shadow-xl shadow-blue-500/20 relative overflow-hidden">
+                <Sparkles className="absolute -top-2 -right-2 w-24 h-24 text-white/10 rotate-12" />
+                
+                <div className="relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-4">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-1">Ask EduAI Assistant</h3>
+                  <p className="text-blue-100 text-sm mb-5">Get instant help with your learning journey.</p>
+                  
+                  <div className="space-y-2 mb-6">
+                    {['Account issues', 'Learning features', 'Quiz Lab', 'Redeem Codes'].map((item) => (
+                      <div key={item} className="flex items-center gap-2 text-xs font-medium bg-white/10 py-1.5 px-3 rounded-full w-fit">
+                        <BookOpen className="w-3 h-3" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <a href="/chat" className="flex items-center justify-center gap-2 w-full bg-white text-[#2563EB] py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-50 transition-colors">
+                    <MessageSquare className="w-4 h-4" />
+                    Start AI Conversation
+                  </a>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-[#1A1B26]">Telegram Group</div>
-                  <div className="text-xs text-[#646675]">Gabung komunitas Schooly AI</div>
-                </div>
-              </a>
-              <div className="flex items-center gap-2 pt-2 text-xs text-[#A0A2B1]">
-                <Clock className="w-3.5 h-3.5" />
-                Diskusi bebas, sharing materi, dan update terbaru
               </div>
             </div>
           )}
+        </div>
 
-          {activeTab === "chatbot" && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-[#1A1B26]">AI Chatbot</h3>
-              <div className="p-4 rounded-xl border border-[#E2E0D8] bg-[#F8F6F0] text-center">
-                <Bot className="w-10 h-10 text-[#1D2D50] mx-auto mb-3" />
-                <div className="text-sm font-bold text-[#1A1B26] mb-1">Virtual Tutor AI</div>
-                <div className="text-xs text-[#646675] mb-3">Tanya jawab materi pelajaran langsung dengan AI tutor</div>
-                <a
-                  href="/chat"
-                  className="inline-flex items-center gap-2 bg-[#1D2D50] text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-[#15223E] transition-colors"
-                >
-                  <Bot className="w-4 h-4" />
-                  Mulai Chat
-                </a>
-              </div>
+        {/* Footer */}
+        <div className="p-5 pt-0">
+          <div className="flex items-center justify-center gap-4 py-3 px-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+              <Clock className="w-4 h-4 text-[#2563EB]" />
             </div>
-          )}
-
-          {/* Laporan Bug (di semua tab) */}
-          {activeTab === "support" && (
-            <div className="mt-4 pt-4 border-t border-[#E2E0D8] space-y-3">
-              <h3 className="text-sm font-bold text-[#1A1B26]">Lapor Masalah / Bug</h3>
-              <textarea
-                className="w-full border border-[#E2E0D8] p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20 resize-none"
-                placeholder="Ceritakan masalah atau kendala kamu..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                rows={3}
-              />
-              <button
-                onClick={handleReport}
-                disabled={loading || !title.trim()}
-                className="w-full bg-[#1D2D50] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#15223E] transition-colors disabled:opacity-50"
-              >
-                {loading ? "Mengirim..." : "Kirim Laporan"}
-              </button>
+            <div>
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Support Hours</div>
+              <div className="text-xs font-semibold text-slate-700">09:00 – 21:00 WIB <span className="text-slate-400 font-normal">(except Thu & Fri)</span></div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
