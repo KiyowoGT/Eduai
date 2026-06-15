@@ -166,43 +166,29 @@ async def send_chat_message(document_id: str, payload: ChatQuestion, user: User 
         "key_concepts": [c.get("concept", "") for c in doc.get("key_concepts", [])[:5]],
     }, ensure_ascii=False)
 
-    if user.role == "pelajar" and user.institution_code:
-        # Sandbox mode
-        system = "Anda adalah AI Mentor EduAI yang disiplin."
-        prompt = SANDBOX_PROMPT_TEMPLATE.format(
-            student_name=user.name,
-            class_name=user.enrolled_class or "Umum",
-            referenced_documents_summary=doc_context,
-            grade_level=user.education_level or "Sekolah",
-            student_question=payload.question
-        )
-    else:
-        system = (
-            f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
-            f"Kamu membantu user memahami dokumen dan hasil kuis mereka. Bahasa Indonesia. "
-            f"Gunakan data dokumen dan riwayat kuis untuk menjawab. "
-            f"Jika user menyebut @result:ID, lihat detail kuis tersebut. "
-            f"Jangan gunakan markdown (** atau ###) dalam jawaban."
-        )
+    # Gunakan SANDBOX_PROMPT_TEMPLATE untuk semua user agar konsisten dengan visi Socratic Tutor
+    system = "Anda adalah AI Mentor EduAI yang disiplin."
+    
+    results_summary = []
+    for r in quiz_results_list[:5]:
+        score = r.get("score", 0)
+        date_str = (r.get("created_at") or "")[:10]
+        rid = r.get("result_id", "")
+        results_summary.append(f"- {date_str} | Skor: {score}/100 | Sebut: @result:{rid}")
 
-        results_summary = []
-        for r in quiz_results_list[:5]:
-            score = r.get("score", 0)
-            date_str = (r.get("created_at") or "")[:10]
-            rid = r.get("result_id", "")
-            results_summary.append(f"- {date_str} | Skor: {score}/100 | Sebut: @result:{rid}")
+    quiz_context = ""
+    if results_summary:
+        quiz_context = "\nRIWAYAT KUIS:\n" + "\n".join(results_summary)
+    if mention_text:
+        quiz_context += f"\n\nDETAIL KUIS YANG DISEBUT:\n{mention_text}"
 
-        quiz_context = ""
-        if results_summary:
-            quiz_context = "\nRIWAYAT KUIS:\n" + "\n".join(results_summary)
-        if mention_text:
-            quiz_context += f"\n\nDETAIL KUIS YANG DISEBUT:\n{mention_text}"
-
-        prompt = (
-            f"DOKUMEN:\n{doc_context}\n"
-            f"{quiz_context}\n\n"
-            f"PERTANYAAN: {payload.question}"
-        )
+    full_context = f"{doc_context}\n{quiz_context}"
+    
+    prompt = SANDBOX_PROMPT_TEMPLATE.format(
+        student_name=user.name,
+        referenced_documents_summary=full_context,
+        student_question=payload.question
+    )
 
     try:
         resp = await _call_groq(system, prompt)

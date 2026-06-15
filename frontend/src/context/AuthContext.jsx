@@ -14,7 +14,7 @@ function sessionToUser(session) {
     name: u.user_metadata?.full_name || u.user_metadata?.name || "",
     picture: u.user_metadata?.avatar_url,
     // Don't assume onboarded is false; wait for enrich or trust prev state
-    onboarded: true, 
+    onboarded: undefined,
     subjects: [],
     schedule: [],
   };
