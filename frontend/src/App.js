@@ -93,6 +93,7 @@ function AppRouter() {
               <Route path="/admin/settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
               <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
               <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
+    <Route path="/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
               </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
