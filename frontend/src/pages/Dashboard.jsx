@@ -231,7 +231,8 @@ export default function Dashboard() {
       </div>
 
       {(docs?.length || 0) === 0 ? (
-        <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center">
+        <div className="text-sm text-[#646675] bg-white border border-dashed border-[#E2E0D8] rounded-xl p-8 text-center flex flex-col items-center">
+          <img src="/img/mascot-not-found.png" alt="Empty" className="w-32 h-32 mb-4 object-contain" />
           Belum ada dokumen. Upload file pertama di atas.
         </div>
       ) : (
