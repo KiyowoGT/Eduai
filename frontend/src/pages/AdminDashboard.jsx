@@ -34,10 +34,10 @@ export default function AdminDashboard() {
         setStats(s);
         setTraffic(prev => [...prev.slice(1), s.cpu]);
 
-        // Users count
+        // Users count from system stats
         try {
-          const { data: users } = await http.get("/admin/users");
-          setUserCount(Array.isArray(users) ? users.length : 0);
+          const { data: s } = await http.get("/admin/system-stats");
+          setUserCount(s.user_count || 0);
         } catch { /* admin only */ }
 
         // Bugs count
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
         } catch { /* admin only */ }
 
         // AI health check (as proxy for activity)
-        const { data: ai } = await http.get("/api/diag/kafka");
+        const { data: ai } = await http.get("/diag/kafka");
         setAiUsage(prev => [...prev.slice(1), ai.ok ? 50 : 0]);
       } catch (e) { console.error("Dashboard fetch error:", e); }
     };
