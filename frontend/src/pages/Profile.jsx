@@ -533,20 +533,6 @@ export default function Profile() {
         </div>
       </div>
       
-      {/* Help & Support (CS) */}
-      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6">
-        <h2 className="font-heading text-lg text-[#1A1B26] mb-4 flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-[#1D2D50]" />
-            Bantuan & Dukungan Pelanggan
-        </h2>
-        <p className="text-sm text-[#646675] mb-4">
-            Laporkan masalah, berikan saran, atau dapatkan bantuan teknis dari tim dukungan kami.
-        </p>
-        <Button onClick={() => setShowBugReportModal(true)} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-10 px-6 rounded-xl text-sm">
-            Lapor Masalah
-        </Button>
-      </div>
-
       {/* Other Menus (Mobile Only) */}
       {otherMenus.length > 0 && (
         <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 mb-6 md:hidden">

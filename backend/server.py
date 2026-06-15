@@ -45,14 +45,12 @@ async def log_requests(request: Request, call_next):
         response = await call_next(request)
         logger.info(f"Response status: {response.status_code}")
         return response
-    except HTTPException:
-        raise
     except Exception as e:
-        tb = traceback.format_exc()
-        logger.error(f"Request failed: {e}\n{tb}")
+        # Logging error lebih aman tanpa akses internal object
+        logger.error(f"Request failed: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Internal server error: {e}", "traceback": tb},
+            content={"detail": "Internal server error"},
         )
 
 # ============== Websocket Route ==============
@@ -353,7 +351,7 @@ async def custom_404_handler(request: Request, exc):
     
     # Jika mengarah ke halaman frontend (seperti /auth/callback atau /dashboard),
     # arahkan kembali ke file index.html dari build frontend agar React Router yang menangani rutenya
-    FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "frontend" / "build"
+    FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "blue"
     index_file = FRONTEND_BUILD / "index.html"
     if index_file.is_file():
         return FileResponse(index_file)
@@ -364,7 +362,7 @@ async def custom_404_handler(request: Request, exc):
 fastapi_app.include_router(api_router)
 
 # Serve frontend static assets (JS, CSS, etc.)
-FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "frontend" / "build"
+FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "blue"
 static_dir = FRONTEND_BUILD / "static"
 if static_dir.is_dir():
     fastapi_app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
