@@ -10,8 +10,9 @@ export default function BugReportFAB() {
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   
-  // Deteksi halaman dokumen manapun
+  // Deteksi halaman dokumen manapun dan portal admin
   const isDocumentPage = location.pathname.startsWith('/dokumen/');
+  const isAdminPage = location.pathname.startsWith('/admin');
 
   useEffect(() => {
     let timeout;
@@ -30,8 +31,8 @@ export default function BugReportFAB() {
     };
   }, []);
 
-  // JANGAN RENDER WIDGET jika di mobile DAN di halaman dokumen
-  if (isMobile && isDocumentPage) {
+  // JANGAN RENDER WIDGET jika di mobile DAN di halaman dokumen, atau jika berada di halaman admin
+  if ((isMobile && isDocumentPage) || isAdminPage) {
     return null;
   }
 
