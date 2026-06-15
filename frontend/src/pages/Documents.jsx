@@ -1169,7 +1169,8 @@ export default function Documents() {
       {loading ? (
         <PageSkeleton variant="grid" />
       ) : docs.length === 0 ? (
-        <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675]">
+        <div className="bg-white border border-dashed border-[#E2E0D8] rounded-xl p-10 text-center text-sm text-[#646675] flex flex-col items-center">
+          <img src="/img/mascot-not-found.png" alt="Empty" className="w-32 h-32 mb-4 object-contain" />
           Belum ada dokumen. Upload PDF dari Dashboard.
         </div>
       ) : (
