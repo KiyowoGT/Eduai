@@ -606,7 +606,7 @@ async def quiz_result_chat(result_id: str, payload: QuizChatPayload, user: User 
     }
 
     system = (
-        f"Kamu adalah EduScanner AI, tutor akademik untuk {audience}. "
+        f"Kamu adalah Schooly AI, tutor akademik untuk {audience}. "
         f"Kamu membantu user memahami hasil kuis mereka. Bahasa Indonesia. "
         f"Gunakan data kuis untuk menjawab. "
         f"Jangan gunakan markdown (** atau ###) dalam jawaban. "

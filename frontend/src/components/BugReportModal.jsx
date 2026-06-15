@@ -20,7 +20,7 @@ export default function BugReportModal({ isOpen, onClose }) {
   // Chat AI State
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Halo! Saya Customer Support EduAI. Ada kendala teknis atau pertanyaan seputar fitur platform yang bisa saya bantu?" }
+    { role: "assistant", content: "Halo! Saya Customer Support Schooly AI. Ada kendala teknis atau pertanyaan seputar fitur platform yang bisa saya bantu?" }
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const chatEndRef = useRef(null);

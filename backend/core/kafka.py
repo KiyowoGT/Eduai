@@ -1,5 +1,5 @@
 """
-core/kafka.py — Kafka producer, consumer & monitoring for EduAI.
+core/kafka.py — Kafka producer, consumer & monitoring for Schooly AI.
 
 All heavy AI jobs are published as JSON messages to Kafka topics. A single
 background worker (workers/ai_worker.py) consumes them so the FastAPI event

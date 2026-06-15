@@ -70,7 +70,7 @@ TEACHING_METHOD_PROMPTS = {
 }
 
 SANDBOX_PROMPT_TEMPLATE = """
-ROLE: Anda adalah AI Mentor EduAI (Socratic Tutor). 
+ROLE: Anda adalah AI Mentor Schooly AI (Socratic Tutor). 
 INSTRUKSI KHUSUS: Gunakan bahasa Indonesia yang baku namun ramah. DILARANG KERAS menggunakan simbol matematika yang tidak lazim atau karakter aneh (seperti $, \text, dll). Gunakan notasi matematika teks biasa (misal: P(A) = 0.5).
 
 Aturan ketat:
@@ -425,7 +425,7 @@ async def _synthesize_summary_from_chunks(summaries: list, user: User) -> str:
     
     audience = _audience(user)
     system = (
-        f"Kamu adalah EduScanner AI untuk {audience}. "
+        f"Kamu adalah Schooly AI untuk {audience}. "
         f"Gabungkan ringkasan-rumkasan berikut menjadi 3-4 paragraf padat (150-200 kata). "
         f"Jangan ulangi pengantar. Hasilkan ringkasan yang koheren dan fokus pada isi teknis."
     )
@@ -451,7 +451,7 @@ async def _analyze_batch(reader: PdfReader, start_page: int, end_page: int, user
     
     audience = _audience(user)
     system = (
-        f"Kamu adalah EduScanner AI, asisten akademik elit untuk {audience}. "
+        f"Kamu adalah Schooly AI, asisten akademik elit untuk {audience}. "
         f"Tugasmu melakukan 'Deep Technical Extraction'. "
         f"Analisis HANYA halaman {start_page} sampai {end_page} dari dokumen ini. "
         f"Jangan berikan ringkasan umum. Bahasa Indonesia. Akademik, padat, fakta-oriented. "
@@ -503,7 +503,7 @@ async def _analyze_batch(reader: PdfReader, start_page: int, end_page: int, user
 async def _analyze_pdf_legacy(file_path: str, user: User, total_pages: int = 0) -> dict:
     audience = _audience(user)
     system = (
-        f"Kamu adalah EduScanner AI, asisten akademik elit untuk {audience}. "
+        f"Kamu adalah Schooly AI, asisten akademik elit untuk {audience}. "
         f"Tugasmu melakukan 'Deep Technical Extraction'. Jangan berikan rangkuman umum yang dangkal. "
         f"Gaya bahasa: Akademik, Padat, Fakta-Oriented. Bahasa Indonesia. "
         f"BATASAN KEAMANAN AKADEMIK: DILARANG KERAS memproses konten yang berkaitan dengan bimbingan konseling, inventaris, keuangan sekolah, atau psikologi personal. Jika terdeteksi, kosongkan semua field respon."
@@ -788,7 +788,7 @@ async def generate_quiz_questions(documents: List[dict], user: User, n: int = 5,
         if recap_text:
             context = recap_text[:5000]
             system = (
-                f"Kamu adalah EduScanner AI, generator soal kuis HOTS bahasa Indonesia "
+                f"Kamu adalah Schooly AI, generator soal kuis HOTS bahasa Indonesia "
                 f"untuk {audience}. Soal harus menguji analisis, evaluasi, dan kreativitas — bukan hafalan. "
                 f"Sesuaikan tingkat kesulitan dengan jenjang. Buat soal berdasarkan rangkuman materi berikut."
             )
@@ -801,7 +801,7 @@ async def generate_quiz_questions(documents: List[dict], user: User, n: int = 5,
         else:
             multi = len(documents) > 1
             system = (
-                f"Kamu adalah EduScanner AI, generator soal kuis HOTS bahasa Indonesia "
+                f"Kamu adalah Schooly AI, generator soal kuis HOTS bahasa Indonesia "
                 f"untuk {audience}. Soal harus menguji analisis, evaluasi, dan kreativitas — bukan hafalan. "
                 f"Sesuaikan tingkat kesulitan dengan jenjang."
                 + (f" Soal harus mencakup keseluruhan {len(documents)} materi yang diberikan, distribusikan secara merata." if multi else "")
@@ -892,7 +892,7 @@ async def _bg_generate_quiz(quiz_id: str, documents: List[dict], user: User, n: 
 async def generate_recap(documents: List[dict], user: User) -> dict:
     audience = _audience(user)
     system = (
-        f"Kamu EduScanner AI yang menggabungkan materi belajar untuk {audience}. "
+        f"Kamu Schooly AI yang menggabungkan materi belajar untuk {audience}. "
         f"Bahasa Indonesia, jelas, sistematis. Output JSON saja tanpa markdown."
     )
     sources = []
@@ -1003,7 +1003,7 @@ async def generate_deep_feedback(quiz: dict, answers: List[int], user: User) -> 
             })
 
         system = (
-            f"Kamu EduScanner AI memberi feedback akademik mendalam bahasa Indonesia untuk {audience}. "
+            f"Kamu Schooly AI memberi feedback akademik mendalam bahasa Indonesia untuk {audience}. "
             f"Batch {i//BATCH_SIZE + 1}. Selalu sertakan minimal satu referensi akademik atau buku pelajaran."
         )
         prompt = (
@@ -1103,7 +1103,7 @@ async def _bg_respond_bot(doc_id: str, question: str, doc: dict, audience: str, 
     
     if user and user.role == "pelajar" and user.institution_code:
         # Sandbox mode
-        system = "Anda adalah AI Mentor EduAI yang disiplin."
+        system = "Anda adalah AI Mentor Schooly AI yang disiplin."
         prompt = SANDBOX_PROMPT_TEMPLATE.format(
             student_name=user.name,
             class_name=user.enrolled_class or "Umum",
@@ -1113,7 +1113,7 @@ async def _bg_respond_bot(doc_id: str, question: str, doc: dict, audience: str, 
         )
     else:
         system = (
-            f"Kamu adalah EduBot, asisten belajar untuk {audience}. "
+            f"Kamu adalah Schooly AI, asisten belajar untuk {audience}. "
             f"Jawab pertanyaan berdasarkan konten dokumen. Bahasa Indonesia. "
             f"Jika di luar konteks, beri tahu dengan sopan."
         )
@@ -1129,7 +1129,7 @@ async def _bg_respond_bot(doc_id: str, question: str, doc: dict, audience: str, 
             "message_id": uuid.uuid4().hex,
             "document_id": doc_id,
             "user_id": "bot",
-            "user_name": "EduBot",
+            "user_name": "Schooly AI",
             "user_picture": None,
             "content": resp,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1224,7 +1224,7 @@ async def _try_upload_supabase(user_id: str, doc_id: str, file_path: str):
 async def _generate_lyric_prompt(summary: str, genre: str) -> str:
     """Uses Gemini/Groq to transform a raw academic PDF summary into a creative, optimized song prompt for the lyric LLM."""
     system_instruction = (
-        "Kamu adalah AI Ahli Kreatif Musik Edukasi di EduAI.\n"
+        "Kamu adalah AI Ahli Kreatif Musik Edukasi di Schooly AI.\n"
         "Tugasmu adalah mengubah ringkasan akademis formal dari suatu materi pembelajaran menjadi sebuah PROMPT pembuatan lirik lagu "
         "yang sangat kreatif, dinamis, terstruktur, dan dioptimalkan agar AI pembuat lirik (LLM) dapat menghasilkan lirik lagu edukasi yang akurat, "
         "berirama indah, mudah dipahami, dan menyenangkan bagi siswa.\n\n"
@@ -1329,7 +1329,7 @@ async def aimusic(prompt: str, tags: str = "pop, romantic") -> dict:
 
         # If everything failed, use the hardcoded fallback
         if not lyrics:
-            lyrics = "[verse]\nBelajar bersama EduAI memudahkan pemahaman materi.\n[chorus]\nEduAI asisten belajar kita sepanjang waktu."
+            lyrics = "[verse]\nBelajar bersama Schooly AI memudahkan pemahaman materi.\n[chorus]\nSchooly AI asisten belajar kita sepanjang waktu."
 
         # 3. Call Gradio queue API
         hf_token = os.environ.get("HF_TOKEN")
@@ -1532,7 +1532,7 @@ async def personalize_document_for_student(doc: dict, hobby: str) -> dict:
     original_concepts = doc.get("key_concepts", [])
     
     system_message = (
-        f"Kamu adalah AI Mentor EduAI. Tugasmu adalah mengadaptasi materi pembelajaran (ringkasan dan konsep kunci) "
+        f"Kamu adalah AI Mentor Schooly AI. Tugasmu adalah mengadaptasi materi pembelajaran (ringkasan dan konsep kunci) "
         f"agar disesuaikan dengan hobi/minat siswa: {hobby}.\n"
         f"Gunakan bahasa Indonesia yang santai, edukatif, dan menarik bagi siswa.\n"
         f"Kembalikan data dalam format JSON dengan kunci:\n"

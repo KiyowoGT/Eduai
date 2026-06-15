@@ -1,4 +1,4 @@
-"""EduScanner AI - University Edition - FastAPI Backend"""
+"""Schooly AI - University Edition - FastAPI Backend"""
 import os
 import logging
 import traceback
@@ -32,7 +32,7 @@ from routers import (
     teacher_students, personality, admin, system, report
 )
 
-app = fastapi_app = FastAPI(title="EduScanner AI")
+app = fastapi_app = FastAPI(title="Schooly AI")
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 

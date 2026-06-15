@@ -167,7 +167,7 @@ async def send_chat_message(document_id: str, payload: ChatQuestion, user: User 
     }, ensure_ascii=False)
 
     # Gunakan SANDBOX_PROMPT_TEMPLATE untuk semua user agar konsisten dengan visi Socratic Tutor
-    system = "Anda adalah AI Mentor EduAI yang disiplin."
+    system = "Anda adalah AI Mentor Schooly AI yang disiplin."
     
     results_summary = []
     for r in quiz_results_list[:5]:
@@ -414,7 +414,7 @@ async def chat_with_document(doc_id: str, payload: ChatQuestion, user: User = De
 
     if user.role == "pelajar" and user.institution_code:
         # Sandbox mode
-        system = "Anda adalah AI Mentor EduAI yang disiplin."
+        system = "Anda adalah AI Mentor Schooly AI yang disiplin."
         prompt = SANDBOX_PROMPT_TEMPLATE.format(
             student_name=user.name,
             class_name=user.enrolled_class or "Umum",
@@ -424,7 +424,7 @@ async def chat_with_document(doc_id: str, payload: ChatQuestion, user: User = De
         )
     else:
         system = (
-            f"Kamu EduScanner AI, asisten belajar untuk {audience}. "
+            f"Kamu Schooly AI, asisten belajar untuk {audience}. "
             f"Jawab pertanyaan berdasarkan dokumen. Bahasa Indonesia."
         )
         prompt = (

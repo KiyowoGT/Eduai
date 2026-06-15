@@ -228,7 +228,7 @@ export default function DocumentDiscussion({ documentId }) {
                 <div className="w-4 h-4 rounded-full bg-[#1D2D50] text-white text-[8px] grid place-items-center font-medium">
                   {participant.user_id === "bot" ? <Bot className="w-2.5 h-2.5" /> : (participant.name || "U")[0]}
                 </div>
-                <span className="text-[10px] text-[#646675] max-w-[60px] truncate">{participant.user_id === "bot" ? "EduBot" : participant.name}{participant.role === "owner" ? " 👑" : ""}</span>
+                <span className="text-[10px] text-[#646675] max-w-[60px] truncate">{participant.user_id === "bot" ? "Schooly AI" : participant.name}{participant.role === "owner" ? " 👑" : ""}</span>
                 {isOwner && participant.role !== "owner" && (
                   <button onClick={() => doKick(participant.user_id, participant.name)} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#B83A4B] text-white rounded-full hidden group-hover:grid place-items-center">
                     <XCircle className="w-2.5 h-2.5" />
@@ -273,7 +273,7 @@ export default function DocumentDiscussion({ documentId }) {
                 </Avatar>
                 <div className={`max-w-[75%] ${isMe ? "items-end" : ""}`}>
                   <div className={`text-[10px] text-[#A0A2B1] mb-0.5 flex items-center gap-1 ${isMe ? "text-right" : ""}`}>
-                    {isBot ? "EduBot" : msg.user_name}{isOwnerMsg ? " 👑" : ""}
+                    {isBot ? "Schooly AI" : msg.user_name}{isOwnerMsg ? " 👑" : ""}
                   </div>
                   <div className={`rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-line ${
                     isBot ? "bg-[#E5A93C]/10 text-[#1A1B26] border border-[#E5A93C]/20" : isMe ? "bg-[#1D2D50] text-white" : "bg-[#F8F6F0] text-[#1A1B26]"

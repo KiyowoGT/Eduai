@@ -39,7 +39,7 @@ async def shadow_redeem(payload: ShadowRedeemPayload, request: Request, user: Us
         "user_id": user.user_id,
         "redeem_code": code,
         "source": "saas_redeem",
-        "service_provider": "EduAI Private Tutor",
+        "service_provider": "Schooly AI Private Tutor",
         "subject_name": "Belajar Mandiri",
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat(),

@@ -589,7 +589,7 @@ async def get_teacher_quiz_insights(
 
     # Call Gemini to generate narrative feedback
     system = (
-        "Kamu adalah EduScanner AI, konsultan pedagogi guru. "
+        "Kamu adalah Schooly AI, konsultan pedagogi guru. "
         "Tugasmu menganalisis performa kuis siswa les privat/mandiri dan memberikan insight kelemahan topik/skill siswa. "
         "Gunakan Bahasa Indonesia yang santai tapi profesional. Berikan saran pengajaran spesifik. "
         "Jangan gunakan markdown tebal (** atau ###) dalam jawaban. Gunakan teks biasa."
@@ -765,7 +765,7 @@ async def analyze_student_character(
     weak_skills = [sk for sk, st in skill_stats.items() if st["total"] > 0 and (st["correct"] / st["total"]) < 0.5]
 
     system = (
-        "Kamu adalah EduScanner AI, konsultan pedagogi yang menganalisis karakter belajar siswa les privat. "
+        "Kamu adalah Schooly AI, konsultan pedagogi yang menganalisis karakter belajar siswa les privat. "
         "Gunakan Bahasa Indonesia santai tapi profesional. "
         "Beri analisis tentang: gaya belajar, kekuatan akademik, area yang perlu ditingkatkan, "
         "dan rekomendasi personal untuk guru. "

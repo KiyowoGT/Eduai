@@ -132,7 +132,7 @@ EduAI/
 
 ```bash
 # Clone repository
-cd "C:\Users\ganxa\Downloads\My Project\Eduai"
+cd "C:\Users\ganxa\Downloads\My Project\Schooly AI"
 
 # Install all dependencies (root, frontend, backend)
 npm run install:all

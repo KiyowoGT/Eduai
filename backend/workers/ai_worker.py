@@ -307,7 +307,7 @@ async def _run_consumer() -> None:
 
 
 async def main() -> None:
-    logger.info("EduAI Kafka worker starting …")
+    logger.info("Schooly AI Kafka worker starting …")
     await _run_consumer()
 
 
