@@ -325,8 +325,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Footer - Adaptive Theme */}
-      <footer className="py-16 md:py-24 bg-white dark:bg-[#12131A] border-t-4 border-[#E5A93C]/20 relative overflow-hidden transition-colors duration-500">
+      <footer className="pt-16 md:pt-24 bg-white dark:bg-[#12131A] border-t-4 border-[#E5A93C]/20 relative overflow-hidden transition-colors duration-500">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 relative z-10">
           <div className="grid md:grid-cols-4 gap-16 mb-20 text-left">
             <div className="md:col-span-2 text-left">
@@ -367,13 +366,13 @@ export default function Landing() {
               </ul>
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-12 border-t border-[#1D2D50]/10 dark:border-white/10 opacity-70">
-            <p className="text-[10px] uppercase tracking-[0.3em] font-black text-[#1D2D50] dark:text-white/50">© 2026 Schooly AI Framework • Premier Edition</p>
-            <div className="flex items-center gap-4 bg-[#1D2D50]/5 dark:bg-white/5 px-4 py-2 rounded-full border border-[#1D2D50]/10 dark:border-white/10 shadow-sm">
-               <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse" />
-               <span className="text-[9px] uppercase tracking-widest font-black text-[#1D2D50] dark:text-white/80">Quantum Nodes Online</span>
-            </div>
+        {/* Divider and Copyright stretching 100% */}
+        <div className="w-full border-t border-[#1D2D50]/10 dark:border-white/10 opacity-70">
+          <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12 flex flex-col items-center justify-center gap-2 text-center">
+            <p className="text-[8px] uppercase tracking-[0.3em] font-black text-[#1D2D50] dark:text-white/50">© 2026 Schooly AI - Part of CMC Group.</p>
+            <p className="text-[8px] uppercase tracking-[0.3em] font-black text-[#1D2D50] dark:text-white/50">All rights reserved.</p>
           </div>
         </div>
       </footer>
