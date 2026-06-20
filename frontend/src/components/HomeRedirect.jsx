@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import Dashboard from "@/pages/Dashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -5,11 +7,18 @@ import TeacherDashboard from "@/pages/TeacherDashboard";
 
 export default function HomeRedirect() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user && (user.is_superadmin || user.role === "admin")) {
+      navigate("/admin", { replace: true });
+    }
+  }, [user, navigate]);
 
   if (!user) return null;
 
-  if (user.is_superadmin) {
-    return <AdminDashboard />;
+  if (user.is_superadmin || user.role === "admin") {
+    return null;
   }
 
   if (user.role === "pelajar") {
@@ -23,7 +32,5 @@ export default function HomeRedirect() {
     return <TeacherDashboard />;
   }
 
-  // User logged in but has no role (e.g. expired session with partial data) —
-  // fall through to Dashboard which will show onboarding prompt.
   return <Dashboard />;
 }
