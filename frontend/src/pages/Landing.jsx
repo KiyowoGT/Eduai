@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 
 gsap.registerPlugin(ScrollTrigger);
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap, Menu, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap, Menu, X, GraduationCap } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
 
 const HERO_IMG = "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/7b6b9737e6374591d9a3b25695ec71d7ac4f0b4c6b036c3a181f991d2e976936.png";
@@ -73,10 +73,7 @@ export default function Landing() {
       <nav className="fixed top-0 inset-x-0 z-[60] backdrop-blur-2xl bg-[#F8F6F0]/90 dark:bg-[#12131A]/90 border-b border-[#1D2D50]/10 dark:border-white/10 transition-colors duration-500">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-[#1D2D50] shadow-xl flex items-center justify-center border border-white/10 group cursor-pointer overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-tr from-[#E5A93C]/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <GraduationCap className="w-5 h-5 text-[#E5A93C] relative z-10" />
-            </div>
+            <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-10 h-10 object-contain" />
             <div className="flex flex-col text-left">
               <span className="font-heading text-lg sm:text-xl font-bold tracking-tighter text-[#1D2D50] dark:text-white">Schooly <span className="text-[#B83A4B]">AI</span></span>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -312,9 +309,7 @@ export default function Landing() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-radial-gradient from-[#E5A93C]/10 to-transparent blur-[120px] pointer-events-none" />
         
         <div className="relative z-10 text-center">
-          <div className="w-20 h-20 rounded-[2rem] bg-[#1D2D50] shadow-2xl flex items-center justify-center mx-auto mb-10 border-4 border-white dark:border-white/10">
-            <GraduationCap className="w-10 h-10 text-[#E5A93C]" />
-          </div>
+          <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-10 h-10 object-contain mx-auto mb-6" />
           <h2 className="font-heading text-3xl sm:text-5xl md:text-7xl text-[#1D2D50] dark:text-white tracking-tighter leading-none mb-8 italic">Mulai Revolusi <br /> <span className="not-italic font-bold">Akademik Anda.</span></h2>
           <Button
             onClick={() => navigate("/signup")}
