@@ -132,6 +132,7 @@ export default function AppLayout() {
         { to: "/admin/system-health", label: "Health", icon: Activity },
         { to: "/admin/bugs", label: "Bugs", icon: Bug },
         { to: "/admin/maintenance-mode", label: "Maint", icon: Wrench },
+        { to: "/profil", label: "Profil", icon: User2 },
       ];
     } else if (isAdmin) {
       items = [
