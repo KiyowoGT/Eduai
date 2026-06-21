@@ -72,8 +72,8 @@ export default function AuthCallback() {
               <div className="absolute inset-2 rounded-full border-2 border-t-[#E5A93C] border-r-[#1D2D50] border-b-[#B83A4B] border-l-transparent dark:border-r-white/40 animate-[spin_1.5s_linear_infinite]" />
               
               {/* Inner core */}
-              <div className="absolute inset-4 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10">
-                <GraduationCap className="w-7 h-7 text-[#E5A93C] dark:text-[#12131A] animate-pulse" />
+              <div className="absolute inset-4 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-7 h-7 object-contain animate-pulse" />
               </div>
               
               {/* Orbiting badge */}
