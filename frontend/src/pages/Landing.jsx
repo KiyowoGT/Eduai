@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 
 gsap.registerPlugin(ScrollTrigger);
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, GraduationCap, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap, Menu, X } from "lucide-react";
+import { ArrowUpRight, BookOpen, BrainCircuit, FileSearch, Sparkles, ChevronRight, ShieldCheck, CheckCircle2, Globe, Star, Zap, Menu, X } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
 
 const HERO_IMG = "https://static.prod-images.emergentagent.com/jobs/3d3d8cf4-e7fe-469a-b338-aababe70dd7b/images/7b6b9737e6374591d9a3b25695ec71d7ac4f0b4c6b036c3a181f991d2e976936.png";
@@ -330,9 +330,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-16 mb-20 text-left">
             <div className="md:col-span-2 text-left">
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#1D2D50] flex items-center justify-center shadow-2xl border border-[#E5A93C]/30">
-                  <GraduationCap className="w-7 h-7 text-[#E5A93C]" />
-                </div>
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-12 h-12 object-contain" />
                 <div className="flex flex-col">
                   <span className="font-heading text-3xl font-black tracking-tighter text-[#1D2D50] dark:text-white leading-none">Schooly AI</span>
                   <span className="text-[9px] uppercase tracking-[0.4em] text-[#B83A4B] dark:text-[#E5A93C] font-black mt-1">Superior Framework</span>

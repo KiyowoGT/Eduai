@@ -74,9 +74,7 @@ export default function Login() {
           <div className="w-full max-w-sm mx-auto">
             <div className="mb-10 text-center lg:text-left">
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1D2D50] to-[#15223E] shadow-2xl flex items-center justify-center border border-white/10">
-                  <GraduationCap className="w-8 h-8 text-[#E5A93C]" />
-                </div>
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-14 h-14 object-contain" />
                 <div className="flex flex-col text-left">
                   <span className="font-heading text-2xl font-bold tracking-tighter text-[#1A1B26] dark:text-white">Schooly <span className="text-[#B83A4B]">AI</span></span>
                   <div className="flex items-center gap-2 mt-0.5">
