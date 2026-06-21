@@ -429,12 +429,23 @@ async def _analyze_batch(reader: PdfReader, start_page: int, end_page: int, user
         }
     
     audience = _audience(user)
+    
+    # Extract user hobby for personalized analogies
+    user_hobby = getattr(user, 'hobbies', None) or getattr(user, 'hobi', None) or getattr(user, 'genre', None) or getattr(user, 'favorite_genre', None) or ""
+    user_persona = ""
+    if user_hobby:
+        hobbies_list = user_hobby if isinstance(user_hobby, list) else [user_hobby]
+        hobbies_str = ", ".join([str(h) for h in hobbies_list if h])
+        if hobbies_str:
+            user_persona = f"\n\n=== PERSONALISASI HOBI USER ===\nUser punya hobi/preferensi: {hobbies_str}.\nKamu WAJIB menggunakan minimal 1-2 analogi dari hobi/genre ini di setiap bagian ringkasan, konsep, dan tujuan belajar. Tujuannya supaya materi terasa 'dekat' dengan dunia mereka."
+    
     system = (
         f"Kamu adalah Schooly AI, asisten akademik elit untuk {audience}. "
         f"Tugasmu melakukan 'Deep Technical Extraction'. "
         f"Analisis HANYA halaman {start_page} sampai {end_page} dari dokumen ini. "
         f"Jangan berikan ringkasan umum. Bahasa Indonesia. Akademik, padat, fakta-oriented. "
         f"BATASAN KEAMANAN AKADEMIK: DILARANG KERAS memproses konten yang berkaitan dengan bimbingan konseling, inventaris, keuangan sekolah, atau psikologi personal. Jika terdeteksi, kosongkan semua field respon."
+        f"{user_persona}"
     )
     prompt = (
         "Ekstrak informasi dari halaman tertentu ini.\n"

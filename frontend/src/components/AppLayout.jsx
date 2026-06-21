@@ -224,7 +224,7 @@ export default function AppLayout() {
       {/* Mobile Top Bar */}
       <header className={`md:hidden sticky top-0 z-40 bg-[#F8F6F0] border-b border-[#E2E0D8] h-14 flex items-center justify-between px-4 ${hideMobileNav ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2">
-          <GraduationCap className="w-5 h-5 text-[#1D2D50] dark:text-[#E5A93C]" />
+          <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-8 h-8 object-contain" />
           <span className="font-heading text-lg">
             {isAdmin ? "Admin" : "Schooly AI"}
           </span>
@@ -249,9 +249,7 @@ export default function AppLayout() {
           {/* Sidebar Header: Logo + Toggle */}
           <div className="px-3 py-4 border-b border-[#E2E0D8] flex items-center shrink-0 relative">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-md bg-[#1D2D50] grid place-items-center shrink-0">
-                <GraduationCap className="w-4 h-4 text-[#E5A93C]" />
-              </div>
+              <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-8 h-8 object-contain shrink-0" />
               {sidebarOpen && (
                 <div className="overflow-hidden">
                   <div className="font-heading text-lg leading-none truncate">
