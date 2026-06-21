@@ -160,7 +160,7 @@ export default function DualLoader({ type = "default", text = "Memuat data...", 
               <div className="absolute inset-0 rounded-[1.7rem] border-2 border-dashed border-[#E5A93C]/40 dark:border-[#E5A93C]/30 animate-[spin_15s_linear_infinite]" />
               <div className="absolute inset-1.5 rounded-full border-2 border-t-[#E5A93C] border-r-[#1D2D50] border-b-[#B83A4B] border-l-transparent dark:border-r-white/40 animate-[spin_1.5s_linear_infinite]" />
               <div className="absolute inset-3.5 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
-                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-6 h-6 object-contain animate-pulse" />
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-10 h-10 object-contain animate-pulse" />
               </div>
               <div className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#E5A93C] dark:bg-[#1D2D50] border-2 border-white dark:border-[#12131A] flex items-center justify-center shadow-lg animate-bounce">
                 <Sparkles className="w-2.5 h-2.5 text-[#1D2D50] dark:text-[#E5A93C]" />

@@ -73,7 +73,7 @@ export default function Landing() {
       <nav className="fixed top-0 inset-x-0 z-[60] backdrop-blur-2xl bg-[#F8F6F0]/90 dark:bg-[#12131A]/90 border-b border-[#1D2D50]/10 dark:border-white/10 transition-colors duration-500">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-10 h-10 object-contain" />
+            <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-14 h-14 object-contain" />
             <div className="flex flex-col text-left">
               <span className="font-heading text-lg sm:text-xl font-bold tracking-tighter text-[#1D2D50] dark:text-white">Schooly <span className="text-[#B83A4B]">AI</span></span>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -325,7 +325,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-16 mb-20 text-left">
             <div className="md:col-span-2 text-left">
               <div className="flex items-center gap-4 mb-8">
-                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-12 h-12 object-contain" />
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-14 h-14 object-contain" />
                 <div className="flex flex-col">
                   <span className="font-heading text-3xl font-black tracking-tighter text-[#1D2D50] dark:text-white leading-none">Schooly AI</span>
                   <span className="text-[9px] uppercase tracking-[0.4em] text-[#B83A4B] dark:text-[#E5A93C] font-black mt-1">Superior Framework</span>

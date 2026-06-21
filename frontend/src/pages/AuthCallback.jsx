@@ -73,7 +73,7 @@ export default function AuthCallback() {
               
               {/* Inner core */}
               <div className="absolute inset-4 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
-                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-7 h-7 object-contain animate-pulse" />
+                <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-12 h-12 object-contain animate-pulse" />
               </div>
               
               {/* Orbiting badge */}
