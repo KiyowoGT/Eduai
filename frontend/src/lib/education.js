@@ -1,38 +1,13 @@
+import JURUSAN from "./jurusan";
+
 export const EDUCATION_LEVELS = ["SD", "SMP", "SMA", "SMK", "MA", "MAK"];
 
-export const MAJORS = {
-  SD: [],
-  SMP: [],
-  SMA: [
-    "MIPA (Matematika dan Ilmu Pengetahuan Alam)",
-    "IPS (Ilmu Pengetahuan Sosial)",
-    "Bahasa dan Budaya",
-  ],
-  MA: [
-    "MIPA",
-    "IPS",
-    "Ilmu Bahasa dan Budaya",
-    "Ilmu-ilmu Keagamaan",
-  ],
-  SMK: [
-    "Rekayasa Perangkat Lunak (RPL)",
-    "Teknik Komputer dan Jaringan (TKJ)",
-    "Desain Komunikasi Visual (DKV) / Multimedia",
-    "Akuntansi dan Keuangan Lembaga (AKL)",
-    "Otomatisasi dan Tata Kelola Perkantoran (OTKP)",
-    "Bisnis Daring dan Pemasaran (BDP)",
-    "Teknik Kendaraan Ringan Otomotif (TKRO)",
-    "Teknik Bisnis Sepeda Motor (TBSM)",
-    "Teknik Instalasi Tenaga Listrik (TITL)",
-    "Perhotelan",
-    "Tata Boga",
-    "Tata Busana",
-    "Farmasi Klinis dan Komunitas",
-    "Asisten Keperawatan",
-    "Agribisnis Tanaman",
-  ],
-  MAK: [],
-};
+export const MAJORS = Object.fromEntries(
+  EDUCATION_LEVELS.map((level) => [
+    level,
+    (JURUSAN[level] || []).map((j) => j.label),
+  ])
+);
 
 export function hasMajor(level) {
   return !!(MAJORS[level] && MAJORS[level].length > 0);

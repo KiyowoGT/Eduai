@@ -2,21 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, Bot, Cpu, Users, Bug, ArrowUpRight } from "lucide-react";
 import { http } from "@/lib/api";
-
-function SparkBar({ data, color }) {
-  const max = Math.max(...data, 100);
-  return (
-    <div className="flex items-end gap-[2px] h-10">
-      {data.slice(-20).map((v, i) => (
-        <div
-          key={i}
-          className={`w-2 rounded-t-sm ${color}`}
-          style={{ height: `${Math.min((v / max) * 100, 100)}%` }}
-        />
-      ))}
-    </div>
-  );
-}
+import { SparkBar } from "@/components/ui/spark-bar";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();

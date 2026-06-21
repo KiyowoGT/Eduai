@@ -24,6 +24,15 @@ class CreateAcademicYearPayload(BaseModel):
 class ResignPayload(BaseModel):
     email: str
 
+def _normalize_teacher_fields(self):
+    if self.assigned_class is not None and self.assigned_class.strip() == "":
+        self.assigned_class = None
+    if self.assigned_subject is not None and self.assigned_subject.strip() == "":
+        self.assigned_subject = None
+    if self.major is not None and self.major.strip() == "":
+        self.major = None
+    return self
+
 class CreateTeacherPayload(BaseModel):
     name: str
     email: str
@@ -36,15 +45,7 @@ class CreateTeacherPayload(BaseModel):
     teaching_classes: Optional[List[str]] = None
     major: Optional[str] = None
 
-    @model_validator(mode="after")
-    def normalize_empty_strings(self):
-        if self.assigned_class is not None and self.assigned_class.strip() == "":
-            self.assigned_class = None
-        if self.assigned_subject is not None and self.assigned_subject.strip() == "":
-            self.assigned_subject = None
-        if self.major is not None and self.major.strip() == "":
-            self.major = None
-        return self
+    normalize_empty_strings = model_validator(mode="after")(_normalize_teacher_fields)
 
 class UpdateTeacherPayload(BaseModel):
     name: Optional[str] = None
@@ -59,15 +60,7 @@ class UpdateTeacherPayload(BaseModel):
     teaching_classes: Optional[List[str]] = None
     major: Optional[str] = None
 
-    @model_validator(mode="after")
-    def normalize_empty_strings(self):
-        if self.assigned_class is not None and self.assigned_class.strip() == "":
-            self.assigned_class = None
-        if self.assigned_subject is not None and self.assigned_subject.strip() == "":
-            self.assigned_subject = None
-        if self.major is not None and self.major.strip() == "":
-            self.major = None
-        return self
+    normalize_empty_strings = model_validator(mode="after")(_normalize_teacher_fields)
 
 class SwitchRolePayload(BaseModel):
     role_type: str

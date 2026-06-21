@@ -15,11 +15,11 @@ from models.user import User, TeacherTitle, AccountType
 from deps.auth import get_current_user, require_pengajar, require_title, write_audit
 from routers.documents import (
     _ensure_within_upload_limit,
-    _try_upload_supabase,
     ALLOWED_IMAGE_TYPES,
     PIL_AVAILABLE,
     Image
 )
+from services.storage import try_upload_supabase
 from services.ai_service import run_analysis_queued, _bg_generate_quiz, _bg_generate_music_for_students
 from routers.quizzes import _public_quiz
 from services.kafka_jobs import (
@@ -198,7 +198,7 @@ async def upload_teacher_material(
         logger.warning(f"Gagal simpan PDF ke MongoDB: {e}")
 
     if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
-        asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+        asyncio.create_task(try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
     doc = {
         "document_id": doc_id,

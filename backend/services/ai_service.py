@@ -37,10 +37,6 @@ logger = logging.getLogger(__name__)
 
 # Semaphores and Limits
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
-BOT_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("BOT_RATE_LIMIT_WINDOW_SECONDS", "60"))
-BOT_RATE_LIMIT_MAX_MESSAGES = int(os.environ.get("BOT_RATE_LIMIT_MAX_MESSAGES", "5"))
-_BOT_RATE_LIMIT: dict[tuple[str, str], list[float]] = {}
-
 # Supabase Storage helper config
 SUPABASE_STORAGE_URL = f"{SUPABASE_URL}/storage/v1" if SUPABASE_URL else ""
 
@@ -105,23 +101,6 @@ async def _emit_result_status(user_id: str, result_id: str, status: str, **extra
 async def _emit_recap_status(user_id: str, recap_id: str, status: str, **extra):
     payload = {"type": "recap_status", "recap_id": recap_id, "status": status, **extra}
     await realtime_hub.broadcast(user_id, payload)
-
-
-# ============== Bot Helper ==============
-def _trim_block_times(times: list[float]) -> list[float]:
-    cutoff = time.time() - BOT_RATE_LIMIT_WINDOW_SECONDS
-    return [t for t in times if t >= cutoff]
-
-
-def _can_trigger_bot(doc_id: str, user_id: str) -> bool:
-    key = (doc_id, user_id)
-    times = _trim_block_times(_BOT_RATE_LIMIT.get(key, []))
-    if len(times) >= BOT_RATE_LIMIT_MAX_MESSAGES:
-        _BOT_RATE_LIMIT[key] = times
-        return False
-    times.append(time.time())
-    _BOT_RATE_LIMIT[key] = times
-    return True
 
 
 # ============== AI core setup ==============
@@ -1170,55 +1149,7 @@ async def _ensure_pdfs_bucket():
         logger.warning(f"Could not create Supabase bucket (may already exist): {e}")
 
 
-async def _upload_to_supabase_storage(user_id: str, document_id: str, file_path: str) -> Optional[str]:
-    if not SUPABASE_STORAGE_URL:
-        return None
-    storage_path = f"{user_id}/{document_id}.pdf"
-    try:
-        with open(file_path, "rb") as f:
-            content = f.read()
-        async with httpx.AsyncClient(timeout=30.0) as hc:
-            r = await hc.post(
-                f"{SUPABASE_STORAGE_URL}/object/pdf/{storage_path}",
-                headers={
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-                    "Content-Type": "application/pdf",
-                },
-                content=content,
-            )
-            if r.status_code not in (200, 201):
-                logger.warning(f"Supabase storage upload failed: {r.status_code} {r.text[:200]}")
-                return None
-        return f"{SUPABASE_STORAGE_URL}/object/public/pdf/{storage_path}"
-    except Exception as e:
-        logger.warning(f"Supabase storage upload error: {e}")
-        return None
 
-
-async def _delete_from_supabase_storage(user_id: str, document_id: str):
-    if not SUPABASE_STORAGE_URL:
-        return
-    storage_path = f"{user_id}/{document_id}.pdf"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as hc:
-            await hc.delete(
-                f"{SUPABASE_STORAGE_URL}/object/pdf/{storage_path}",
-                headers={"Authorization": f"Bearer {SUPABASE_ANON_KEY}"},
-            )
-    except Exception as e:
-        logger.warning(f"Supabase storage delete error: {e}")
-
-
-async def _try_upload_supabase(user_id: str, doc_id: str, file_path: str):
-    try:
-        url = await _upload_to_supabase_storage(user_id, doc_id, file_path)
-        if url:
-            await db.documents.update_one(
-                {"document_id": doc_id},
-                {"$set": {"pdf_url": url}},
-            )
-    except Exception as e:
-        logger.warning(f"Supabase background upload skipped: {e}")
 
 
 async def _generate_lyric_prompt(summary: str, genre: str) -> str:

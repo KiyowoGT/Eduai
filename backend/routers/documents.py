@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from pathlib import Path
 from bson import Binary
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
 
@@ -20,7 +19,7 @@ except ImportError:
     Image = None
 
 from core.database import db
-from core.config import UPLOAD_DIR, AUDIO_DIR, SUPABASE_URL, SUPABASE_ANON_KEY, MAX_UPLOAD_BYTES, API_PREFIX
+from core.config import UPLOAD_DIR, AUDIO_DIR, MAX_UPLOAD_BYTES, API_PREFIX
 from models.user import User, UserRole, SubjectItem, ScheduleItem, EducationSettingsPayload
 from models.document import MaterialGeneratePayload, DocumentMove
 from deps.auth import get_current_user, require_pengajar, write_audit
@@ -33,6 +32,7 @@ from services.ai_service import (
     personalize_document_for_student
 )
 from services.tts_service import _generate_tts
+from services.storage import upload_to_supabase_storage, delete_from_supabase_storage, try_upload_supabase
 from services.kafka_jobs import (
     enqueue_document_analyze,
     enqueue_storage_upload,
@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
-SUPABASE_STORAGE_URL = f"{SUPABASE_URL}/storage/v1" if SUPABASE_URL else ""
 
 
 def _normalize_hobby(value: Optional[str]) -> str:
@@ -95,54 +94,7 @@ def _ensure_within_upload_limit(size_bytes: int, filename: str):
         max_mb = round(MAX_UPLOAD_BYTES / (1024 * 1024), 1)
         raise HTTPException(413, f"Ukuran file {filename} melebihi batas {max_mb} MB")
 
-async def _upload_to_supabase_storage(user_id: str, document_id: str, file_path: str) -> Optional[str]:
-    if not SUPABASE_STORAGE_URL:
-        return None
-    storage_path = f"{user_id}/{document_id}.pdf"
-    try:
-        with open(file_path, "rb") as f:
-            content = f.read()
-        async with httpx.AsyncClient(timeout=30.0) as hc:
-            r = await hc.post(
-                f"{SUPABASE_STORAGE_URL}/object/pdf/{storage_path}",
-                headers={
-                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-                    "Content-Type": "application/pdf",
-                },
-                content=content,
-            )
-            if r.status_code not in (200, 201):
-                logger.warning(f"Supabase storage upload failed: {r.status_code} {r.text[:200]}")
-                return None
-        return f"{SUPABASE_STORAGE_URL}/object/public/pdf/{storage_path}"
-    except Exception as e:
-        logger.warning(f"Supabase storage upload error: {e}")
-        return None
 
-async def _delete_from_supabase_storage(user_id: str, document_id: str):
-    if not SUPABASE_STORAGE_URL:
-        return
-    storage_path = f"{user_id}/{document_id}.pdf"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as hc:
-            await hc.delete(
-                f"{SUPABASE_STORAGE_URL}/object/pdf/{storage_path}",
-                headers={"Authorization": f"Bearer {SUPABASE_ANON_KEY}"},
-            )
-    except Exception as e:
-        logger.warning(f"Supabase storage delete error: {e}")
-
-async def _try_upload_supabase(user_id: str, doc_id: str, file_path: str):
-    """Non-blocking upload to Supabase Storage. Failures are logged only."""
-    try:
-        url = await _upload_to_supabase_storage(user_id, doc_id, file_path)
-        if url:
-            await db.documents.update_one(
-                {"document_id": doc_id},
-                {"$set": {"pdf_url": url}},
-            )
-    except Exception as e:
-        logger.warning(f"Supabase background upload skipped: {e}")
 
 
 @router.put("/user/education")
@@ -427,7 +379,7 @@ async def upload_document(request: Request, file: UploadFile = File(...), user: 
         logger.warning(f"Gagal simpan PDF ke MongoDB: {e}")
 
     if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
-        asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+        asyncio.create_task(try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
     base = {
         "document_id": doc_id,
@@ -541,7 +493,7 @@ async def upload_subject_material(
             pass
 
         if not await enqueue_storage_upload(user.user_id, doc_id, str(saved_path)):
-            asyncio.create_task(_try_upload_supabase(user.user_id, doc_id, str(saved_path)))
+            asyncio.create_task(try_upload_supabase(user.user_id, doc_id, str(saved_path)))
 
         source_label = file.filename or (f"Foto_{doc_id[:8]}.png" if is_image else f"Dokumen_{doc_id[:8]}.pdf")
         base = {
@@ -805,7 +757,7 @@ async def delete_document(request: Request, doc_id: str, user: User = Depends(ge
         except Exception:
             logger.warning(f"Gagal hapus file {fp}")
 
-    await _delete_from_supabase_storage(user.user_id, doc_id)
+    await delete_from_supabase_storage(user.user_id, doc_id)
 
     await write_audit(user.user_id, "DOCUMENT_DELETED", {"document_id": doc_id, "filename": doc.get("filename")}, request.client.host if request.client else "")
     await _emit_document_status(user.user_id, doc_id, "deleted")

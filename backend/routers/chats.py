@@ -1,7 +1,6 @@
 import re
 import json
 import uuid
-import time
 import logging
 import asyncio
 from datetime import datetime, timezone
@@ -10,31 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.database import db
 from core.websocket import realtime_hub
-from core.config import BOT_RATE_LIMIT_MAX_MESSAGES, BOT_RATE_LIMIT_WINDOW_SECONDS
 from models.user import User
 from models.chat import ChatQuestion, SendMessagePayload, DiscussionInvitePayload, DiscussionKickPayload
 from deps.auth import get_current_user, _create_notification, _is_blocked_pair
 from services.ai_service import _audience, _call_groq, _bg_respond_bot, SANDBOX_PROMPT_TEMPLATE
 from services.kafka_jobs import enqueue_chat_respond
+from services.rate_limiter import can_trigger_bot
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-_BOT_RATE_LIMIT: dict[tuple[str, str], list[float]] = {}
-
-def _trim_block_times(times: list[float]) -> list[float]:
-    cutoff = time.time() - BOT_RATE_LIMIT_WINDOW_SECONDS
-    return [t for t in times if t >= cutoff]
-
-def _can_trigger_bot(doc_id: str, user_id: str) -> bool:
-    key = (doc_id, user_id)
-    times = _trim_block_times(_BOT_RATE_LIMIT.get(key, []))
-    if len(times) >= BOT_RATE_LIMIT_MAX_MESSAGES:
-        _BOT_RATE_LIMIT[key] = times
-        return False
-    times.append(time.time())
-    _BOT_RATE_LIMIT[key] = times
-    return True
 
 async def _can_access_discussion(doc_id: str, user: User) -> Optional[dict]:
     # Owner check
@@ -282,8 +265,8 @@ async def send_discussion_message(doc_id: str, payload: SendMessagePayload, user
 
     # @bot trigger
     if "@bot" in content.lower() and doc and doc.get("status") == "ready":
-        if not _can_trigger_bot(doc_id, user.user_id):
-            raise HTTPException(429, f"Batas @bot {BOT_RATE_LIMIT_MAX_MESSAGES} pesan per {BOT_RATE_LIMIT_WINDOW_SECONDS} detik")
+        if not can_trigger_bot(doc_id, user.user_id):
+            raise HTTPException(429, "Batas @bot tercapai, silakan tunggu")
         try:
             audience = _audience(user)
             question = content.lower().replace("@bot", "").strip()

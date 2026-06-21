@@ -19,7 +19,7 @@ eduai.music.generate        → _bg_generate_music_for_students()
 eduai.chat.respond          → _bg_respond_bot()
 eduai.quiz.grade.student    → _bg_grade_student_session()
 eduai.quiz.auto-publish     → _bg_auto_publish_quiz()
-eduai.storage.upload        → _try_upload_supabase()
+eduai.storage.upload        → try_upload_supabase()
 
 Poison messages (retried MAX_RETRIES times) are sent to eduai.dlq.
 """
@@ -164,8 +164,8 @@ async def _handle_quiz_auto_publish(payload: dict) -> None:
 
 
 async def _handle_storage_upload(payload: dict) -> None:
-    from services.ai_service import _try_upload_supabase
-    await _try_upload_supabase(
+    from services.storage import try_upload_supabase
+    await try_upload_supabase(
         user_id=payload["user_id"],
         doc_id=payload["doc_id"],
         file_path=payload["file_path"],

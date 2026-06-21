@@ -29,7 +29,7 @@ from routers import (
     auth, documents, quizzes, folders, recaps, chats, friends, audio,
     institutions, class_tokens, teacher_schedules, teacher_materials,
     teacher_analytics, learner_sync, redeem, institution_mgmt, shadow_workspace,
-    teacher_students, personality, admin, system, report
+    teacher_students, personality, admin, system
 )
 
 app = fastapi_app = FastAPI(title="Schooly AI")
@@ -323,7 +323,6 @@ api_router.include_router(shadow_workspace.router)
 api_router.include_router(teacher_students.router)
 api_router.include_router(admin.router)
 api_router.include_router(system.router)
-api_router.include_router(report.router)
 
 # Dev: Music test endpoint
 from pydantic import BaseModel as _BaseModel

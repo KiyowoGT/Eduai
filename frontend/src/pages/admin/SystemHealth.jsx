@@ -1,20 +1,6 @@
 import { useState, useEffect } from "react";
 import { Activity, Cpu, HardDrive, Wifi } from "lucide-react";
-
-function SparkBar({ data, color }) {
-  const max = Math.max(...data, 1);
-  return (
-    <div className="flex items-end gap-[2px] h-14 w-full">
-      {data.map((v, i) => (
-        <div
-          key={i}
-          className={`flex-1 rounded-t-sm ${color}`}
-          style={{ height: `${(v / max) * 100}%` }}
-        />
-      ))}
-    </div>
-  );
-}
+import { SparkBar } from "@/components/ui/spark-bar";
 
 export default function SystemHealth() {
   const [trafficHistory, setTrafficHistory] = useState(() =>
@@ -55,7 +41,7 @@ export default function SystemHealth() {
             <span className="text-xs text-[#646675] ml-1">req/mnt</span>
           </div>
         </div>
-        <SparkBar data={trafficHistory} color="bg-[#1D2D50]" />
+        <SparkBar data={trafficHistory} color="bg-[#1D2D50]" className="h-14 w-full" barClassName="flex-1" />
       </div>
 
       {/* Infrastructure Services */}

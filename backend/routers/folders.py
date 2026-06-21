@@ -176,8 +176,8 @@ async def folder_delete(request: Request, folder_id: str, user: User = Depends(g
             except Exception as e:
                 logger.warning(f"Gagal hapus file {fp}: {e}")
         try:
-            from routers.documents import _delete_from_supabase_storage
-            await _delete_from_supabase_storage(user.user_id, doc["document_id"])
+            from services.storage import delete_from_supabase_storage
+            await delete_from_supabase_storage(user.user_id, doc["document_id"])
         except Exception:
             pass
 

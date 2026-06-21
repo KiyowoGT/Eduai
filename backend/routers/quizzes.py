@@ -5,11 +5,10 @@ import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 from core.database import db
 from models.user import User, UserRole
-from models.quiz import QuizGenerateRequest, QuizSubmission, QuizProgressSave
+from models.quiz import QuizGenerateRequest, QuizSubmission, QuizProgressSave, QuizChatPayload
 from deps.auth import get_current_user, write_audit
 from services.ai_service import (
     _audience,
@@ -28,9 +27,6 @@ from services.kafka_jobs import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-class QuizChatPayload(BaseModel):
-    question: str
 
 def _public_quiz(quiz_doc: dict) -> dict:
     out = {k: v for k, v in quiz_doc.items() if k != "_id"}
