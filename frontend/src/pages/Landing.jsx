@@ -230,7 +230,7 @@ export default function Landing() {
           <div className="flex flex-col items-center">
             <span className="text-[9px] font-black uppercase tracking-[0.4em] text-[#1D2D50]/40 dark:text-white/40 mb-8 sm:mb-12 text-center">Kredibilitas Global Melalui Kolaborasi</span>
             <div className="flex flex-wrap justify-center items-center gap-6 sm:gap-12 md:gap-24 grayscale hover:grayscale-0 transition-all duration-1000 text-[#1D2D50] dark:text-white/50">
-              {["UNIVERSITY", "RESEARCH", "SCHOLAR", "INSTITUTE", "ACADEMY"].map((name) => (
+              {["EDUCATION", "RESEARCH", "SCHOLAR", "INSTITUTE", "ACADEMY"].map((name) => (
                 <span key={name} className="text-lg sm:text-2xl md:text-3xl font-heading font-black tracking-tighter cursor-default opacity-80 hover:opacity-100">{name}</span>
               ))}
             </div>

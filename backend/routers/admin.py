@@ -131,3 +131,43 @@ async def update_ai_config(payload: AIConfigPayload, _: User = Depends(admin_req
         f.writelines(lines)
         
     return {"status": "success", "message": "Konfigurasi AI diperbarui."}
+
+class AITestPayload(BaseModel):
+    base_url: str
+    api_key: str
+    model: str
+
+@router.post("/ai-config/test")
+async def test_ai_connection(payload: AITestPayload, _: User = Depends(admin_required)):
+    import httpx
+    # Ensure URL ends with /v1
+    base_url = payload.base_url.rstrip("/")
+    url = f"{base_url}/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {payload.api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    body = {
+        "model": payload.model,
+        "messages": [{"role": "user", "content": "ping"}],
+        "max_tokens": 5
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=body, headers=headers, timeout=10.0)
+            if response.status_code == 200:
+                return {"ok": True}
+            else:
+                return {"ok": False, "error": f"HTTP {response.status_code}: {response.text}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@router.post("/restart")
+async def restart_backend(_: User = Depends(admin_required)):
+    import os
+    # Trigger self restart via systemd or exit to let systemd restart it
+    os.system("systemctl --user restart eduai-backend.service &")
+    return {"status": "success", "message": "Restarting..."}

@@ -350,17 +350,18 @@ export default function AppLayout() {
 
           if (isMiddle) {
             return (
-              <div key={it.to} className="relative flex justify-center items-center">
+              <div key={it.to} className="relative flex flex-col justify-center items-center">
                 <NavLink
                   to={it.to}
                   end={it.to === "/admin" || it.to === "/dashboard"}
-                  className="absolute -top-6 w-12 h-12 bg-[#1D2D50] rounded-[14px] rotate-45 shadow-[0_8px_20px_-4px_rgba(29,45,80,0.4)] flex items-center justify-center active:scale-90 transition-all duration-200"
+                  className="w-12 h-12 bg-[#1D2D50] rounded-[14px] rotate-45 flex items-center justify-center shadow-lg active:scale-90 transition-all duration-200"
                   title={it.label}
                 >
                   <div className="-rotate-45 text-[#E5A93C]">
                     <it.icon className="w-5 h-5" />
                   </div>
                 </NavLink>
+                <span className="text-[10px] font-medium tracking-tight mt-1 text-white dark:text-[#E2E0D8]">{it.label}</span>
               </div>
             );
           }
