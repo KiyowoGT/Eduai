@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children, requireOnboarded = true }) {
             <div className="relative w-24 h-24 mx-auto mb-8 flex items-center justify-center">
               <div className="absolute inset-0 rounded-[2rem] border-2 border-dashed border-[#E5A93C]/40 dark:border-[#E5A93C]/30 animate-[spin_15s_linear_infinite]" />
               <div className="absolute inset-2 rounded-full border-2 border-t-[#E5A93C] border-r-[#1D2D50] border-b-[#B83A4B] border-l-transparent dark:border-r-white/40 animate-[spin_1.5s_linear_infinite]" />
-              <div className="absolute inset-4 rounded-2xl bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
+              <div className="absolute inset-4 rounded-full bg-[#1D2D50] dark:bg-[#E5A93C] flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
                 <img src="/img/logo-schooly-owl.png" alt="Schooly AI" className="w-12 h-12 object-contain animate-pulse" />
               </div>
               <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#E5A93C] dark:bg-[#1D2D50] border-2 border-white dark:border-[#12131A] flex items-center justify-center shadow-lg animate-bounce">
