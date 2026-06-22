@@ -643,7 +643,9 @@ export async function listTeacherSchedules() {
 
 export async function getAdminTeachers() {
   const r = await http.get("/admin/users");
-  return { teachers: r.data, users: r.data };
+  const data = r.data;
+  const list = Array.isArray(data) ? data : (data?.users || data?.teachers || []);
+  return { users: list, teachers: list };
 }
 
 export async function suspendUser(userId, durationMinutes) {

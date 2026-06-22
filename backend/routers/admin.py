@@ -66,3 +66,8 @@ async def delete_bug(bug_id: str, _: User = Depends(admin_required)):
     if result.deleted_count == 0:
         raise HTTPException(404, "Bug not found")
     return {"status": "deleted"}
+
+@router.get("/users")
+async def list_users(_: User = Depends(admin_required)):
+    users = await db.users.find({}, {"_id": 0}).to_list(1000)
+    return {"users": users}
