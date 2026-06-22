@@ -42,6 +42,7 @@ import AuditLogViewer from "@/pages/admin/AuditLogViewer";
 import SystemHealth from "@/pages/admin/SystemHealth";
 import BugTracker from "@/pages/admin/BugTracker";
 import MaintenanceMode from "@/pages/admin/MaintenanceMode";
+import AISettings from "@/pages/admin/AISettings";
 import MusicTest from "@/pages/MusicTest";
 import PortalMandiri from "@/pages/PortalMandiri";
 
@@ -91,6 +92,7 @@ function AppRouter() {
               <Route path="/admin/maintenance-mode" element={<AdminGuard><MaintenanceMode /></AdminGuard>} />
               <Route path="/admin/reports" element={<AdminGuard><ReportsPage /></AdminGuard>} />
               <Route path="/admin/settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
+              <Route path="/admin/settings-ai" element={<AdminGuard><AISettings /></AdminGuard>} />
               <Route path="/teacher/quiz-results/:quizId" element={<TeacherQuizResults />} />
               <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
     <Route path="/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />

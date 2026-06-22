@@ -60,6 +60,7 @@ export default function AppLayout() {
         { to: "/admin/bugs", label: "Bug Tracker", icon: Bug, tid: "nav-sys-bugs" },
         { to: "/admin/maintenance-mode", label: "Maintenance", icon: Wrench, tid: "nav-sys-maint" },
         { to: "/admin/users", label: "User Mgmt", icon: Users, tid: "nav-sys-users" },
+        { to: "/admin/settings-ai", label: "Pengaturan AI", icon: BrainCircuit, tid: "nav-sys-ai" },
         { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText, tid: "nav-sys-audit" },
       ];
     }

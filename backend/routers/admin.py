@@ -19,6 +19,12 @@ class BugCreate(BaseModel):
     severity: str
     status: str = "Open"
 
+class AIConfigPayload(BaseModel):
+    base_url: str
+    api_key: str
+    gemini_model: Optional[str] = "ag/gemini-3-flash"
+    groq_model: Optional[str] = "ag/gemini-3-flash"
+
 @router.get("/system-stats")
 async def get_system_stats(_: User = Depends(admin_required)):
     cpu = psutil.cpu_percent(interval=0.5)
@@ -71,3 +77,57 @@ async def delete_bug(bug_id: str, _: User = Depends(admin_required)):
 async def list_users(_: User = Depends(admin_required)):
     users = await db.users.find({}, {"_id": 0}).to_list(1000)
     return {"users": users}
+
+@router.get("/ai-config")
+async def get_ai_config(_: User = Depends(admin_required)):
+    import os
+    env_path = "/mnt/hdd/Eduai/backend/.env"
+    config = {"base_url": "", "api_key": "", "gemini_model": "", "groq_model": ""}
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            for line in f:
+                if "=" in line:
+                    key, val = line.strip().split("=", 1)
+                    val = val.strip().strip("\"'")
+                    if key == "GEMINI_BASE_URL":
+                        config["base_url"] = val
+                    elif key == "GEMINI_API_KEY":
+                        config["api_key"] = val
+                    elif key == "GEMINI_MODEL":
+                        config["gemini_model"] = val
+                    elif key == "GROQ_MODEL":
+                        config["groq_model"] = val
+    return config
+
+@router.post("/ai-config")
+async def update_ai_config(payload: AIConfigPayload, _: User = Depends(admin_required)):
+    import os
+    env_path = "/mnt/hdd/Eduai/backend/.env"
+    lines = []
+    updated_keys = {
+        "GEMINI_BASE_URL": payload.base_url,
+        "GEMINI_API_KEY": payload.api_key,
+        "GEMINI_MODEL": payload.gemini_model,
+        "GROQ_MODEL": payload.groq_model,
+        "GEMINI_ANALYSIS_MODEL": payload.gemini_model
+    }
+    
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            for line in f:
+                if "=" in line:
+                    parts = line.split("=", 1)
+                    k = parts[0].strip()
+                    if k in updated_keys:
+                        lines.append(f"{k}={updated_keys[k]}\n")
+                        del updated_keys[k]
+                        continue
+                lines.append(line)
+                
+    for k, v in updated_keys.items():
+         lines.append(f"{k}={v}\n")
+         
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+        
+    return {"status": "success", "message": "Konfigurasi AI diperbarui."}
