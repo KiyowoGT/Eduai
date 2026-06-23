@@ -61,6 +61,7 @@ export default function AppLayout() {
         { to: "/admin/maintenance-mode", label: "Maintenance", icon: Wrench, tid: "nav-sys-maint" },
         { to: "/admin/users", label: "User Mgmt", icon: Users, tid: "nav-sys-users" },
         { to: "/admin/settings-ai", label: "Pengaturan AI", icon: BrainCircuit, tid: "nav-sys-ai" },
+        { to: "/admin/ci4", label: "Admin CI4", icon: Settings, tid: "nav-ci4" },
         { to: "/admin/audit-logs", label: "Audit Log", icon: ScrollText, tid: "nav-sys-audit" },
       ];
     }

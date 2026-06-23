@@ -287,6 +287,7 @@ async def health_check() -> dict:
             info["broker_connected"] = False
     else:
         info["broker_connected"] = False
+    info["ok"] = True
     return info
 
 
