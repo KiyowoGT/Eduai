@@ -276,7 +276,22 @@ export default function AppLayout() {
             </Button>
           </div>
 
-          {/* Sidebar Navigation */}
+      {/* Legacy Admin Panel Link - Super Admin Only */}
+      {isSuperAdmin && (
+        <NavLink
+          to="https://legacy-admin.ngrok-free.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? "bg-[#1D2D50] dark:bg-[#E5A93C] text-white dark:text-[#12131A]" : "text-[#646675] hover:bg-[#F8F6F0] dark:hover:bg-white/5 hover:text-[#1A1B26] dark:hover:text-white"}
+            } ${!sidebarOpen ? 'md:justify-center md:px-2' : ''}`
+          }
+          title={!sidebarOpen ? "Legacy Admin Panel (CI4)" : undefined}
+        >
+          <BookOpen className="w-4 h-4 shrink-0" />
+          {sidebarOpen && <span className="truncate">Admin CI4</span>}
+        </NavLink>
+      )}
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {navItems.map((it) => (
               <NavLink
