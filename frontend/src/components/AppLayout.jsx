@@ -354,14 +354,14 @@ export default function AppLayout() {
                 <NavLink
                   to={it.to}
                   end={it.to === "/admin" || it.to === "/dashboard"}
-                  className="w-12 h-12 bg-[#1D2D50] rounded-[14px] rotate-45 flex items-center justify-center shadow-lg active:scale-90 transition-all duration-200"
+                  className="absolute -top-8 w-14 h-14 bg-[#1D2D50] rounded-[14px] rotate-45 flex items-center justify-center shadow-lg active:scale-90 transition-all duration-200"
                   title={it.label}
                 >
                   <div className="-rotate-45 text-[#E5A93C]">
-                    <it.icon className="w-5 h-5" />
+                    <it.icon className="w-6 h-6" />
                   </div>
                 </NavLink>
-                <span className="text-[10px] font-medium tracking-tight mt-1 text-white dark:text-[#E2E0D8]">{it.label}</span>
+                <span className="text-[10px] font-medium tracking-tight mt-12 text-[#1D2D50] dark:text-[#E2E0D8]">{it.label}</span>
               </div>
             );
           }
