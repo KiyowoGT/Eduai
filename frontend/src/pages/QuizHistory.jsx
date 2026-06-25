@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listQuizResults, listAssignedQuizzes } from "@/lib/api";
-import { ScrollText, BrainCircuit, ArrowRight, AlertCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Clock } from "lucide-react";
+import { ScrollText, BrainCircuit, ArrowRight, AlertCircle, ChevronDown, ChevronUp, Sparkles, Clock, Loader2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PageSkeleton from "@/components/PageSkeleton";
 

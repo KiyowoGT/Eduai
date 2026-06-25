@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { http } from "@/lib/api";
-import { Brain, Key, Globe, Save, RefreshCw, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Brain, Key, Globe, Save, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import DualLoader from "@/components/DualLoader";
 import { toast } from "sonner";
 

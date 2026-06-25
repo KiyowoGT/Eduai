@@ -377,7 +377,7 @@ export default function AppLayout() {
                     <it.icon className="w-6 h-6" />
                   </div>
                 </NavLink>
-                <span className="text-[10px] font-medium tracking-tight mt-12 text-[#1D2D50] dark:text-[#E2E0D8]">{it.label}</span>
+                <span className="text-[10px] font-medium tracking-tight mt-9 text-[#1D2D50] dark:text-[#E2E0D8]">{it.label}</span>
               </div>
             );
           }
