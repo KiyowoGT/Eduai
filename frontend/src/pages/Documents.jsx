@@ -856,7 +856,7 @@ export default function Documents() {
                     <h4 className="text-xs font-semibold text-[#A0A2B1] uppercase tracking-wider">Kuis Terkait Materi</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {m.quizzes.map((q) => (
-                        <div key={q.quiz_id} className="p-3 bg-[#F8F6F0]/80 border border-[#E2E0D8]/80 rounded-xl relative">
+                        <div key={q.quiz_id} className="p-3 bg-white border border-[#E2E0D8] rounded-xl shadow-sm relative">
                           <div className="text-xs font-bold text-[#1A1B26] truncate">
                             {q.title || "Kuis AI"}
                           </div>
@@ -875,7 +875,7 @@ export default function Documents() {
                           ) : q.status === "published" ? (
                             <div className="mt-2 space-y-1">
                               {q.class_name && (
-                                <div className="text-[10px] text-[#1D2D50] bg-[#1D2D50]/5 px-2 py-0.5 rounded inline-block font-semibold">
+                                <div className="text-[10px] text-[#1D2D50] bg-[#1D2D50]/10 px-2 py-0.5 rounded inline-block font-semibold">
                                   Diterbitkan di: {q.class_name}
                                 </div>
                               )}
@@ -883,7 +883,7 @@ export default function Documents() {
                                 onClick={() => navigate(`/teacher/quiz-results/${q.quiz_id}`)}
                                 size="xs"
                                 variant="outline"
-                                className="h-6 text-[10px] px-2 border-[#1D2D50]/20 text-[#1D2D50] hover:bg-[#1D2D50]/5 ml-2"
+                                className="h-6 text-[10px] px-2 border-[#1D2D50]/30 text-[#1D2D50] hover:bg-[#1D2D50]/10 ml-2"
                               >
                                 Lihat Hasil
                               </Button>

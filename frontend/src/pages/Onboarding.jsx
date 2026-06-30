@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { updateProfile, getPersonalityQuestions, submitPersonalityAssessment } from "@/lib/api";
+import { updateProfile, onboardingComplete, getPersonalityQuestions, submitPersonalityAssessment } from "@/lib/api";
 import { EDUCATION_LEVELS, MAJORS, hasMajor, gradeOptions, institutionLabel, institutionPlaceholder } from "@/lib/education";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -82,14 +82,17 @@ export default function Onboarding() {
 
   const buildPayload = () => {
     if (role === "pengajar") {
-      return {
+      const payload = {
         role: "pengajar",
-        full_name: fullName.trim(),
-        ...(instituteType === "institut"
-          ? { institution: institution.trim(), identity_number: identityNumber.trim() }
-          : { username: username.trim() }
-        ),
+        account_type: instituteType === "institut" ? "perusahaan" : "pribadi",
       };
+      if (instituteType === "institut") {
+        payload.staff_passcode = identityNumber.trim();
+        payload.institution = institution.trim();
+      } else {
+        payload.username = username.trim();
+      }
+      return payload;
     }
     return {
       role: "pelajar",
@@ -146,7 +149,7 @@ export default function Onboarding() {
     setSubmitting(true);
     try {
       const payload = buildPayload();
-      const updated = await updateProfile(payload);
+      const updated = await onboardingComplete(payload);
       setUser((prev) => ({
         ...prev,
         id: prev?.id || prev?.user_id,

@@ -81,14 +81,15 @@ async def list_users(_: User = Depends(admin_required)):
 @router.get("/ai-config")
 async def get_ai_config(_: User = Depends(admin_required)):
     import os
-    env_path = "/mnt/hdd/Eduai/backend/.env"
+    from pathlib import Path
+    env_path = Path(__file__).parent.parent.parent / ".env"
     config = {"base_url": "", "api_key": "", "gemini_model": "", "groq_model": ""}
-    if os.path.exists(env_path):
+    if env_path.exists():
         with open(env_path, "r") as f:
             for line in f:
                 if "=" in line:
                     key, val = line.strip().split("=", 1)
-                    val = val.strip().strip("\"'")
+                    val = val.strip().strip("\\\"'")
                     if key == "GEMINI_BASE_URL":
                         config["base_url"] = val
                     elif key == "GEMINI_API_KEY":
@@ -102,7 +103,8 @@ async def get_ai_config(_: User = Depends(admin_required)):
 @router.post("/ai-config")
 async def update_ai_config(payload: AIConfigPayload, _: User = Depends(admin_required)):
     import os
-    env_path = "/mnt/hdd/Eduai/backend/.env"
+    from pathlib import Path
+    env_path = Path(__file__).parent.parent.parent / ".env"
     lines = []
     updated_keys = {
         "GEMINI_BASE_URL": payload.base_url,
@@ -111,8 +113,8 @@ async def update_ai_config(payload: AIConfigPayload, _: User = Depends(admin_req
         "GROQ_MODEL": payload.groq_model,
         "GEMINI_ANALYSIS_MODEL": payload.gemini_model
     }
-    
-    if os.path.exists(env_path):
+
+    if env_path.exists():
         with open(env_path, "r") as f:
             for line in f:
                 if "=" in line:
@@ -123,13 +125,13 @@ async def update_ai_config(payload: AIConfigPayload, _: User = Depends(admin_req
                         del updated_keys[k]
                         continue
                 lines.append(line)
-                
+
     for k, v in updated_keys.items():
          lines.append(f"{k}={v}\n")
-         
+
     with open(env_path, "w") as f:
         f.writelines(lines)
-        
+
     return {"status": "success", "message": "Konfigurasi AI diperbarui."}
 
 class AITestPayload(BaseModel):
@@ -171,3 +173,112 @@ async def restart_backend(_: User = Depends(admin_required)):
     # Trigger self restart via systemd or exit to let systemd restart it
     os.system("systemctl --user restart eduai-backend.service &")
     return {"status": "success", "message": "Restarting..."}
+
+@router.get("/live-status")
+async def get_live_status():
+    from pathlib import Path
+    import os
+
+    project_root = Path(__file__).parent.parent.parent
+    status_file = project_root / "current_live.txt"
+    
+    current_live = "blue"
+    if status_file.exists():
+        current_live = status_file.read_text().strip() or "blue"
+    
+    blue_dir = project_root / "blue"
+    green_dir = project_root / "green"
+    
+    return {
+        "current": current_live,
+        "blue_exists": blue_dir.is_dir(),
+        "green_exists": green_dir.is_dir(),
+        "next_target": "green" if current_live == "blue" else "blue"
+    }
+
+@router.post("/deploy")
+async def deploy_to_idle():
+    import subprocess
+    import shutil
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent.parent
+    status_file = project_root / "current_live.txt"
+    
+    current_live = "blue"
+    if status_file.exists():
+        current_live = status_file.read_text().strip() or "blue"
+    
+    target = "green" if current_live == "blue" else "blue"
+    
+    frontend_dir = project_root / "frontend"
+    try:
+        proc = subprocess.run(
+            ["npm", "run", "build"],
+            cwd=str(frontend_dir),
+            capture_output=True,
+            text=True
+        )
+        if proc.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Build failed: {proc.stderr[-2000:]}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Build failed: {str(e)}")
+    
+    build_dir = frontend_dir / "build"
+    target_dir = project_root / target
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    shutil.copytree(build_dir, target_dir)
+    
+    return {
+        "status": "deployed",
+        "target": target,
+        "message": f"Frontend built and deployed to {target}"
+    }
+
+@router.post("/switch")
+async def switch_live_server():
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent.parent
+    status_file = project_root / "current_live.txt"
+    
+    current_live = "blue"
+    if status_file.exists():
+        current_live = status_file.read_text().strip() or "blue"
+    
+    target = "green" if current_live == "blue" else "blue"
+    
+    # Write new live status
+    status_file.write_text(target)
+    
+    return {
+        "status": "switched",
+        "current": target,
+        "needs_restart": False,
+        "message": f"Now serving {target} environment"
+    }
+
+@router.post("/rollback")
+async def rollback_live_server():
+    from pathlib import Path
+
+    project_root = Path(__file__).parent.parent.parent
+    status_file = project_root / "current_live.txt"
+    
+    current_live = "blue"
+    if status_file.exists():
+        current_live = status_file.read_text().strip() or "blue"
+    
+    previous = "green" if current_live == "blue" else "blue"
+    
+    # Write previous as live
+    status_file.write_text(previous)
+    
+    return {
+        "status": "rollback",
+        "current": previous,
+        "message": f"Rolled back to {previous}"
+    }

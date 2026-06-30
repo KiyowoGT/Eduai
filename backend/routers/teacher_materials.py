@@ -599,6 +599,7 @@ async def generate_teacher_quiz(
         "questions": [],
         "status": "processing",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "folder_id": None,
     }
     await db.quizzes.insert_one(quiz_doc.copy())
 

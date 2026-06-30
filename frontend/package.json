@@ -61,9 +61,9 @@
     "zod": "^3.24.4"
   },
   "scripts": {
-    "postinstall": "cd ../backend && pip install --break-system-packages -r requirements.txt",
-    "start": "PORT=3010 BROWSER=none craco start",
-    "dev": "PORT=3010 BROWSER=none craco start",
+    "postinstall": "cd ../backend && pip install -r requirements.txt",
+    "start": "craco start",
+    "dev": "craco start",
     "build": "craco build",
     "deploy": "bash /mnt/hdd/Eduai/deploy.sh",
     "test": "craco test"

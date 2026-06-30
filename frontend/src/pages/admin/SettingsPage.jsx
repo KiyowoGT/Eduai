@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Shield, Bell, Clock, Link2, Database, Save } from "lucide-react";
+import { http } from "@/lib/api";
+import { Shield, Bell, Clock, Link2, Database, Save, Server, ArrowRightLeft, RotateCcw, Rocket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const SETTINGS_SECTIONS = [
+  { id: "deployment", label: "Deployment", icon: Server },
   { id: "ai", label: "Kebijakan AI", icon: Shield },
   { id: "notifications", label: "Notifikasi", icon: Bell },
   { id: "retention", label: "Data Retention", icon: Clock },
@@ -13,8 +15,63 @@ const SETTINGS_SECTIONS = [
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState("ai");
+  const [activeSection, setActiveSection] = useState("deployment");
   const [saving, setSaving] = useState(false);
+  const [deploymentStatus, setDeploymentStatus] = useState(null);
+  const [deploying, setDeploying] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const fetchStatus = async () => {
+    try {
+      const { data } = await http.get("/admin/live-status");
+      setDeploymentStatus(data);
+    } catch (e) {
+      console.error("Failed to fetch live-status", e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "deployment") fetchStatus();
+  }, [activeSection]);
+
+  const handleDeploy = async () => {
+    setDeploying(true);
+    try {
+      const { data } = await http.post("/admin/deploy");
+      toast.success(data.message || `Deployed to ${data.target}`);
+      await fetchStatus();
+    } catch (e) {
+      toast.error("Deploy failed: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const handleSwitch = async () => {
+    setActionLoading("switch");
+    try {
+      const { data } = await http.post("/admin/switch");
+      toast.success(`Switched to ${data.current}`);
+      await fetchStatus();
+    } catch (e) {
+      toast.error("Switch failed: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRollback = async () => {
+    setActionLoading("rollback");
+    try {
+      const { data } = await http.post("/admin/rollback");
+      toast.success(`Rolled back to ${data.current}`);
+      await fetchStatus();
+    } catch (e) {
+      toast.error("Rollback failed: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const [settings, setSettings] = useState({
     ai_browsing_enabled: false,
     notify_resign: true,
@@ -73,6 +130,93 @@ export default function SettingsPage() {
         {/* Content */}
         <div className="flex-1">
           <div className="bg-white border border-[#E2E0D8] rounded-xl p-6">
+            {/* Deployment */}
+            {activeSection === "deployment" && (
+              <div className="space-y-6">
+                <h2 className="font-heading text-lg text-[#1A1B26]">Blue/Green Deployment</h2>
+                <p className="text-xs text-[#646675]">
+                  Kelola versi frontend yang sedang aktif. Deploy ke idle server lalu switch tanpa downtime.
+                </p>
+
+                {deploymentStatus ? (
+                  <>
+                    {/* Status Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className={`p-4 rounded-xl border ${
+                        deploymentStatus.current === "blue"
+                          ? "border-[#2D6A4F]/30 bg-[#2D6A4F]/5"
+                          : "border-[#E2E0D8] bg-[#F8F6F0]"
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-3 h-3 rounded-full ${deploymentStatus.current === "blue" ? "bg-[#2D6A4F] animate-pulse" : "bg-[#A0A2B1]"}`} />
+                          <span className="text-sm font-medium text-[#1A1B26]">Blue Server</span>
+                        </div>
+                        <div className="text-xs text-[#646675]">
+                          {deploymentStatus.current === "blue" ? "🟢 LIVE" : "🔵 Idle"}
+                        </div>
+                        <div className="text-[10px] text-[#A0A2B1] mt-1">
+                          {deploymentStatus.blue_exists ? "Files present" : "Not built yet"}
+                        </div>
+                      </div>
+                      <div className={`p-4 rounded-xl border ${
+                        deploymentStatus.current === "green"
+                          ? "border-[#2D6A4F]/30 bg-[#2D6A4F]/5"
+                          : "border-[#E2E0D8] bg-[#F8F6F0]"
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-3 h-3 rounded-full ${deploymentStatus.current === "green" ? "bg-[#2D6A4F] animate-pulse" : "bg-[#A0A2B1]"}`} />
+                          <span className="text-sm font-medium text-[#1A1B26]">Green Server</span>
+                        </div>
+                        <div className="text-xs text-[#646675]">
+                          {deploymentStatus.current === "green" ? "🟢 LIVE" : "🔵 Idle"}
+                        </div>
+                        <div className="text-[10px] text-[#A0A2B1] mt-1">
+                          {deploymentStatus.green_exists ? "Files present" : "Not built yet"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <button
+                        onClick={handleDeploy}
+                        disabled={deploying}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#1D2D50] text-white text-sm rounded-lg hover:bg-[#1D2D50]/90 transition-colors disabled:opacity-50 shadow-sm"
+                      >
+                        {deploying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+                        {deploying ? "Building..." : `Deploy to ${deploymentStatus.next_target}`}
+                      </button>
+                      <button
+                        onClick={handleSwitch}
+                        disabled={actionLoading === "switch"}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 border border-[#E2E0D8] text-sm text-[#1A1B26] rounded-lg hover:bg-[#F8F6F0] transition-colors disabled:opacity-50"
+                      >
+                        {actionLoading === "switch" ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                        Switch to {deploymentStatus.next_target}
+                      </button>
+                      <button
+                        onClick={handleRollback}
+                        disabled={actionLoading === "rollback"}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 border border-[#B83A4B]/30 text-sm text-[#B83A4B] rounded-lg hover:bg-[#B83A4B]/5 transition-colors disabled:opacity-50"
+                      >
+                        {actionLoading === "rollback" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                        Rollback
+                      </button>
+                    </div>
+
+                    {/* Info */}
+                    <p className="text-[10px] text-[#A0A2B1] pt-2">
+                      Switch and rollback take effect instantly. No restart required.
+                    </p>
+                  </>
+                ) : (
+                  <div className="p-8 text-center text-sm text-[#A0A2B1] border border-dashed border-[#E2E0D8] rounded-lg">
+                    Loading deployment status...
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* AI Policy */}
             {activeSection === "ai" && (
               <div className="space-y-5">

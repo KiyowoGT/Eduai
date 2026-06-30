@@ -3,10 +3,12 @@ import { supabase } from "@/lib/supabase";
 
 const RAW_BACKEND_URL = process.env.REACT_APP_BACKEND_URL?.trim();
 
-// Gunakan window.location.origin secara dinamis jika berjalan di browser agar port dan domain selalu serasi
-const BACKEND_URL = typeof window !== "undefined"
-  ? window.location.origin
-  : (RAW_BACKEND_URL && RAW_BACKEND_URL !== "undefined" ? RAW_BACKEND_URL.replace(/\/+$/, "") : "");
+const CONFIGURED_BACKEND_URL = RAW_BACKEND_URL && RAW_BACKEND_URL !== "undefined"
+  ? RAW_BACKEND_URL.replace(/\/+$/, "")
+  : "";
+
+// Gunakan REACT_APP_BACKEND_URL jika disediakan; fallback ke origin saat deploy satu domain.
+const BACKEND_URL = CONFIGURED_BACKEND_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
 export const API = `${BACKEND_URL}/api`;
 export const WS_API = `${BACKEND_URL.replace(/^http/i, "ws")}/api/ws`;

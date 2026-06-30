@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ──────────────────────────────────────────────────────────
 KAFKA_BOOTSTRAP_SERVERS: str = os.environ.get(
-    "KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"
+    "KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"
 )
 KAFKA_ENABLED: bool = os.environ.get("KAFKA_ENABLED", "true").lower() == "true"
 

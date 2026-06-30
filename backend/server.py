@@ -341,35 +341,63 @@ async def dev_music_test(payload: _MusicTestPayload):
         result = await aimusic_suno(payload.prompt, payload.style)
     return result
 
-# ============== Catch-all SPA Routing Handler ==============
-@fastapi_app.exception_handler(404)
-async def custom_404_handler(request: Request, exc):
-    # Jika request mengarah ke API atau WebSocket, kembalikan JSON 404 asli
-    if request.url.path.startswith("/api") or request.url.path.startswith("/ws"):
-        return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    
-    # Jika mengarah ke halaman frontend (seperti /auth/callback atau /dashboard),
-    # arahkan kembali ke file index.html dari build frontend agar React Router yang menangani rutenya
-    FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "blue"
-    index_file = FRONTEND_BUILD / "index.html"
-    if index_file.is_file():
-        return FileResponse(index_file)
-    
-    return JSONResponse(status_code=404, content={"detail": "Not Found"})
-
-# Mount the api_router to app
+# Register API router
 fastapi_app.include_router(api_router)
 
-# Serve frontend static assets (JS, CSS, etc.)
-FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "blue"
-static_dir = FRONTEND_BUILD / "static"
-if static_dir.is_dir():
-    fastapi_app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+# ============== Blue/Green Dynamic Frontend Serving ==============
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LIVE_STATUS_FILE = PROJECT_ROOT / "current_live.txt"
 
-# Serve additional public assets (e.g. mascots, icons in /img/)
-img_dir = FRONTEND_BUILD / "img"
-if img_dir.is_dir():
-    fastapi_app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+def get_live_build_dir() -> Path:
+    """Return the currently live build directory (blue/ or green/)."""
+    default = "blue"
+    try:
+        if LIVE_STATUS_FILE.exists():
+            live = LIVE_STATUS_FILE.read_text().strip()
+            if live in ("blue", "green"):
+                default = live
+    except Exception:
+        pass
+    return PROJECT_ROOT / default
+
+class FrontendMiddleware:
+    """Serve frontend assets from live build directory (reads current_live.txt per request)."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        
+        # Skip API and WebSocket routes
+        if path.startswith("/api") or path.startswith("/ws"):
+            await self.app(scope, receive, send)
+            return
+
+        live_dir = get_live_build_dir()
+        
+        # Serve static assets
+        if path.startswith("/static/") or path.startswith("/img/"):
+            relative_path = path.lstrip("/")
+            file_path = live_dir / relative_path
+            if file_path.is_file():
+                await FileResponse(file_path)(scope, receive, send)
+                return
+
+        # Serve index.html for SPA routes (fallback)
+        index_file = live_dir / "index.html"
+        if index_file.is_file():
+            await FileResponse(index_file)(scope, receive, send)
+            return
+
+        # Fallback to app (will hit 404)
+        await self.app(scope, receive, send)
+        return
+
+fastapi_app.add_middleware(FrontendMiddleware)
 
 # Add Middleware
 fastapi_app.add_middleware(

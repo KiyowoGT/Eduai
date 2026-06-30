@@ -115,9 +115,11 @@ async def _call_gemini(
     keys = list(GEMINI_API_KEYS) if GEMINI_API_KEYS else ['']
 
     last_error = None
-    # Jika GEMINI_BASE_URL mengarah ke Tailscale/custom route 9router, 
-    # kita gunakan library openai (AsyncOpenAI) agar otentikasi Bearer Token terkirim dengan benar.
-    if "tail30e3e2" in GEMINI_BASE_URL or "9router" in GEMINI_BASE_URL:
+    openai_compatible_base = GEMINI_BASE_URL.rstrip("/").endswith("/v1") and "generativelanguage.googleapis.com" not in GEMINI_BASE_URL
+
+    # Jika GEMINI_BASE_URL mengarah ke endpoint OpenAI-compatible (custom /v1, 9router, dll),
+    # gunakan AsyncOpenAI agar request /chat/completions dan Bearer Token terkirim dengan benar.
+    if openai_compatible_base or "tail30e3e2" in GEMINI_BASE_URL or "9router" in GEMINI_BASE_URL:
         from openai import AsyncOpenAI
         import base64
         for key_idx, api_key in enumerate(keys):

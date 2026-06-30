@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, BookOpen, Award, Code,
-  FileText, Check, X, BookMarked, GraduationCap, Ticket
+  FileText, Check, X, BookMarked, GraduationCap, Ticket, Loader2
 } from "lucide-react";
 
 const LETTERS = ["A", "B", "C", "D"];
@@ -155,16 +155,16 @@ function PortalMandiri() {
         )}
 
         {mode === "quiz_info" && quizInfo && (
-          <div className="bg-white border border-[#E2E0D8] rounded-xl p-7 fade-up">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A0A2B1] mb-4">
+          <div className="bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-7 fade-up">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 mb-4">
               <Code className="w-3.5 h-3.5" /> Kode: {quizInfo.code}
             </div>
-            <h2 className="font-heading text-2xl text-[#1A1B26]">{quizInfo.title}</h2>
+            <h2 className="font-heading text-2xl text-gray-800 dark:text-gray-200">{quizInfo.title}</h2>
             {quizInfo.subject_name && (
-              <p className="text-sm text-[#646675] mt-1">Mata Pelajaran: {quizInfo.subject_name}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Mata Pelajaran: {quizInfo.subject_name}</p>
             )}
-            <p className="text-sm text-[#646675] mt-1">{quizInfo.questions.length} Soal</p>
-            <Button onClick={handleStartQuiz} className="mt-6 bg-[#1D2D50] hover:bg-[#15223E] text-white h-11 px-8 rounded-md">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{quizInfo.questions.length} Soal</p>
+            <Button onClick={handleStartQuiz} className="mt-6 bg-[#1D2D50] dark:bg-blue-600 hover:bg-[#15223E] dark:hover:bg-blue-700 text-white h-11 px-8 rounded-md">
               Mulai Kuis <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
@@ -194,10 +194,10 @@ function PortalMandiri() {
         <>
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
-              <GraduationCap className="w-6 h-6 text-[#1D2D50]" />
-              <h1 className="font-heading text-2xl text-[#1A1B26]">Portal Belajar Mandiri</h1>
+              <GraduationCap className="w-6 h-6 text-gray-800 dark:text-gray-200" />
+              <h1 className="font-heading text-2xl text-gray-800 dark:text-gray-200">Portal Belajar Mandiri</h1>
             </div>
-            <p className="text-sm text-[#646675]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Redem kode untuk akses materi dan kuis dari pengajar.
             </p>
           </div>
@@ -228,23 +228,23 @@ function RedeemCodeSection({ codeInput, setCodeInput, validating, onRedeem }) {
   return (
     <section className="mb-8">
       <div className="flex items-center gap-2 mb-4">
-        <Ticket className="w-5 h-5 text-[#1D2D50]" />
-        <h2 className="font-heading text-lg text-[#1A1B26]">Redem Kode Kuis</h2>
+        <Ticket className="w-5 h-5 text-gray-800 dark:text-gray-200" />
+        <h2 className="font-heading text-lg text-gray-800 dark:text-gray-200">Redem Kode Kuis</h2>
       </div>
-      <div className="bg-white border border-[#E2E0D8] rounded-xl p-6">
-        <p className="text-sm text-[#646675] mb-4">Masukkan kode redeem dari pengajar mandiri untuk mengakses kuis.</p>
+      <div className="bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-6">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Masukkan kode redeem dari pengajar mandiri untuk mengakses kuis.</p>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             value={codeInput}
             onChange={e => setCodeInput(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === "Enter" && onRedeem()}
             placeholder="Contoh: MAT-LES-X7K2"
-            className="w-full sm:flex-1 px-4 py-2.5 border border-[#E2E0D8] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1D2D50]/20 focus:border-[#1D2D50] bg-white text-[#1A1B26] placeholder:text-[#A0A2B1] uppercase tracking-wider"
+            className="w-full sm:flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 uppercase tracking-wider"
           />
           <Button
             onClick={onRedeem}
             disabled={validating}
-            className="w-full sm:w-auto bg-[#1D2D50] hover:bg-[#15223E] text-white h-11 px-6 rounded-md shrink-0"
+            className="w-full sm:w-auto bg-[#1D2D50] dark:bg-blue-600 hover:bg-[#15223E] dark:hover:bg-blue-700 text-white h-11 px-6 rounded-md shrink-0"
           >
             {validating ? "Memvalidasi…" : "Redem"}
           </Button>
@@ -258,17 +258,17 @@ function JoinedClassBanner({ user }) {
   if (!user?.class_token_used) return null;
   return (
     <section className="mb-6">
-      <div className="bg-[#F8F6F0] border border-[#E2E0D8] rounded-xl p-4 flex items-center gap-3">
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-[#E5A93C]/15 grid place-items-center shrink-0">
           <GraduationCap className="w-5 h-5 text-[#E5A93C]" />
         </div>
         <div className="text-sm">
-          <div className="text-[#646675]">
-            <span className="text-[#A0A2B1]">Kode: </span>
-            <span className="font-mono font-semibold text-[#1A1B26]">{user.class_token_used}</span>
+          <div className="text-gray-500 dark:text-gray-400">
+            <span className="text-gray-400 dark:text-gray-500">Kode: </span>
+            <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">{user.class_token_used}</span>
           </div>
           {user.enrolled_class && (
-            <div className="text-[#A0A2B1] text-xs mt-0.5">
+            <div className="text-gray-400 dark:text-gray-500 text-xs mt-0.5">
               Kelas: {user.enrolled_class}
             </div>
           )}
@@ -289,13 +289,13 @@ function DocumentsSection({ docs, loading, navigate, onCancel }) {
   return (
     <section className="mb-8">
       <div className="flex items-center gap-2 mb-4">
-        <BookOpen className="w-5 h-5 text-[#1D2D50]" />
-        <h2 className="font-heading text-lg text-[#1A1B26]">Materi</h2>
+        <BookOpen className="w-5 h-5 text-gray-800 dark:text-gray-200" />
+        <h2 className="font-heading text-lg text-gray-800 dark:text-gray-200">Materi</h2>
       </div>
       {loading ? (
-        <div className="flex items-center justify-center py-10 text-sm text-[#646675]">Memuat materi…</div>
+        <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">Memuat materi…</div>
       ) : docs.length === 0 ? (
-        <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 text-sm text-[#A0A2B1]">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-sm text-gray-400 dark:text-gray-500">
           Redem kode atau gabung kelas dari pengajar untuk melihat materi di sini.
         </div>
       ) : (
@@ -303,7 +303,7 @@ function DocumentsSection({ docs, loading, navigate, onCancel }) {
           {Object.entries(grouped).map(([key, group]) => (
             <div key={key}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[11px] uppercase tracking-[0.15em] text-[#A0A2B1] font-mono">
+                <span className="text-[11px] uppercase tracking-[0.15em] text-gray-400 dark:text-gray-500 font-mono">
                   {group.code || group.title}
                 </span>
               </div>
@@ -315,25 +315,25 @@ function DocumentsSection({ docs, loading, navigate, onCancel }) {
                     <div key={doc.document_id} className="relative group">
                       <button
                         onClick={() => navigate(`/dokumen/${doc.document_id}`)}
-                        className="w-full text-left bg-white border border-[#E2E0D8] rounded-xl p-5 hover:border-[#1D2D50]/40 transition-colors"
+                        className="w-full text-left bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:border-blue-500/40 transition-colors"
                       >
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 rounded-lg bg-[#1D2D50]/10 grid place-items-center shrink-0">
                             {isProc ? (
-                              <Loader2 className="w-4 h-4 text-[#1D2D50] animate-spin" />
+                              <Loader2 className="w-4 h-4 text-gray-800 dark:text-gray-200 animate-spin" />
                             ) : (
-                              <FileText className="w-4 h-4 text-[#1D2D50]" />
+                              <FileText className="w-4 h-4 text-gray-800 dark:text-gray-200" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-sm text-[#1A1B26] truncate">{doc.title || doc.filename}</span>
+                              <span className="font-medium text-sm text-gray-800 dark:text-gray-200 truncate">{doc.title || doc.filename}</span>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${getDocumentStatusClasses(statusMeta.tone)}`}>
                                 {statusMeta.chip}
                               </span>
                             </div>
-                            {doc.subject_name && <span className="text-[11px] text-[#646675]">{doc.subject_name}</span>}
-                            <p className="text-xs text-[#646675] mt-2 line-clamp-2">
+                            {doc.subject_name && <span className="text-[11px] text-gray-500 dark:text-gray-400">{doc.subject_name}</span>}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">
                               {doc.status === "ready" ? (doc.summary || "Analisis selesai.") : statusMeta.detail}
                             </p>
                           </div>
@@ -373,13 +373,13 @@ function QuizResultsSection({ sessions, loading, onViewSession }) {
   return (
     <section className="mb-8">
       <div className="flex items-center gap-2 mb-4">
-        <Award className="w-5 h-5 text-[#1D2D50]" />
-        <h2 className="font-heading text-lg text-[#1A1B26]">Hasil Kuis Redem</h2>
+        <Award className="w-5 h-5 text-gray-800 dark:text-gray-200" />
+        <h2 className="font-heading text-lg text-gray-800 dark:text-gray-200">Hasil Kuis Redem</h2>
       </div>
       {loading ? (
-        <div className="flex items-center justify-center py-10 text-sm text-[#646675]">Memuat hasil…</div>
+        <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">Memuat hasil…</div>
       ) : ordered.length === 0 ? (
-        <div className="bg-white border border-[#E2E0D8] rounded-xl p-6 text-sm text-[#A0A2B1]">Belum ada hasil kuis. Redem kode untuk mulai.</div>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-sm text-gray-400 dark:text-gray-500">Belum ada hasil kuis. Redem kode untuk mulai.</div>
       ) : (
         <div className="space-y-3">
           {ordered.map(s => (
@@ -387,31 +387,31 @@ function QuizResultsSection({ sessions, loading, onViewSession }) {
               key={s.session_id}
               onClick={() => s.status === "ready" && onViewSession(s.session_id)}
               disabled={s.status !== "ready"}
-              className={`w-full text-left bg-white border border-[#E2E0D8] rounded-xl p-5 transition-colors ${
-                s.status === "ready" ? "hover:border-[#1D2D50]/40 cursor-pointer" : "opacity-60 cursor-default"
+              className={`w-full text-left bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-5 transition-colors ${
+                s.status === "ready" ? "hover:border-blue-500/40 cursor-pointer" : "opacity-60 cursor-default"
               }`}
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${
-                    s.status === "ready" ? "bg-[#2D6A4F]/10" : "bg-[#A0A2B1]/10"
+                    s.status === "ready" ? "bg-[#2D6A4F]/10" : "bg-gray-400/10"
                   }`}>
-                    <Award className={`w-4 h-4 ${s.status === "ready" ? "text-[#2D6A4F]" : "text-[#A0A2B1]"}`} />
+                    <Award className={`w-4 h-4 ${s.status === "ready" ? "text-[#2D6A4F]" : "text-gray-400"}`} />
                   </div>
                   <div className="min-w-0">
-                    <div className="font-medium text-sm text-[#1A1B26] truncate">{s.quiz_title || "Kuis Mandiri"}</div>
-                    <div className="text-[11px] text-[#646675]">{s.subject_name || ""}{s.submitted_at ? ` · ${fmt(s.submitted_at)}` : ""}</div>
+                    <div className="font-medium text-sm text-gray-800 dark:text-gray-200 truncate">{s.quiz_title || "Kuis Mandiri"}</div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400">{s.subject_name || ""}{s.submitted_at ? ` · ${fmt(s.submitted_at)}` : ""}</div>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   {s.status === "ready" ? (
-                    <span className="font-heading text-xl text-[#2D6A4F]">{s.score}<span className="text-sm text-[#A0A2B1]">/100</span></span>
+                    <span className="font-heading text-xl text-[#2D6A4F]">{s.score}<span className="text-sm text-gray-400 dark:text-gray-500">/100</span></span>
                   ) : s.status === "processing" ? (
                     <span className="text-xs text-[#E5A93C]">Dinilai…</span>
                   ) : s.status === "failed" ? (
                     <span className="text-xs text-[#B83A4B]">Gagal</span>
                   ) : (
-                    <span className="text-xs text-[#A0A2B1]">{s.status}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{s.status}</span>
                   )}
                 </div>
               </div>
@@ -438,18 +438,18 @@ function QuizTakeView({ questions, step, setStep, answers, pick, submitting, onS
   return (
     <div className="w-full fade-up">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Kuis Redem</span>
-        <span className="font-mono text-sm text-[#1D2D50]">{step + 1} / {total}</span>
+        <span className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Kuis Redem</span>
+        <span className="font-mono text-sm text-gray-800 dark:text-gray-200">{step + 1} / {total}</span>
       </div>
-      <div className="h-1 bg-[#E2E0D8] rounded-full overflow-hidden mb-8">
-        <div className="h-full bg-[#1D2D50] transition-all duration-500" style={{ width: `${progress}%` }} />
+      <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-8">
+        <div className="h-full bg-[#1D2D50] dark:bg-blue-500 transition-all duration-500" style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="bg-white border border-[#E2E0D8] rounded-xl p-7 md:p-10 fade-up" key={step}>
+      <div className="bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-7 md:p-10 fade-up" key={step}>
         <div className="text-[10px] uppercase tracking-[0.2em] text-[#B83A4B] font-mono mb-3">
           {q.skill_type?.replaceAll("_", " ")}
         </div>
-        <h2 className="font-heading text-xl lg:text-2xl text-[#1A1B26] leading-snug whitespace-pre-line">{q.question}</h2>
+        <h2 className="font-heading text-xl lg:text-2xl text-gray-800 dark:text-gray-200 leading-snug whitespace-pre-line">{q.question}</h2>
 
         <div className="mt-7 space-y-3">
           {q.options.map((opt, i) => {
@@ -460,11 +460,11 @@ function QuizTakeView({ questions, step, setStep, answers, pick, submitting, onS
                 onClick={() => pick(i)}
                 className={`w-full text-left flex items-start gap-4 px-5 py-4 rounded-lg border transition-all duration-200 ${
                   active
-                    ? "border-[#1D2D50] bg-[#1D2D50] text-white"
-                    : "border-[#E2E0D8] bg-white text-[#1A1B26] hover:border-[#1D2D50]/40 hover:bg-[#F8F6F0]"
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:border-blue-500/40 hover:bg-gray-50 dark:hover:bg-gray-700"
                 }`}
               >
-                <span className={`font-mono text-xs mt-0.5 ${active ? "text-[#E5A93C]" : "text-[#A0A2B1]"}`}>{LETTERS[i]}</span>
+                <span className={`font-mono text-xs mt-0.5 ${active ? "text-[#E5A93C]" : "text-gray-400 dark:text-gray-500"}`}>{LETTERS[i]}</span>
                 <span className="text-sm leading-relaxed">{opt}</span>
               </button>
             );
@@ -476,14 +476,14 @@ function QuizTakeView({ questions, step, setStep, answers, pick, submitting, onS
         <div>
           {step > 0 && (
             <Button onClick={prev} variant="outline" disabled={submitting}
-              className="border-[#E2E0D8] text-[#646675] h-11 px-6 rounded-md">
+              className="border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 h-11 px-6 rounded-md">
               <ChevronLeft className="w-4 h-4 mr-1" /> Sebelumnya
             </Button>
           )}
         </div>
         <div>
           {step < total - 1 ? (
-            <Button onClick={next} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-11 px-6 rounded-md">
+            <Button onClick={next} className="bg-[#1D2D50] dark:bg-blue-600 hover:bg-[#15223E] dark:hover:bg-blue-700 text-white h-11 px-6 rounded-md">
               Soal Berikutnya <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
@@ -504,10 +504,10 @@ function QuizResultView({ session, onBack }) {
 
   if (session.status === "failed") {
     return (
-      <div className="bg-white border border-[#E2E0D8] rounded-xl p-7 text-center">
+      <div className="bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-7 text-center">
         <div className="text-lg font-heading text-[#B83A4B] mb-2">Penilaian Gagal</div>
-        <p className="text-sm text-[#646675]">{session.error || "Terjadi kesalahan saat menilai jawaban."}</p>
-        <Button onClick={onBack} className="mt-4 bg-[#1D2D50] text-white">Kembali</Button>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{session.error || "Terjadi kesalahan saat menilai jawaban."}</p>
+        <Button onClick={onBack} className="mt-4 bg-[#1D2D50] dark:bg-blue-600 text-white">Kembali</Button>
       </div>
     );
   }
@@ -515,11 +515,11 @@ function QuizResultView({ session, onBack }) {
   return (
     <div className="w-full fade-up">
       <div className="grid md:grid-cols-12 gap-6 mb-8">
-        <div className="md:col-span-4 bg-white border border-[#E2E0D8] rounded-xl p-7">
-          <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1]">Skor Akhir</div>
-          <div className={`font-heading text-6xl mt-3 ${scoreClass}`}>{score}<span className="text-2xl text-[#A0A2B1]">/100</span></div>
+        <div className="md:col-span-4 bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-7">
+          <div className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Skor Akhir</div>
+          <div className={`font-heading text-6xl mt-3 ${scoreClass}`}>{score}<span className="text-2xl text-gray-400 dark:text-gray-500">/100</span></div>
         </div>
-        <div className="md:col-span-8 bg-[#1D2D50] text-white rounded-xl p-7">
+        <div className="md:col-span-8 bg-[#1D2D50] dark:bg-blue-900 text-white rounded-xl p-7">
           <div className="text-xs uppercase tracking-[0.2em] text-[#E5A93C]">Ringkasan AI</div>
           <p className="font-heading text-xl lg:text-2xl mt-2 leading-snug">{session.summary || "Ringkasan sedang diproses."}</p>
         </div>
@@ -527,38 +527,38 @@ function QuizResultView({ session, onBack }) {
 
       {session.questions && session.questions.length > 0 && (
         <>
-          <h2 className="font-heading text-2xl text-[#1A1B26] mb-5">Deep Feedback</h2>
+          <h2 className="font-heading text-2xl text-gray-800 dark:text-gray-200 mb-5">Deep Feedback</h2>
           <div className="space-y-5">
             {session.questions.map((q, i) => (
-              <div key={i} className="bg-white border border-[#E2E0D8] rounded-xl p-6">
+              <div key={i} className="bg-white dark:bg-[#1A1B26] border border-gray-200 dark:border-gray-700 rounded-xl p-6">
                 <div className="flex items-start gap-4">
                   <div className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${q.is_correct ? "bg-[#2D6A4F]/10 text-[#2D6A4F]" : "bg-[#B83A4B]/10 text-[#B83A4B]"}`}>
                     {q.is_correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                   </div>
                   <div className="flex-1">
-                    <div className="text-xs uppercase tracking-[0.2em] text-[#A0A2B1] mb-1">Soal {i + 1}</div>
-                    <p className="font-heading text-lg text-[#1A1B26] leading-snug">{q.question}</p>
+                    <div className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 mb-1">Soal {i + 1}</div>
+                    <p className="font-heading text-lg text-gray-800 dark:text-gray-200 leading-snug">{q.question}</p>
                     <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
-                      <div className="px-3 py-2 rounded-md bg-[#F8F6F0] border border-[#E2E0D8]">
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1]">Jawaban Lu</div>
+                      <div className="px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Jawaban Lu</div>
                         <div className={`mt-1 ${q.is_correct ? "text-[#2D6A4F]" : "text-[#B83A4B]"}`}>
                           {q.user_answer_index >= 0 ? (LETTERS[q.user_answer_index] + ". " + (q.options?.[q.user_answer_index] || "")) : "—"}
                         </div>
                       </div>
-                      <div className="px-3 py-2 rounded-md bg-[#F8F6F0] border border-[#E2E0D8]">
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1]">Jawaban Benar</div>
+                      <div className="px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Jawaban Benar</div>
                         <div className="mt-1 text-[#2D6A4F]">
                           {q.correct_index >= 0 ? (LETTERS[q.correct_index] + ". " + (q.options?.[q.correct_index] || "")) : "—"}
                         </div>
                       </div>
                     </div>
-                    <div className="mt-4 text-sm text-[#1A1B26] leading-relaxed whitespace-pre-line">{q.explanation}</div>
+                    <div className="mt-4 text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-line">{q.explanation}</div>
                     {q.references?.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-[#E2E0D8]">
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-[#A0A2B1] flex items-center gap-1.5 mb-2">
+                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 flex items-center gap-1.5 mb-2">
                           <BookMarked className="w-3 h-3" /> Referensi Akademik
                         </div>
-                        <ul className="space-y-1.5 text-xs text-[#646675]">
+                        <ul className="space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
                           {q.references.map((r, j) => (
                             <li key={j} className="flex gap-2"><span className="font-mono text-[#B83A4B]">[{j + 1}]</span><span>{r}</span></li>
                           ))}
@@ -574,7 +574,7 @@ function QuizResultView({ session, onBack }) {
       )}
 
       <div className="mt-8">
-        <Button onClick={onBack} className="bg-[#1D2D50] hover:bg-[#15223E] text-white h-11 px-6 rounded-md">
+        <Button onClick={onBack} className="bg-[#1D2D50] dark:bg-blue-600 hover:bg-[#15223E] dark:hover:bg-blue-700 text-white h-11 px-6 rounded-md">
           Kembali ke Portal
         </Button>
       </div>

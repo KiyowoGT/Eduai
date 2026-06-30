@@ -161,8 +161,8 @@ class User(BaseModel):
             return self
 
         if self.account_type == AccountType.pribadi:
-            if self.title is not None or (self.titles and len(self.titles) > 0):
-                raise ValueError("Guru mandiri (akun pribadi) tidak boleh memiliki sub-role (title)")
+            self.title = None
+            self.titles = []
             return self
 
         if self.account_type == AccountType.perusahaan:
@@ -176,7 +176,7 @@ class User(BaseModel):
                 logging.getLogger(__name__).warning(
                     f"User {self.user_id} has guru_pengajar title but no assigned_subject"
                 )
-        
+
         return self
 
     def get_permissions(self) -> List[str]:
@@ -258,3 +258,5 @@ class OnboardingCompletePayload(BaseModel):
     current_semester: Optional[int] = None
     major: Optional[str] = None
     teaching_methods: Optional[List[str]] = None
+    hobby: Optional[str] = None
+    music_genre: Optional[str] = None

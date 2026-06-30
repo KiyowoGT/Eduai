@@ -327,6 +327,10 @@ async def onboarding_complete(payload: OnboardingCompletePayload, request: Reque
             update_data["nis"] = None
             update_data["nisn"] = None
             update_data["academic_year_id"] = None
+            if payload.hobby is not None:
+                update_data["hobby"] = payload.hobby
+            if payload.music_genre is not None:
+                update_data["music_genre"] = payload.music_genre
 
     unset_fields = {}
     if payload.role == "pengajar" and update_data.get("account_type") == "pribadi":

@@ -46,6 +46,11 @@ export default function AuthCallback() {
         const dest = isOnboarded ? "/dashboard" : "/onboarding";
         navigate(dest, { replace: true });
       } catch (e) {
+        console.error("AuthCallback error details:", {
+          message: e.message,
+          response: e.response?.data,
+          status: e.response?.status
+        });
         setErr(`Gagal: ${e.message || "Unknown error"}`);
         // Fallback: let AuthContext handle it, navigate to onboarding
         setTimeout(() => navigate("/onboarding", { replace: true }), 3500);
