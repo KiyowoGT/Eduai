@@ -214,9 +214,14 @@ async def get_document_quiz_results(document_id: str, user: User = Depends(get_c
 
 @router.get("/documents/{doc_id}/messages")
 async def list_discussion_messages(doc_id: str, user: User = Depends(get_current_user), limit: int = 50, before: Optional[str] = None):
-    doc = await _can_access_discussion(doc_id, user)
+    doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0}) # Check if document exists at all
     if not doc:
-        raise HTTPException(404, "Dokumen tidak ditemukan")
+        raise HTTPException(404, "Dokumen tidak ditemukan") # Still 404 if document itself is missing
+
+    # Check access (owner or participant)
+    access_doc = await _can_access_discussion(doc_id, user)
+    if not access_doc: # If no access, return empty data, not 404
+        return {"messages": [], "document": {"title": doc.get("title", ""), "filename": doc.get("filename", "")}, "has_more": False}
     query = {"document_id": doc_id}
     if before:
         query["created_at"] = {"$lt": before}
@@ -326,9 +331,14 @@ async def invite_to_discussion(doc_id: str, payload: DiscussionInvitePayload, us
 
 @router.get("/documents/{doc_id}/discussion/participants")
 async def list_discussion_participants(doc_id: str, user: User = Depends(get_current_user)):
-    doc = await _can_access_discussion(doc_id, user)
+    doc = await db.documents.find_one({"document_id": doc_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Dokumen tidak ditemukan")
+
+    # Check access (owner or participant)
+    access_doc = await _can_access_discussion(doc_id, user)
+    if not access_doc:
+        return {"participants": []}
 
     participants = []
     owner = await db.users.find_one({"user_id": doc.get("user_id")}, {"_id": 0, "user_id": 1, "name": 1, "picture": 1, "friend_code": 1})
